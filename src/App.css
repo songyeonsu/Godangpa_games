@@ -489,6 +489,27 @@ button {
   border-color: rgba(56, 189, 248, 0.5);
 }
 
+.floor-room-node.type-event {
+  border-color: rgba(216, 180, 254, 0.72);
+  background:
+    radial-gradient(circle at 50% 35%, rgba(216, 180, 254, 0.34), rgba(48, 24, 88, 0.96) 68%),
+    #2e1065;
+}
+
+.floor-room-node.type-rest {
+  border-color: rgba(110, 231, 183, 0.72);
+  background:
+    radial-gradient(circle at 50% 35%, rgba(167, 243, 208, 0.36), rgba(6, 78, 59, 0.96) 68%),
+    #064e3b;
+}
+
+.floor-room-node.type-shop {
+  border-color: rgba(251, 191, 36, 0.8);
+  background:
+    radial-gradient(circle at 50% 35%, rgba(254, 240, 138, 0.42), rgba(113, 63, 18, 0.96) 68%),
+    #713f12;
+}
+
 .floor-room-node.type-elite {
   border-color: rgba(196, 181, 253, 0.72);
   background: radial-gradient(circle at 50% 35%, rgba(196, 181, 253, 0.28), rgba(30, 20, 48, 0.96) 68%);

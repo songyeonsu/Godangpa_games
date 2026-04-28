@@ -29,6 +29,7 @@ const imagePaths = {
     character: "/images/wizard/character.png",
     cardBack: "/images/wizard/card-back.png",
     attack: "/images/wizard/magic-missile-card.png",
+    multiMagicMissile: "/images/wizard/multi-magic-missile-card.png",
     defense: "/images/wizard/shield-card.png",
   },
   archer: {
@@ -104,6 +105,35 @@ const RAW_CARD_POOL = {
         hp: Math.max(0, enemy.hp - calcDamage(7, player, enemy)),
         vulnerable: enemy.vulnerable + 1,
       },
+    }),
+  },
+  "mage-multi-magic-missile": {
+    id: "mage-multi-magic-missile",
+    rarity: "rare",
+    cardClass: "mage",
+    name: "다중 매직 미사일",
+    type: "attack",
+    typeLabel: "공격",
+    cost: 2,
+    desc: "모든 적에게 피해 8",
+    description: "모든 적에게 마법 미사일을 발사하여 8의 피해를 줍니다.",
+    damage: 8,
+    block: 0,
+    element: "arcane",
+    fullImage: imagePaths.mage.multiMagicMissile,
+    animationType: "magic",
+    play: ({ player, enemies }) => ({
+      enemies: enemies.map((enemy) => {
+        if (enemy.hp <= 0) return enemy;
+        const damage = calcDamage(8, player, enemy);
+        const blocked = Math.min(enemy.block || 0, damage);
+        const finalDamage = Math.max(0, damage - blocked);
+        return {
+          ...enemy,
+          block: Math.max(0, (enemy.block || 0) - blocked),
+          hp: Math.max(0, enemy.hp - finalDamage),
+        };
+      }),
     }),
   },
   "mage-shield": {
@@ -853,7 +883,16 @@ const ROOM_TYPE_META = {
   boss: { label: "보스방", shortLabel: "BOSS", icon: Crown },
   rest: { label: "휴식 방", shortLabel: "휴식", icon: Heart },
   event: { label: "이벤트 방", shortLabel: "이벤트", icon: Sparkles },
+  shop: { label: "상점 방", shortLabel: "상점", icon: Coins },
   reward: { label: "보상 방", shortLabel: "보상", icon: Trophy },
+};
+
+const NON_COMBAT_ROOM_TYPES = new Set(["event", "rest", "shop"]);
+const SHOP_CARD_VALUE_BY_RARITY = {
+  common: 80,
+  rare: 110,
+  epic: 140,
+  legendary: 150,
 };
 
 const FLOOR_ENEMY_TABLE = {
@@ -905,8 +944,8 @@ function buildFloorNodes(floor) {
     label: `${floor}-${index + 1}`,
     ring: 3,
     ringLabel: "외곽 원",
-    type: "normal",
-    typeLabel: ROOM_TYPE_META.normal.label,
+    type: index === 1 ? "event" : "normal",
+    typeLabel: index === 1 ? ROOM_TYPE_META.event.label : ROOM_TYPE_META.normal.label,
   }));
   const middle = [0, 1].map((index) => ({
     ...pickEnemyTemplate(floor, "normal", index + 3),
@@ -915,8 +954,8 @@ function buildFloorNodes(floor) {
     label: `${floor}-${index + 4}`,
     ring: 2,
     ringLabel: "중간 원",
-    type: "normal",
-    typeLabel: ROOM_TYPE_META.normal.label,
+    type: index === 0 ? "shop" : "rest",
+    typeLabel: index === 0 ? ROOM_TYPE_META.shop.label : ROOM_TYPE_META.rest.label,
   }));
   const elite = {
     ...pickEnemyTemplate(floor, "elite"),
@@ -984,6 +1023,80 @@ function shuffle(array) {
     [copied[i], copied[j]] = [copied[j], copied[i]];
   }
   return copied;
+}
+
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function healByPercent(player, percent) {
+  const amount = Math.max(1, Math.ceil(player.maxHp * (percent / 100)));
+  return {
+    amount: Math.min(amount, Math.max(0, player.maxHp - player.hp)),
+    rawAmount: amount,
+  };
+}
+
+function damageByPercent(player, percent) {
+  return Math.max(1, Math.ceil(player.maxHp * (percent / 100)));
+}
+
+function getCardBaseValue(card) {
+  return SHOP_CARD_VALUE_BY_RARITY[card?.rarity] || SHOP_CARD_VALUE_BY_RARITY.common;
+}
+
+function getExplorationCardPool(classId) {
+  return Object.keys(CARD_POOL).filter((id) => {
+    const card = CARD_POOL[id];
+    const cardClass = card.cardClass || "common";
+    return id !== "strike" && id !== "defend" && (cardClass === "common" || cardClass === classId);
+  });
+}
+
+function pickRandomExplorationCard(classId) {
+  const pool = getExplorationCardPool(classId);
+  return pool[randomInt(0, Math.max(0, pool.length - 1))] || Object.keys(CARD_POOL)[0];
+}
+
+function buildShopCards(classId) {
+  const pool = shuffle(getExplorationCardPool(classId)).slice(0, 3);
+  return pool.map((id, index) => ({
+    id,
+    stockId: `${id}-${Date.now()}-${index}-${randomInt(1000, 9999)}`,
+    price: randomInt(50, 150),
+  }));
+}
+
+function findSellableCard(deck) {
+  if (deck.length === 0) return null;
+  const counts = deck.reduce((acc, id) => {
+    acc[id] = (acc[id] || 0) + 1;
+    return acc;
+  }, {});
+  const duplicateId = deck.find((id) => counts[id] > 1);
+  const cardId = duplicateId || [...deck].sort((a, b) => getCardBaseValue(CARD_POOL[a]) - getCardBaseValue(CARD_POOL[b]))[0];
+  const card = CARD_POOL[cardId];
+  return {
+    id: cardId,
+    card,
+    value: Math.floor(getCardBaseValue(card) * 0.5),
+  };
+}
+
+function getRoomPreview(node) {
+  if (!node) return "";
+  if (node.type === "event") return "알 수 없는 사건이 기다립니다.";
+  if (node.type === "rest") return "안전한 숨 돌릴 곳이 보입니다.";
+  if (node.type === "shop") return "상인이 머무르는 작은 장터입니다.";
+  return `${node.enemy} 출현 예상`;
+}
+
+function isNonCombatRoom(stage) {
+  return NON_COMBAT_ROOM_TYPES.has(stage?.type);
 }
 
 function wait(ms) {
@@ -1144,6 +1257,82 @@ function getRewardCards(deck, classId) {
   }
 
   return selectedIds.map((id) => CARD_POOL[id]);
+}
+
+function buildRoomEncounter(stage, player, deck = []) {
+  if (stage.type === "rest") {
+    return {
+      type: "rest",
+      title: "휴식 방",
+      situation: "따뜻한 불빛이 바닥의 균열을 부드럽게 덮고 있다. 이곳에서는 잠시 무기를 내려놓아도 될 것 같다.",
+      choices: [
+        { id: "rest-full", label: "충분히 쉰다", hint: "최대 체력의 30~100% 회복" },
+        { id: "rest-short", label: "짧게 쉰다", hint: "최대 체력의 10~30% 회복 + 작은 보너스 가능" },
+        { id: "rest-leave", label: "그냥 떠난다", hint: "체력과 자원을 보존한 채 이동" },
+      ],
+    };
+  }
+
+  if (stage.type === "shop") {
+    const shopCards = buildShopCards(player.classId);
+    const featured = shopCards.find((item) => item.price <= player.gold) || shopCards[0];
+    const sellable = findSellableCard(deck);
+    return {
+      type: "shop",
+      title: "상점 방",
+      situation: "상인이 테이블 위에 여러 장의 카드를 펼쳐놓는다.",
+      shopCards,
+      featuredCardId: featured?.id,
+      choices: [
+        {
+          id: "shop-buy",
+          label: "카드 구매",
+          hint: featured ? `${CARD_POOL[featured.id].name} ${featured.price} 골드` : "구매 가능한 카드가 없습니다",
+        },
+        {
+          id: "shop-sell",
+          label: "카드 판매",
+          hint: sellable ? "카드 가치의 50% 획득" : "현재 덱에서 판매할 카드 선택",
+        },
+        { id: "shop-heal", label: "골드로 체력 회복", hint: "10골드당 최대 체력의 10% 회복" },
+      ],
+    };
+  }
+
+  const variants = [
+    {
+      title: "수상한 제단",
+      situation: "수상한 제단이 있다. 희미한 빛이 손짓하듯 새어나오고, 금이 간 석판에는 오래된 맹세가 새겨져 있다.",
+      choices: [
+        { id: "event-touch-altar", label: "제단에 손을 올린다", hint: "체력 변화, 카드, 최대 체력 중 하나" },
+        { id: "event-offer-gold", label: "골드를 바친다", hint: "10~50 골드 소비, 최대 체력 증가 가능" },
+        { id: "event-ignore", label: "무시하고 지나간다", hint: "아무 일도 일어나지 않거나 작은 발견" },
+      ],
+    },
+    {
+      title: "그림자 도박꾼",
+      situation: "망토를 뒤집어쓴 도박꾼이 낡은 카드 세 장을 펼친다. 카드 뒷면마다 다른 색의 불씨가 흔들린다.",
+      choices: [
+        { id: "event-gamble-gold", label: "30골드를 건다", hint: "확률 기반 보상 또는 손실" },
+        { id: "event-draw-card", label: "표식 카드를 뽑는다", hint: "랜덤 카드 또는 체력 감소" },
+        { id: "event-ignore", label: "상대를 지나친다", hint: "이벤트 종료" },
+      ],
+    },
+    {
+      title: "속삭이는 샘",
+      situation: "푸른 샘물이 낮게 속삭인다. 물 위에는 금빛 동전과 검은 잎사귀가 함께 떠 있다.",
+      choices: [
+        { id: "event-drink-spring", label: "샘물을 마신다", hint: "체력 회복 또는 감소" },
+        { id: "event-take-coins", label: "동전을 건져낸다", hint: "골드 획득 또는 도난" },
+        { id: "event-rest-spring", label: "샘 옆에 앉는다", hint: "소량 회복 또는 최대 체력 증가" },
+      ],
+    },
+  ];
+
+  return {
+    type: "event",
+    ...variants[randomInt(0, variants.length - 1)],
+  };
 }
 
 function CardIllustration({ card, rarityFrame, typeTheme }) {
@@ -2097,6 +2286,263 @@ function DeckManagementPanel({ deck, deckCount, inspectedCard, onInspectCard, cl
   );
 }
 
+function ShopCardButton({ item, onBuy }) {
+  const card = CARD_POOL[item.id];
+  if (!card) return null;
+
+  return (
+    <motion.button
+      type="button"
+      whileHover={{ y: -8, scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      onClick={() => onBuy(item)}
+      className="group relative min-h-64 overflow-hidden rounded-2xl border border-amber-200/35 bg-white p-4 text-left text-slate-950 shadow-xl transition hover:border-amber-300 hover:shadow-[0_0_30px_rgba(251,191,36,0.22)]"
+    >
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-50 via-white to-cyan-50 opacity-95" />
+      <div className="relative z-10 flex h-full flex-col">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-xl font-black leading-tight">{card.name}</div>
+            <div className="mt-1 text-xs font-black uppercase tracking-[0.14em] text-slate-500">{card.typeLabel || card.type}</div>
+          </div>
+          <span className="rounded-full bg-slate-950 px-2 py-1 text-[11px] font-black text-white">{card.rarity}</span>
+        </div>
+        <div className="my-4 h-px bg-slate-200" />
+        <p className="min-h-16 text-sm font-semibold leading-relaxed text-slate-700">{card.description || card.desc}</p>
+        <div className="mt-auto flex items-center justify-between gap-3 pt-5">
+          <span className="rounded-xl bg-amber-200 px-3 py-2 text-sm font-black text-amber-950">가격 {item.price}G</span>
+          <span className="text-xs font-bold text-cyan-700 opacity-0 transition group-hover:opacity-100">클릭하여 구매</span>
+        </div>
+      </div>
+    </motion.button>
+  );
+}
+
+function ShopDeckCardButton({ entry, onSell }) {
+  const value = Math.floor(getCardBaseValue(entry) * 0.5);
+  return (
+    <button
+      type="button"
+      onClick={() => onSell(entry.id)}
+      className="rounded-2xl border border-white/10 bg-white p-4 text-left text-slate-950 shadow-lg transition hover:-translate-y-0.5 hover:bg-amber-50"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="font-black">{entry.name}</div>
+          <div className="mt-1 text-xs font-bold text-slate-500">{entry.typeLabel} / {entry.rarity}</div>
+        </div>
+        <span className="rounded-full bg-slate-900 px-2 py-1 text-xs font-black text-white">x{entry.amount}</span>
+      </div>
+      <p className="mt-3 min-h-10 text-sm text-slate-600">{entry.description || entry.desc}</p>
+      <div className="mt-3 text-sm font-black text-amber-700">판매가 {value}G</div>
+    </button>
+  );
+}
+
+function ShopRoomPanel({ encounter, result, player, deck, onBuyCard, onSellCard, onHeal, onLeave }) {
+  const [view, setView] = useState("table");
+  const deckEntries = Object.entries(
+    deck.reduce((acc, id) => {
+      acc[id] = (acc[id] || 0) + 1;
+      return acc;
+    }, {}),
+  ).map(([id, amount]) => ({ ...CARD_POOL[id], id, amount }));
+
+  return (
+    <motion.section
+      key="shop-room"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -12 }}
+      className="rounded-3xl border border-white/10 bg-slate-950/55 p-5 text-slate-100 shadow-2xl"
+    >
+      <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div>
+          <div className="text-sm font-black uppercase tracking-[0.18em] text-amber-200">상점 방</div>
+          <h2 className="mt-1 text-3xl font-black">상인의 카드 테이블</h2>
+        </div>
+        <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-200">
+          <span className="rounded-xl bg-white/10 px-3 py-2">HP {player.hp}/{player.maxHp}</span>
+          <span className="rounded-xl bg-white/10 px-3 py-2">골드 {player.gold}</span>
+          <span className="rounded-xl bg-white/10 px-3 py-2">카드 {deck.length}장</span>
+        </div>
+      </div>
+
+      <section className="rounded-2xl bg-white p-4 text-slate-950">
+        <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">상황 설명</div>
+        <p className="mt-2 text-base font-semibold leading-relaxed">{encounter.situation}</p>
+      </section>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setView((current) => (current === "deck" ? "table" : "deck"))}
+          className="rounded-2xl bg-cyan-300 px-4 py-3 font-black text-slate-950 hover:bg-cyan-200"
+        >
+          {view === "deck" ? "카드 테이블" : "덱 열기 / 카드 판매"}
+        </button>
+        <button type="button" onClick={onHeal} className="rounded-2xl bg-emerald-300 px-4 py-3 font-black text-emerald-950 hover:bg-emerald-200">
+          체력 회복
+        </button>
+        <button type="button" onClick={onLeave} className="rounded-2xl bg-white px-4 py-3 font-black text-slate-950 hover:bg-cyan-100">
+          상점 떠나기
+        </button>
+      </div>
+
+      {view === "table" ? (
+        <section className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="mb-3 text-sm font-black text-amber-200">테이블 위 카드</div>
+          {encounter.shopCards.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-3">
+              {encounter.shopCards.map((item) => (
+                <ShopCardButton key={item.stockId} item={item} onBuy={onBuyCard} />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-white/10 p-5 text-sm text-slate-300">진열된 카드를 모두 구매했습니다.</div>
+          )}
+        </section>
+      ) : (
+        <section className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="mb-3 text-sm font-black text-cyan-200">판매할 카드 선택</div>
+          {deckEntries.length > 0 ? (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {deckEntries.map((entry) => (
+                <ShopDeckCardButton key={entry.id} entry={entry} onSell={onSellCard} />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-white/10 p-5 text-sm text-slate-300">판매할 카드가 없습니다.</div>
+          )}
+        </section>
+      )}
+
+      <section className="mt-4 rounded-2xl border border-white/10 bg-slate-900/70 p-4">
+        <div className="mb-2 text-sm font-black text-amber-200">결과</div>
+        {result ? (
+          <div>
+            <div className="text-lg font-black text-white">{result.summary}</div>
+            <div className="mt-3 grid gap-2 text-sm text-slate-300 md:grid-cols-2">
+              {result.details.map((detail) => (
+                <div key={detail} className="rounded-xl bg-white/5 px-3 py-2">{detail}</div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-400">카드를 클릭해 구매하거나 덱을 열어 판매할 수 있습니다.</p>
+        )}
+      </section>
+    </motion.section>
+  );
+}
+
+function RoomEncounterPanel({ encounter, result, player, deck, onChoose, onContinue, onShopBuyCard, onShopSellCard, onShopHeal, onShopLeave }) {
+  if (!encounter) return null;
+
+  if (encounter.type === "shop") {
+    return (
+      <ShopRoomPanel
+        encounter={encounter}
+        result={result}
+        player={player}
+        deck={deck}
+        onBuyCard={onShopBuyCard}
+        onSellCard={onShopSellCard}
+        onHeal={onShopHeal}
+        onLeave={onShopLeave}
+      />
+    );
+  }
+
+  return (
+    <motion.section
+      key="room"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -12 }}
+      className="rounded-3xl border border-white/10 bg-slate-950/55 p-5 text-slate-100 shadow-2xl"
+    >
+      <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div>
+          <div className="text-sm font-black uppercase tracking-[0.18em] text-cyan-200">{ROOM_TYPE_META[encounter.type]?.label || encounter.title}</div>
+          <h2 className="mt-1 text-3xl font-black">{encounter.title}</h2>
+        </div>
+        <div className="flex flex-wrap gap-2 text-xs font-bold text-slate-200">
+          <span className="rounded-xl bg-white/10 px-3 py-2">HP {player.hp}/{player.maxHp}</span>
+          <span className="rounded-xl bg-white/10 px-3 py-2">골드 {player.gold}</span>
+          <span className="rounded-xl bg-white/10 px-3 py-2">카드 {deck.length}장</span>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <section className="rounded-2xl bg-white p-4 text-slate-950">
+          <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">상황 설명</div>
+          <p className="mt-2 text-base font-semibold leading-relaxed">{encounter.situation}</p>
+        </section>
+
+        {encounter.type === "shop" && (
+          <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="mb-3 text-sm font-black text-amber-200">상점 목록</div>
+            <div className="grid gap-2 md:grid-cols-3">
+              {encounter.shopCards.map((item) => {
+                const card = CARD_POOL[item.id];
+                return (
+                  <div key={`${item.id}-${item.price}`} className="rounded-2xl bg-white/10 p-3">
+                    <div className="font-black text-white">{card.name}</div>
+                    <div className="mt-1 text-xs text-slate-300">{card.typeLabel} / {card.rarity}</div>
+                    <div className="mt-2 text-sm font-black text-amber-200">{item.price} 골드</div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="mb-3 text-sm font-black text-cyan-200">선택지</div>
+          <div className="grid gap-3 md:grid-cols-3">
+            {encounter.choices.map((choice) => (
+              <button
+                key={choice.id}
+                type="button"
+                onClick={() => onChoose(choice)}
+                disabled={Boolean(result)}
+                className="min-h-28 rounded-2xl border border-white/10 bg-white px-4 py-3 text-left text-slate-950 shadow-lg transition hover:-translate-y-0.5 hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-55"
+              >
+                <div className="text-base font-black">{choice.label}</div>
+                <div className="mt-2 text-sm leading-relaxed text-slate-600">{choice.hint}</div>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
+          <div className="mb-2 text-sm font-black text-amber-200">결과</div>
+          {result ? (
+            <div>
+              <div className="text-lg font-black text-white">{result.summary}</div>
+              <div className="mt-3 grid gap-2 text-sm text-slate-300 md:grid-cols-2">
+                {result.details.map((detail) => (
+                  <div key={detail} className="rounded-xl bg-white/5 px-3 py-2">{detail}</div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={onContinue}
+                className="mt-4 rounded-2xl bg-cyan-300 px-5 py-3 font-black text-slate-950 shadow-lg hover:bg-cyan-200"
+              >
+                계속 이동
+              </button>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-400">선택하면 결과가 즉시 적용됩니다.</p>
+          )}
+        </section>
+      </div>
+    </motion.section>
+  );
+}
+
 function TowerMapScreen({
   player,
   currentClassTheme,
@@ -2138,7 +2584,7 @@ function TowerMapScreen({
           <div className="tower-stat-grid">
             <div>직업 <strong>{currentClassTheme.name}</strong></div>
             <div>체력 <strong>{player.hp}/{player.maxHp}</strong></div>
-            <div>골드 <strong>0</strong></div>
+            <div>골드 <strong>{player.gold}</strong></div>
             <div>덱 <strong>{deck.length}장</strong></div>
           </div>
         </header>
@@ -2205,7 +2651,7 @@ function TowerMapScreen({
                 </div>
                 <div className="tower-detail-stat">
                   <span>내부 구조</span>
-                  <strong>외곽 3 / 중간 2 / 정예 1 / 보스 1</strong>
+                  <strong>전투 2 / 이벤트 1 / 상점 1 / 휴식 1 / 정예 1 / 보스 1</strong>
                 </div>
               </div>
               <button
@@ -2253,7 +2699,7 @@ function FloorMapScreen({
             </div>
             <h1 className="mt-1 text-4xl font-black">던전 {floor}층 내부</h1>
             <p className="mt-1 text-sm text-slate-300">
-              {currentClassTheme.name} / HP {player.hp}/{player.maxHp} / 덱 {deck.length}장 / 현재 목표: {nextNode ? `${nextNode.ringLabel} ${ROOM_TYPE_META[nextNode.type].label}` : "중앙 보스 공략 완료"}
+              {currentClassTheme.name} / HP {player.hp}/{player.maxHp} / 골드 {player.gold} / 덱 {deck.length}장 / 현재 목표: {nextNode ? `${nextNode.ringLabel} ${ROOM_TYPE_META[nextNode.type].label}` : "중앙 보스 공략 완료"}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -2328,7 +2774,7 @@ function FloorMapScreen({
                 {nextNode ? (
                   <>
                     다음 진입 가능 방: <strong className="text-white">{ROOM_TYPE_META[nextNode.type].label}</strong>
-                    <div className="mt-1 text-xs text-slate-400">{nextNode.enemy} 출현 예상</div>
+                    <div className="mt-1 text-xs text-slate-400">{getRoomPreview(nextNode)}</div>
                   </>
                 ) : (
                   "이 층의 모든 방을 공략했습니다."
@@ -2346,6 +2792,7 @@ export default function DeckbuilderRoguelikePrototype() {
   const [player, setPlayer] = useState({
     hp: 0,
     maxHp: 0,
+    gold: 0,
     block: 0,
     energy: 3,
     maxEnergy: 3,
@@ -2369,6 +2816,8 @@ export default function DeckbuilderRoguelikePrototype() {
   const [log, setLog] = useState(["캐릭터를 선택하면 첫 전투가 시작됩니다."]);
   const [rewards, setRewards] = useState([]);
   const [flippedRewards, setFlippedRewards] = useState([]);
+  const [roomEncounter, setRoomEncounter] = useState(null);
+  const [roomResult, setRoomResult] = useState(null);
   const [relics, setRelics] = useState([]);
   const [selectedCharacterId, setSelectedCharacterId] = useState(null);
   const [selectedStage, setSelectedStage] = useState(null);
@@ -2453,6 +2902,7 @@ export default function DeckbuilderRoguelikePrototype() {
     setPlayer({
       hp: profile.hp,
       maxHp: profile.hp,
+      gold: 80,
       block: profile.defense,
       energy: profile.energy || 3,
       maxEnergy: profile.maxEnergy || profile.energy || 3,
@@ -2480,6 +2930,8 @@ export default function DeckbuilderRoguelikePrototype() {
     setTurn(1);
     setRewards([]);
     setFlippedRewards([]);
+    setRoomEncounter(null);
+    setRoomResult(null);
     setRelics([]);
     setShowDeckManager(false);
     setInspectedCardId(null);
@@ -2491,7 +2943,7 @@ export default function DeckbuilderRoguelikePrototype() {
     setSpeedGauge({ player: 0, enemy: 0 });
     setPhase("towerMap");
     setLog([
-      `${profile.name} 선택 완료. 100층 고대탑의 1층이 열렸습니다.`,
+      `${profile.name} 선택 완료. 시작 자금 80골드를 챙겨 100층 고대탑의 1층이 열렸습니다.`,
       "보상 카드, 희귀도, 속도 기반 전투가 적용됩니다.",
     ]);
   }
@@ -2539,9 +2991,45 @@ export default function DeckbuilderRoguelikePrototype() {
     selectStage(stage);
   }
 
+  function markStageCleared(stage) {
+    if (!stage) return;
+    setClearedNodesByFloor((prev) => {
+      const floor = stage.floor;
+      const nextFloorNodes = Array.from(new Set([...(prev[floor] || []), stage.id]));
+      return { ...prev, [floor]: nextFloorNodes };
+    });
+  }
+
+  function enterNonCombatRoom(stage) {
+    const encounter = buildRoomEncounter(stage, player, deck);
+    setSelectedStage(stage);
+    setRoomEncounter(encounter);
+    setRoomResult(null);
+    setDrawPile([]);
+    setHand([]);
+    setDiscardPile([]);
+    setExhaustPile([]);
+    setRewards([]);
+    setFlippedRewards([]);
+    setShowDeckManager(false);
+    setInspectedCardId(null);
+    setPhase("room");
+    setLog([
+      `상황: ${encounter.situation}`,
+      encounter.type === "shop"
+        ? "선택지: 카드 클릭 구매 / 덱 열기 판매 / 체력 회복 / 상점 떠나기"
+        : `선택지: ${encounter.choices.map((choice) => choice.label).join(" / ")}`,
+    ]);
+  }
+
   function selectStage(stage) {
     if (!player.classId) {
       setPhase("character-select");
+      return;
+    }
+
+    if (isNonCombatRoom(stage)) {
+      enterNonCombatRoom(stage);
       return;
     }
 
@@ -2558,6 +3046,8 @@ export default function DeckbuilderRoguelikePrototype() {
     setExhaustPile([]);
     setRewards([]);
     setFlippedRewards([]);
+    setRoomEncounter(null);
+    setRoomResult(null);
     setShowDeckManager(false);
     setInspectedCardId(null);
     setIsCardAnimating(false);
@@ -2636,30 +3126,43 @@ export default function DeckbuilderRoguelikePrototype() {
 
     const effectivePlayer =
       player.classId === "mage" && card.type === "attack" ? { ...player, strength: player.strength + comboStacks } : player;
-    const result = card.play({ player: effectivePlayer, enemy: targetEnemy, drawCards: drawHelper });
+    const result = card.play({ player: effectivePlayer, enemy: targetEnemy, enemies, drawCards: drawHelper });
     const nextPlayer = { ...(result.player || player), energy: player.energy - card.cost };
-    const nextTargetEnemy = result.enemy || targetEnemy;
-    const nextEnemies = enemies.map((entry, index) => (index === targetIndex ? nextTargetEnemy : entry));
+    const nextEnemies = result.enemies || enemies.map((entry, index) => (index === targetIndex ? result.enemy || targetEnemy : entry));
+    const nextTargetEnemy = nextEnemies[targetIndex] || targetEnemy;
     const allDefeated = areAllEnemiesDefeated(nextEnemies);
-    const damageDone = Math.max(0, targetEnemy.hp - nextTargetEnemy.hp);
+    const damageByEnemy = nextEnemies.map((entry, index) => Math.max(0, (enemies[index]?.hp || 0) - entry.hp));
+    const damageDone = damageByEnemy[targetIndex] || 0;
 
     await wait(330);
 
     if (card.type === "attack") {
+      const damagedIndexes = damageByEnemy
+        .map((damage, index) => ({ damage, index }))
+        .filter(({ damage }) => damage > 0);
+      const effectTargets = damagedIndexes.length > 0 ? damagedIndexes : [{ damage: damageDone, index: targetIndex }];
       const effectKey = `${cardId}-${targetIndex}-${Date.now()}`;
       setHitEffects((current) => ({
         ...current,
-        [targetIndex]: {
-          key: effectKey,
-          type: card.animationType,
-          damage: damageDone,
-        },
+        ...Object.fromEntries(
+          effectTargets.map(({ damage, index }) => [
+            index,
+            {
+              key: `${effectKey}-${index}`,
+              type: card.animationType,
+              damage,
+            },
+          ]),
+        ),
       }));
       window.setTimeout(() => {
         setHitEffects((current) => {
-          if (current[targetIndex]?.key !== effectKey) return current;
           const next = { ...current };
-          delete next[targetIndex];
+          effectTargets.forEach(({ index }) => {
+            if (next[index]?.key === `${effectKey}-${index}`) {
+              delete next[index];
+            }
+          });
           return next;
         });
       }, 850);
@@ -2698,14 +3201,384 @@ export default function DeckbuilderRoguelikePrototype() {
     }
   }
 
-  function finishBattle(isBoss) {
-    if (selectedStage) {
-      setClearedNodesByFloor((prev) => {
-        const floor = selectedStage.floor;
-        const nextFloorNodes = Array.from(new Set([...(prev[floor] || []), selectedStage.id]));
-        return { ...prev, [floor]: nextFloorNodes };
-      });
+  function finishRoomChoice(result, nextPlayer = player, nextDeck = deck) {
+    setPlayer(nextPlayer);
+    setDeck(nextDeck);
+    setRoomResult(result);
+    markStageCleared(selectedStage);
+    pushLog(`결과: ${result.summary}`);
+  }
+
+  function showShopFeedback(summary, details) {
+    const feedback = { choiceLabel: "상점", summary, details };
+    setRoomResult(feedback);
+    pushLog(`결과: ${summary}`);
+  }
+
+  function handleShopBuyCard(item) {
+    if (phase !== "room" || roomEncounter?.type !== "shop") return;
+    const card = CARD_POOL[item.id];
+    if (!card) return;
+
+    if (player.gold < item.price) {
+      showShopFeedback("골드가 부족합니다.", [`보유 골드: ${player.gold}`, `필요 골드: ${item.price}`, `${card.name} 구매 실패`]);
+      return;
     }
+
+    const nextPlayer = { ...player, gold: player.gold - item.price };
+    const nextDeck = [...deck, item.id];
+    setPlayer(nextPlayer);
+    setDeck(nextDeck);
+    setRoomEncounter((current) => ({
+      ...current,
+      shopCards: (current?.shopCards || []).filter((stock) => stock.stockId !== item.stockId),
+    }));
+    showShopFeedback(`${card.name} 카드를 구매했습니다.`, [
+      `가격: ${item.price}G`,
+      `골드: ${player.gold} → ${nextPlayer.gold}`,
+      `카드 +1: ${card.name}`,
+      `현재 덱: ${nextDeck.length}장`,
+    ]);
+  }
+
+  function handleShopSellCard(cardId) {
+    if (phase !== "room" || roomEncounter?.type !== "shop") return;
+    const card = CARD_POOL[cardId];
+    if (!card) return;
+    const value = Math.floor(getCardBaseValue(card) * 0.5);
+    const confirmed = window.confirm(`${card.name} 카드를 ${value}G에 판매하시겠습니까?`);
+    if (!confirmed) {
+      showShopFeedback("카드 판매를 취소했습니다.", [`대상 카드: ${card.name}`, `판매 예정가: ${value}G`]);
+      return;
+    }
+
+    let removed = false;
+    const nextDeck = deck.filter((id) => {
+      if (!removed && id === cardId) {
+        removed = true;
+        return false;
+      }
+      return true;
+    });
+    if (!removed) {
+      showShopFeedback("판매할 카드를 찾지 못했습니다.", [`대상 카드: ${card.name}`]);
+      return;
+    }
+
+    const nextPlayer = { ...player, gold: player.gold + value };
+    setDeck(nextDeck);
+    setPlayer(nextPlayer);
+    showShopFeedback(`${card.name} 카드를 판매했습니다.`, [
+      `판매가: ${value}G`,
+      `골드: ${player.gold} → ${nextPlayer.gold}`,
+      `현재 덱: ${nextDeck.length}장`,
+    ]);
+  }
+
+  function handleShopHeal() {
+    if (phase !== "room" || roomEncounter?.type !== "shop") return;
+    const missingHp = Math.max(0, player.maxHp - player.hp);
+    const healUnit = Math.max(1, Math.ceil(player.maxHp * 0.1));
+    const affordableUnits = Math.floor(player.gold / 10);
+    const neededUnits = Math.ceil(missingHp / healUnit);
+    const units = Math.min(affordableUnits, neededUnits);
+
+    if (missingHp <= 0) {
+      showShopFeedback("이미 체력이 가득 차 있어 회복약을 사지 않았습니다.", [`체력: ${player.hp}/${player.maxHp}`]);
+      return;
+    }
+
+    if (units <= 0) {
+      showShopFeedback("골드가 부족합니다.", [`보유 골드: ${player.gold}`, "필요 골드: 최소 10"]);
+      return;
+    }
+
+    const cost = units * 10;
+    const healed = Math.min(missingHp, units * healUnit);
+    const nextPlayer = { ...player, gold: player.gold - cost, hp: player.hp + healed };
+    setPlayer(nextPlayer);
+    showShopFeedback(`체력 ${healed}을 회복했습니다.`, [
+      `비용: ${cost}G`,
+      `10G당 회복량: 최대 체력의 10%(${healUnit})`,
+      `체력: ${player.hp}/${player.maxHp} → ${nextPlayer.hp}/${nextPlayer.maxHp}`,
+      `골드: ${player.gold} → ${nextPlayer.gold}`,
+    ]);
+  }
+
+  function leaveShopRoom() {
+    if (phase !== "room" || roomEncounter?.type !== "shop") return;
+    markStageCleared(selectedStage);
+    setRoomEncounter(null);
+    setRoomResult(null);
+    setSelectedStage(null);
+    setTurn(1);
+    setPhase("floorMap");
+    pushLog(`상점을 떠났습니다. 던전 ${currentFloor}층 내부 지도로 돌아갑니다.`);
+  }
+
+  function handleRoomChoice(choice) {
+    if (phase !== "room" || !roomEncounter || roomResult) return;
+
+    let nextPlayer = { ...player };
+    let nextDeck = [...deck];
+    let summary = "";
+    const details = [];
+
+    const addCard = (cardId) => {
+      const card = CARD_POOL[cardId];
+      nextDeck = [...nextDeck, cardId];
+      summary = `${card.name} 카드 1장을 획득했습니다.`;
+      details.push(`카드 +1: ${card.name}`);
+      details.push(`현재 덱: ${nextDeck.length}장`);
+    };
+
+    const applyHeal = (percent, sourceText) => {
+      const heal = healByPercent(nextPlayer, percent);
+      nextPlayer = { ...nextPlayer, hp: Math.min(nextPlayer.maxHp, nextPlayer.hp + heal.rawAmount) };
+      summary = `${sourceText} 체력 ${heal.amount} 회복.`;
+      details.push(`회복률: ${percent}%`);
+      details.push(`체력: ${player.hp}/${player.maxHp} → ${nextPlayer.hp}/${nextPlayer.maxHp}`);
+    };
+
+    const applyDamage = (percent, sourceText) => {
+      const damage = damageByPercent(nextPlayer, percent);
+      nextPlayer = { ...nextPlayer, hp: Math.max(0, nextPlayer.hp - damage) };
+      summary = `${sourceText} 체력 ${damage} 감소.`;
+      details.push(`감소율: ${percent}%`);
+      details.push(`체력: ${player.hp}/${player.maxHp} → ${nextPlayer.hp}/${nextPlayer.maxHp}`);
+    };
+
+    if (choice.id === "rest-full") {
+      const percent = randomInt(30, 100);
+      applyHeal(percent, "깊은 잠이 오래된 피로를 씻어냈습니다.");
+    }
+
+    if (choice.id === "rest-short") {
+      const percent = randomInt(10, 30);
+      applyHeal(percent, "짧은 휴식으로 호흡이 안정되었습니다.");
+      const bonusRoll = Math.random();
+      if (bonusRoll < 0.4) {
+        const gold = randomInt(10, 30);
+        nextPlayer = { ...nextPlayer, gold: nextPlayer.gold + gold };
+        details.push(`작은 보너스: 숨겨둔 주머니에서 ${gold} 골드 발견`);
+        summary += ` 숨겨둔 주머니에서 ${gold} 골드도 발견했습니다.`;
+      } else if (bonusRoll < 0.7) {
+        const cardId = pickRandomExplorationCard(nextPlayer.classId);
+        nextDeck = [...nextDeck, cardId];
+        details.push(`작은 보너스: ${CARD_POOL[cardId].name} 카드 +1`);
+        summary += ` 불씨 곁에서 ${CARD_POOL[cardId].name} 카드도 챙겼습니다.`;
+      }
+    }
+
+    if (choice.id === "rest-leave") {
+      summary = "휴식 공간을 그대로 지나쳤습니다.";
+      details.push(`체력 유지: ${nextPlayer.hp}/${nextPlayer.maxHp}`);
+      details.push(`골드 유지: ${nextPlayer.gold}`);
+    }
+
+    if (choice.id === "shop-buy") {
+      const affordable = (roomEncounter.shopCards || []).filter((item) => item.price <= nextPlayer.gold);
+      const item = affordable[0] || (roomEncounter.shopCards || [])[0];
+      if (!item) {
+        summary = "상점 진열대가 비어 있어 아무것도 구매하지 못했습니다.";
+        details.push("카드 변화 없음");
+      } else if (item.price > nextPlayer.gold) {
+        summary = `${CARD_POOL[item.id].name} 카드는 ${item.price} 골드라서 구매하지 못했습니다.`;
+        details.push(`보유 골드: ${nextPlayer.gold}`);
+        details.push(`필요 골드: ${item.price}`);
+      } else {
+        nextPlayer = { ...nextPlayer, gold: nextPlayer.gold - item.price };
+        nextDeck = [...nextDeck, item.id];
+        summary = `${CARD_POOL[item.id].name} 카드를 ${item.price} 골드에 구매했습니다.`;
+        details.push(`골드: ${player.gold} → ${nextPlayer.gold}`);
+        details.push(`카드 +1: ${CARD_POOL[item.id].name}`);
+      }
+    }
+
+    if (choice.id === "shop-sell") {
+      const sellable = findSellableCard(nextDeck);
+      if (!sellable) {
+        summary = "판매할 카드가 없어 거래를 마쳤습니다.";
+        details.push("덱 변화 없음");
+      } else {
+        let removed = false;
+        nextDeck = nextDeck.filter((id) => {
+          if (!removed && id === sellable.id) {
+            removed = true;
+            return false;
+          }
+          return true;
+        });
+        nextPlayer = { ...nextPlayer, gold: nextPlayer.gold + sellable.value };
+        summary = `${sellable.card.name} 카드를 팔아 ${sellable.value} 골드를 받았습니다.`;
+        details.push(`판매 가격: 카드 가치 ${getCardBaseValue(sellable.card)}의 50%`);
+        details.push(`골드: ${player.gold} → ${nextPlayer.gold}`);
+        details.push(`현재 덱: ${nextDeck.length}장`);
+      }
+    }
+
+    if (choice.id === "shop-heal") {
+      const missingHp = Math.max(0, nextPlayer.maxHp - nextPlayer.hp);
+      const healUnit = Math.max(1, Math.ceil(nextPlayer.maxHp * 0.1));
+      const affordableUnits = Math.floor(nextPlayer.gold / 10);
+      const neededUnits = Math.ceil(missingHp / healUnit);
+      const units = Math.min(affordableUnits, neededUnits);
+      if (missingHp <= 0) {
+        summary = "이미 체력이 가득 차 있어 회복약을 사지 않았습니다.";
+        details.push(`체력: ${nextPlayer.hp}/${nextPlayer.maxHp}`);
+      } else if (units <= 0) {
+        summary = "골드가 부족해 회복약을 사지 못했습니다.";
+        details.push(`보유 골드: ${nextPlayer.gold}`);
+        details.push("필요 골드: 최소 10");
+      } else {
+        const cost = units * 10;
+        const healed = Math.min(missingHp, units * healUnit);
+        nextPlayer = { ...nextPlayer, gold: nextPlayer.gold - cost, hp: nextPlayer.hp + healed };
+        summary = `${cost} 골드를 내고 체력 ${healed}을 회복했습니다.`;
+        details.push(`10골드당 회복량: 최대 체력의 10%(${healUnit})`);
+        details.push(`체력: ${player.hp}/${player.maxHp} → ${nextPlayer.hp}/${nextPlayer.maxHp}`);
+        details.push(`골드: ${player.gold} → ${nextPlayer.gold}`);
+      }
+    }
+
+    if (choice.id === "event-touch-altar") {
+      const roll = randomInt(1, 5);
+      if (roll === 1) addCard(pickRandomExplorationCard(nextPlayer.classId));
+      if (roll === 2) applyHeal(randomInt(10, 50), "제단의 빛이 상처를 꿰맸습니다.");
+      if (roll === 3) applyDamage(randomInt(5, 30), "제단의 열기가 피를 태웠습니다.");
+      if (roll === 4) {
+        const gain = randomInt(5, 20);
+        nextPlayer = { ...nextPlayer, maxHp: nextPlayer.maxHp + gain, hp: nextPlayer.hp + gain };
+        summary = `제단이 생명력을 새겨 최대 체력 ${gain}을 얻었습니다.`;
+        details.push(`최대 체력: ${player.maxHp} → ${nextPlayer.maxHp}`);
+        details.push(`체력: ${player.hp}/${player.maxHp} → ${nextPlayer.hp}/${nextPlayer.maxHp}`);
+      }
+      if (roll === 5) {
+        const gold = randomInt(10, 100);
+        nextPlayer = { ...nextPlayer, gold: nextPlayer.gold + gold };
+        summary = `제단 아래에서 오래된 금화 ${gold} 골드를 발견했습니다.`;
+        details.push(`골드: ${player.gold} → ${nextPlayer.gold}`);
+      }
+    }
+
+    if (choice.id === "event-offer-gold") {
+      const cost = randomInt(10, 50);
+      if (nextPlayer.gold < cost) {
+        summary = `제단은 ${cost} 골드를 요구했지만, 주머니가 가벼워 아무 일도 일어나지 않았습니다.`;
+        details.push(`보유 골드: ${nextPlayer.gold}`);
+      } else {
+        nextPlayer = { ...nextPlayer, gold: nextPlayer.gold - cost };
+        if (Math.random() < 0.7) {
+          const gain = randomInt(5, 20);
+          nextPlayer = { ...nextPlayer, maxHp: nextPlayer.maxHp + gain, hp: nextPlayer.hp + gain };
+          summary = `${cost} 골드를 바치자 최대 체력 ${gain}이 증가했습니다.`;
+          details.push(`골드: ${player.gold} → ${nextPlayer.gold}`);
+          details.push(`최대 체력: ${player.maxHp} → ${nextPlayer.maxHp}`);
+        } else {
+          summary = `${cost} 골드를 바쳤지만 제단은 차갑게 침묵했습니다.`;
+          details.push(`골드: ${player.gold} → ${nextPlayer.gold}`);
+        }
+      }
+    }
+
+    if (choice.id === "event-ignore") {
+      if (Math.random() < 0.25) {
+        const gold = randomInt(10, 30);
+        nextPlayer = { ...nextPlayer, gold: nextPlayer.gold + gold };
+        summary = `조용히 지나가던 중 바닥 틈에서 ${gold} 골드를 주웠습니다.`;
+        details.push(`골드: ${player.gold} → ${nextPlayer.gold}`);
+      } else {
+        summary = "불길한 기척을 뒤로하고 조용히 지나갔습니다.";
+        details.push(`체력 유지: ${nextPlayer.hp}/${nextPlayer.maxHp}`);
+        details.push(`골드 유지: ${nextPlayer.gold}`);
+      }
+    }
+
+    if (choice.id === "event-gamble-gold") {
+      const stake = 30;
+      if (nextPlayer.gold < stake) {
+        summary = "도박꾼은 빈 주머니를 보고 웃더니 카드를 거두었습니다.";
+        details.push(`보유 골드: ${nextPlayer.gold}`);
+      } else {
+        nextPlayer = { ...nextPlayer, gold: nextPlayer.gold - stake };
+        if (Math.random() < 0.55) {
+          const prize = randomInt(60, 100);
+          nextPlayer = { ...nextPlayer, gold: nextPlayer.gold + prize };
+          summary = `도박에서 이겨 ${prize} 골드를 따냈습니다.`;
+          details.push(`베팅: ${stake} 골드`);
+          details.push(`골드: ${player.gold} → ${nextPlayer.gold}`);
+        } else {
+          const damage = damageByPercent(nextPlayer, randomInt(5, 20));
+          nextPlayer = { ...nextPlayer, hp: Math.max(0, nextPlayer.hp - damage) };
+          summary = `도박에서 패배해 ${stake} 골드를 잃고 체력 ${damage}이 감소했습니다.`;
+          details.push(`골드: ${player.gold} → ${nextPlayer.gold}`);
+          details.push(`체력: ${player.hp}/${player.maxHp} → ${nextPlayer.hp}/${nextPlayer.maxHp}`);
+        }
+      }
+    }
+
+    if (choice.id === "event-draw-card") {
+      if (Math.random() < 0.6) {
+        addCard(pickRandomExplorationCard(nextPlayer.classId));
+      } else {
+        applyDamage(randomInt(5, 30), "표식 카드가 손바닥에 검은 문장을 남겼습니다.");
+      }
+    }
+
+    if (choice.id === "event-drink-spring") {
+      if (Math.random() < 0.7) applyHeal(randomInt(10, 50), "샘물이 몸속에서 은은하게 퍼졌습니다.");
+      else applyDamage(randomInt(5, 20), "샘물에 섞인 독기가 목을 타고 번졌습니다.");
+    }
+
+    if (choice.id === "event-take-coins") {
+      if (Math.random() < 0.65) {
+        const gold = randomInt(10, 100);
+        nextPlayer = { ...nextPlayer, gold: nextPlayer.gold + gold };
+        summary = `샘 바닥에서 ${gold} 골드를 건져 올렸습니다.`;
+        details.push(`골드: ${player.gold} → ${nextPlayer.gold}`);
+      } else {
+        const loss = Math.min(nextPlayer.gold, randomInt(10, 50));
+        nextPlayer = { ...nextPlayer, gold: nextPlayer.gold - loss };
+        summary = `물그림자가 주머니를 스쳐 ${loss} 골드를 훔쳐 갔습니다.`;
+        details.push(`골드: ${player.gold} → ${nextPlayer.gold}`);
+      }
+    }
+
+    if (choice.id === "event-rest-spring") {
+      if (Math.random() < 0.5) {
+        applyHeal(randomInt(10, 30), "샘가의 고요함이 상처를 누그러뜨렸습니다.");
+      } else {
+        const gain = randomInt(5, 12);
+        nextPlayer = { ...nextPlayer, maxHp: nextPlayer.maxHp + gain, hp: nextPlayer.hp + gain };
+        summary = `샘의 숨결이 몸에 남아 최대 체력 ${gain}이 증가했습니다.`;
+        details.push(`최대 체력: ${player.maxHp} → ${nextPlayer.maxHp}`);
+        details.push(`체력: ${player.hp}/${player.maxHp} → ${nextPlayer.hp}/${nextPlayer.maxHp}`);
+      }
+    }
+
+    finishRoomChoice({ choiceLabel: choice.label, summary, details }, nextPlayer, nextDeck);
+  }
+
+  function continueAfterRoom() {
+    if (!roomResult) return;
+    setRoomEncounter(null);
+    setRoomResult(null);
+    setSelectedStage(null);
+    setTurn(1);
+    if (player.hp <= 0) {
+      setPhase("defeat");
+      pushLog("탐험 중 쓰러졌습니다. 다음 런에서는 위험한 선택을 조심하세요.");
+      return;
+    }
+    setPhase("floorMap");
+    pushLog(`던전 ${currentFloor}층 내부 지도로 돌아갑니다. 다음 방으로 이어지는 길이 밝아졌습니다.`);
+  }
+
+  function finishBattle(isBoss) {
+    markStageCleared(selectedStage);
+
+    const battleGold = selectedStage?.type === "boss" ? randomInt(60, 100) : selectedStage?.type === "elite" ? randomInt(35, 65) : randomInt(15, 40);
+    setPlayer((p) => ({ ...p, gold: p.gold + battleGold }));
 
     if (selectedStage?.type === "boss") {
       const completedFloor = selectedStage.floor;
@@ -2727,8 +3600,10 @@ export default function DeckbuilderRoguelikePrototype() {
     const rewardCards = getRewardCards(deck, player.classId);
     setRewards(rewardCards);
     setFlippedRewards(rewardCards.map(() => false));
+    setRoomEncounter(null);
+    setRoomResult(null);
     setPhase("reward");
-    pushLog(isBoss ? `던전 ${selectedStage?.floor}층 보스방 공략 성공! 다음 층이 열렸습니다.` : "전투 승리! 카드 보상을 선택하세요.");
+    pushLog(isBoss ? `던전 ${selectedStage?.floor}층 보스방 공략 성공! ${battleGold} 골드를 획득했고 다음 층이 열렸습니다.` : `전투 승리! ${battleGold} 골드를 획득했습니다. 카드 보상을 선택하세요.`);
   }
 
   function flipReward(index) {
@@ -2882,6 +3757,8 @@ export default function DeckbuilderRoguelikePrototype() {
     setExhaustPile([]);
     setRewards([]);
     setFlippedRewards([]);
+    setRoomEncounter(null);
+    setRoomResult(null);
     setTurn(1);
     setPhase(returnPhase);
     setComboStacks(0);
@@ -2906,6 +3783,8 @@ export default function DeckbuilderRoguelikePrototype() {
     setExhaustPile([]);
     setRewards([]);
     setFlippedRewards([]);
+    setRoomEncounter(null);
+    setRoomResult(null);
     setTurn(1);
     setPhase(returnPhase);
     setComboStacks(0);
@@ -2916,7 +3795,7 @@ export default function DeckbuilderRoguelikePrototype() {
   }
 
   function restart() {
-    setPlayer({ hp: 0, maxHp: 0, block: 0, energy: 3, maxEnergy: 3, strength: 0, vulnerable: 0, classId: null, attack: 10, defense: 0, speed: 0 });
+    setPlayer({ hp: 0, maxHp: 0, gold: 0, block: 0, energy: 3, maxEnergy: 3, strength: 0, vulnerable: 0, classId: null, attack: 10, defense: 0, speed: 0 });
     setDeck([]);
     setDrawPile([]);
     setHand([]);
@@ -2929,6 +3808,8 @@ export default function DeckbuilderRoguelikePrototype() {
     setPhase("start");
     setRewards([]);
     setFlippedRewards([]);
+    setRoomEncounter(null);
+    setRoomResult(null);
     setRelics([]);
     setSelectedCharacterId(null);
     setSelectedStage(null);
@@ -3002,7 +3883,8 @@ export default function DeckbuilderRoguelikePrototype() {
               "탑 화면에서 도전 가능한 던전 층을 선택합니다.",
               "층에 도전하기를 눌러 해당 층 내부로 진입합니다.",
               "바깥 원의 방부터 클리어하며 중앙 보스방으로 들어갑니다.",
-              "카드를 사용해 적과 전투하고 보상을 선택합니다.",
+              "전투 방에서는 카드를 사용하고, 이벤트·휴식·상점 방에서는 선택지의 결과를 즉시 적용합니다.",
+              "골드로 카드를 사거나 체력을 회복하고, 필요 없는 카드는 판매할 수 있습니다.",
               "중앙 보스방을 공략하면 다음 층이 해금됩니다.",
             ].map((line, index) => (
               <div key={line} className="flex items-center gap-3 rounded-2xl bg-white/8 p-4">
@@ -3189,6 +4071,10 @@ export default function DeckbuilderRoguelikePrototype() {
                   <div className="text-slate-500">속도</div>
                   <div className="text-lg font-black">{player.speed} ⚡</div>
                 </div>
+                <div className="rounded-xl bg-slate-100 p-3">
+                  <div className="text-slate-500">골드</div>
+                  <div className="flex items-center gap-1 text-lg font-black"><Coins size={16} /> {player.gold}</div>
+                </div>
               </div>
               <div className="mt-3 rounded-xl bg-slate-100 p-3 text-xs text-slate-700">
                 <div>현재 방어도: {player.block}</div>
@@ -3230,8 +4116,9 @@ export default function DeckbuilderRoguelikePrototype() {
                 classId={player.classId}
               />
             )}
-            <div className="mb-4 grid gap-4 md:grid-cols-2">
-              <div className="rounded-3xl bg-gradient-to-br from-slate-100 to-white p-5 text-slate-900 shadow-xl">
+            {phase === "combat" && (
+              <div className="mb-4 grid gap-4 md:grid-cols-2">
+                <div className="rounded-3xl bg-gradient-to-br from-slate-100 to-white p-5 text-slate-900 shadow-xl">
                 <div className="mb-3 flex items-center justify-between">
                   <div>
                     <div className="text-sm font-bold text-slate-500">
@@ -3300,9 +4187,9 @@ export default function DeckbuilderRoguelikePrototype() {
                     );
                   })}
                 </div>
-              </div>
+                </div>
 
-              <div className="rounded-3xl border border-white/10 bg-slate-950/50 p-5 shadow-xl">
+                <div className="rounded-3xl border border-white/10 bg-slate-950/50 p-5 shadow-xl">
                 <div className="mb-2 text-sm font-semibold text-cyan-200">Turn {turn}</div>
                 <h2 className="mb-4 text-xl font-black">적 의도</h2>
                 <div className="flex items-center gap-3 rounded-2xl bg-white p-4 text-slate-950">
@@ -3320,8 +4207,9 @@ export default function DeckbuilderRoguelikePrototype() {
                 >
                   턴 종료
                 </button>
+                </div>
               </div>
-            </div>
+            )}
 
             <AnimatePresence mode="wait">
               {phase === "character-select" && (
@@ -3390,6 +4278,21 @@ export default function DeckbuilderRoguelikePrototype() {
                     </button>
                   </div>
                 </motion.section>
+              )}
+
+              {phase === "room" && (
+                <RoomEncounterPanel
+                  encounter={roomEncounter}
+                  result={roomResult}
+                  player={player}
+                  deck={deck}
+                  onChoose={handleRoomChoice}
+                  onContinue={continueAfterRoom}
+                  onShopBuyCard={handleShopBuyCard}
+                  onShopSellCard={handleShopSellCard}
+                  onShopHeal={handleShopHeal}
+                  onShopLeave={leaveShopRoom}
+                />
               )}
 
               {phase === "combat" && (
@@ -3510,7 +4413,8 @@ export default function DeckbuilderRoguelikePrototype() {
                 <li>공격, 방어, 드로우, 회복 카드</li>
                 <li>적 의도 표시</li>
                 <li>전투 후 카드 보상</li>
-                <li>4연속 전투 + 최종 보스</li>
+                <li>이벤트 / 휴식 / 상점 방</li>
+                <li>골드 획득과 카드 거래</li>
               </ul>
             </div>
 
@@ -3518,10 +4422,9 @@ export default function DeckbuilderRoguelikePrototype() {
               <h3 className="mb-2 font-bold">다음 확장 후보</h3>
               <ul className="space-y-2 text-sm text-slate-300">
                 <li>유물 시스템</li>
-                <li>상점 / 휴식 노드</li>
                 <li>카드 강화</li>
                 <li>캐릭터 전용 카드</li>
-                <li>층 내부 이벤트 방</li>
+                <li>방별 희귀 이벤트 체인</li>
               </ul>
             </div>
           </aside>
@@ -3530,5 +4433,3 @@ export default function DeckbuilderRoguelikePrototype() {
     </div>
   );
 }
-
-

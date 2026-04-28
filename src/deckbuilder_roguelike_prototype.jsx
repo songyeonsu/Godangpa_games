@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useRef, useState } from "react";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2,
@@ -29,7 +29,6 @@ const imagePaths = {
     character: "/images/wizard/character.png",
     cardBack: "/images/wizard/card-back.png",
     attack: "/images/wizard/magic-missile-card.png",
-    multiMagicMissile: "/images/wizard/multi-magic-missile-card.png",
     defense: "/images/wizard/shield-card.png",
   },
   archer: {
@@ -105,35 +104,6 @@ const RAW_CARD_POOL = {
         hp: Math.max(0, enemy.hp - calcDamage(7, player, enemy)),
         vulnerable: enemy.vulnerable + 1,
       },
-    }),
-  },
-  "mage-multi-magic-missile": {
-    id: "mage-multi-magic-missile",
-    rarity: "rare",
-    cardClass: "mage",
-    name: "다중 매직 미사일",
-    type: "attack",
-    typeLabel: "공격",
-    cost: 2,
-    desc: "모든 적에게 피해 8",
-    description: "모든 적에게 마법 미사일을 발사하여 8의 피해를 줍니다.",
-    damage: 8,
-    block: 0,
-    element: "arcane",
-    fullImage: imagePaths.mage.multiMagicMissile,
-    animationType: "magic",
-    play: ({ player, enemies }) => ({
-      enemies: enemies.map((enemy) => {
-        if (enemy.hp <= 0) return enemy;
-        const damage = calcDamage(8, player, enemy);
-        const blocked = Math.min(enemy.block || 0, damage);
-        const finalDamage = Math.max(0, damage - blocked);
-        return {
-          ...enemy,
-          block: Math.max(0, (enemy.block || 0) - blocked),
-          hp: Math.max(0, enemy.hp - finalDamage),
-        };
-      }),
     }),
   },
   "mage-shield": {
@@ -898,25 +868,25 @@ const SHOP_CARD_VALUE_BY_RARITY = {
 const FLOOR_ENEMY_TABLE = {
   1: {
     normal: [
-      { enemy: "달팽이", maxHp: 40, attack: 6, speed: 7, image: "🐌" },
-      { enemy: "슬라임", maxHp: 50, attack: 8, speed: 8, image: "🟢" },
-      { enemy: "버섯", maxHp: 60, attack: 9, speed: 9, image: "🍄" },
-      { enemy: "돼지", maxHp: 70, attack: 10, speed: 9, image: "🐖" },
-      { enemy: "탑 수문병", maxHp: 74, attack: 11, speed: 10, image: "🛡️" },
+      { enemy: "달팽이", maxHp: 40, attack: 6, speed: 7, image: "🐌", imageSrc: "/images/monsters/floor-1/snail.png" },
+      { enemy: "슬라임", maxHp: 50, attack: 8, speed: 8, image: "🟢", imageSrc: "/images/monsters/floor-1/slime.png" },
+      { enemy: "버섯", maxHp: 60, attack: 9, speed: 9, image: "🍄", imageSrc: "/images/monsters/floor-1/mushroom.png" },
+      { enemy: "돼지", maxHp: 70, attack: 10, speed: 9, image: "🐖", imageSrc: "/images/monsters/floor-1/pig.png" },
+      { enemy: "탑 수문병", maxHp: 74, attack: 11, speed: 10, image: "🛡️", imageSrc: "/images/monsters/floor-1/gatekeeper.png" },
     ],
-    elite: [{ enemy: "룬 갑옷 정예", maxHp: 96, attack: 13, speed: 10, image: "♞" }],
-    boss: [{ enemy: "코볼트 보스", maxHp: 120, attack: 14, speed: 11, image: "👑" }],
+    elite: [{ enemy: "탑 수문병", maxHp: 96, attack: 13, speed: 10, image: "🛡️", imageSrc: "/images/monsters/floor-1/gatekeeper.png" }],
+    boss: [{ enemy: "코볼트 보스", maxHp: 120, attack: 14, speed: 11, image: "👑", imageSrc: "/images/monsters/floor-1/kobold-boss.png" }],
   },
   2: {
     normal: [
-      { enemy: "고블린", maxHp: 80, attack: 12, speed: 11, image: "🗡️" },
-      { enemy: "오크", maxHp: 90, attack: 13, speed: 10, image: "🪓" },
-      { enemy: "늑대", maxHp: 95, attack: 14, speed: 15, image: "🐺" },
-      { enemy: "암흑 기사", maxHp: 110, attack: 16, speed: 12, image: "♞" },
-      { enemy: "균열 마도사", maxHp: 104, attack: 15, speed: 14, image: "🔮" },
+      { enemy: "고블린", maxHp: 80, attack: 12, speed: 11, image: "🗡️", imageSrc: "/images/monsters/floor-2/goblin.png" },
+      { enemy: "오크", maxHp: 90, attack: 13, speed: 10, image: "🪓", imageSrc: "/images/monsters/floor-2/orc.png" },
+      { enemy: "늑대", maxHp: 95, attack: 14, speed: 15, image: "🐺", imageSrc: "/images/monsters/floor-2/wolf.png" },
+      { enemy: "암흑기사", maxHp: 110, attack: 16, speed: 12, image: "♞", imageSrc: "/images/monsters/floor-2/dark-knight.png" },
+      { enemy: "균열 마도사", maxHp: 104, attack: 15, speed: 14, image: "🔮", imageSrc: "/images/monsters/floor-2/rift-mage.png" },
     ],
-    elite: [{ enemy: "흑철 감시자", maxHp: 135, attack: 18, speed: 12, image: "🛡️" }],
-    boss: [{ enemy: "드래곤 보스", maxHp: 180, attack: 22, speed: 13, image: "🐉" }],
+    elite: [{ enemy: "흑철감시자", maxHp: 135, attack: 18, speed: 12, image: "🛡️", imageSrc: "/images/monsters/floor-2/black-iron-watcher.png" }],
+    boss: [{ enemy: "드래곤보스", maxHp: 180, attack: 22, speed: 13, image: "🐉", imageSrc: "/images/monsters/floor-2/dragon-boss.png" }],
   },
 };
 
@@ -995,6 +965,7 @@ function buildStageEnemy(stage) {
     maxHp: stage.maxHp,
     speed: stage.speed,
     image: stage.image,
+    imageSrc: stage.imageSrc,
     boss: isBoss,
     actions: isBoss
       ? [
@@ -1150,6 +1121,74 @@ function buildTurnPreview(playerSpeed, enemySpeed, length = 6) {
   return preview.join(" → ");
 }
 
+function normalizeSpeedGauge(gauge, enemies = []) {
+  const legacyEnemyGauge = Number(gauge?.enemy || 0);
+  const enemyGauges = Array.isArray(gauge?.enemies) ? gauge.enemies : enemies.map(() => legacyEnemyGauge);
+
+  return {
+    player: Number(gauge?.player || 0),
+    enemies: enemies.map((_, index) => Number(enemyGauges[index] || 0)),
+  };
+}
+
+function nextActorFromCombatGauge(gauge, playerSpeed, enemies) {
+  const threshold = 100;
+  const aliveEnemies = enemies
+    .map((entry, index) => ({ entry, index }))
+    .filter(({ entry }) => entry.hp > 0);
+  const nextGauge = normalizeSpeedGauge(gauge, enemies);
+
+  if (aliveEnemies.length === 0) {
+    return { actor: { type: "player" }, gauge: nextGauge };
+  }
+
+  let safety = 0;
+  while (safety < 400) {
+    safety += 1;
+    nextGauge.player += Math.max(1, playerSpeed || 1);
+
+    aliveEnemies.forEach(({ entry, index }) => {
+      nextGauge.enemies[index] += Math.max(1, entry.speed || 1);
+    });
+
+    const candidates = [];
+    if (nextGauge.player >= threshold) {
+      candidates.push({ type: "player", gauge: nextGauge.player });
+    }
+
+    aliveEnemies.forEach(({ index }) => {
+      if (nextGauge.enemies[index] >= threshold) {
+        candidates.push({ type: "enemy", index, gauge: nextGauge.enemies[index] });
+      }
+    });
+
+    if (candidates.length > 0) {
+      const actor = candidates.sort((a, b) => b.gauge - a.gauge)[0];
+      if (actor.type === "player") {
+        nextGauge.player -= threshold;
+      } else {
+        nextGauge.enemies[actor.index] -= threshold;
+      }
+      return { actor, gauge: nextGauge };
+    }
+  }
+
+  return { actor: { type: "player" }, gauge: nextGauge };
+}
+
+function buildCombatTimeline(gauge, player, enemies, length = 6) {
+  const timeline = [];
+  let previewGauge = normalizeSpeedGauge(gauge, enemies);
+
+  for (let i = 0; i < length; i += 1) {
+    const next = nextActorFromCombatGauge(previewGauge, player.speed, enemies);
+    previewGauge = next.gauge;
+    timeline.push(next.actor);
+  }
+
+  return timeline;
+}
+
 function createEnemy(indexOrStage = 0) {
   const template = typeof indexOrStage === "object" ? buildStageEnemy(indexOrStage) : ENEMIES[indexOrStage];
   return {
@@ -1178,6 +1217,7 @@ function createStageEnemies(stage) {
             attack: Math.max(4, Math.round(stage.attack * (stage.type === "boss" ? 0.55 + index * 0.06 : 0.82))),
             speed: Math.max(5, stage.speed + index - 1),
             image: stage.type === "boss" ? (index === 1 ? "🛡️" : "🔥") : "🧬",
+            imageSrc: stage.imageSrc,
           };
 
     return {
@@ -1648,6 +1688,74 @@ function UsedCardOverlay({ animation }) {
   );
 }
 
+function EnemyAttackOverlay({ animation }) {
+  if (!animation) return null;
+
+  const width = animation.width || 92;
+  const height = animation.height || 92;
+  const startLeft = animation.startX - width / 2;
+  const startTop = animation.startY - height / 2;
+
+  return (
+    <motion.div
+      className="enemy-attack-overlay"
+      style={{
+        left: startLeft,
+        top: startTop,
+        width,
+        height,
+      }}
+      initial={{ x: 0, y: 0, scale: 0.85, rotate: 0, opacity: 0, filter: "brightness(1)" }}
+      animate={{
+        x: [0, animation.midX - animation.startX, animation.endX - animation.startX],
+        y: [0, animation.midY - animation.startY, animation.endY - animation.startY],
+        scale: [0.85, 1.08, 0.72],
+        rotate: [0, -9, 13],
+        opacity: [0, 1, 0],
+        filter: ["brightness(1)", "brightness(1.35)", "brightness(1.8)"],
+      }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.62, times: [0, 0.36, 1], ease: [0.22, 1, 0.36, 1] }}
+    >
+      <div className="enemy-attack-trail" />
+      {animation.imageSrc ? (
+        <img src={animation.imageSrc} alt={animation.name} draggable="false" />
+      ) : (
+        <span>{animation.image || "!"}</span>
+      )}
+    </motion.div>
+  );
+}
+
+function PlayerHitOverlay({ effect }) {
+  if (!effect) return null;
+
+  return (
+    <motion.div
+      key={effect.key}
+      className="player-hit-overlay"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: [0, 1, 0] }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.62, ease: "easeOut" }}
+    >
+      <motion.div
+        className="player-hit-flash"
+        animate={{ opacity: [0, 0.8, 0], scale: [0.75, 1.1, 1.4] }}
+        transition={{ duration: 0.38, ease: "easeOut" }}
+      />
+      <motion.div
+        className="player-damage-number"
+        initial={{ opacity: 0, y: 14, scale: 0.8 }}
+        animate={{ opacity: [0, 1, 1, 0], y: [14, -10, -26, -40], scale: [0.8, 1.22, 1, 0.9] }}
+        transition={{ duration: 0.72, ease: "easeOut" }}
+      >
+        -{effect.damage}
+      </motion.div>
+    </motion.div>
+  );
+}
+
 function DiscardPileWidget({ drawCount, discardCount, pileRef, active, classId = "warrior" }) {
   const [backFailed, setBackFailed] = useState(false);
   const backImage = classCardBackImages[classId] || classCardBackImages.warrior;
@@ -1792,6 +1900,149 @@ function HitEffect({ effect }) {
         </motion.div>
       )}
     </motion.div>
+  );
+}
+
+function BattleEnemyCard({ entry, index, selected, hidden, defeated, hitEffect, disabled, onSelect }) {
+  const intent = entry.actions[entry.actionIndex % entry.actions.length];
+  const intentIcon = intent.type === "attack" ? <Sword size={18} /> : intent.type === "block" ? <Shield size={18} /> : <Zap size={18} />;
+  const attackValue = intent.type === "attack" ? intent.value + entry.strength : entry.strength;
+  const [imageFailed, setImageFailed] = useState(false);
+
+  return (
+    <motion.button
+      type="button"
+      onClick={onSelect}
+      disabled={disabled || defeated}
+      animate={
+        hitEffect
+          ? {
+              x: [0, -8, 7, -4, 0],
+              scale: [1, 1.05, 0.99, 1],
+              filter: ["brightness(1)", "brightness(1.55)", "brightness(1)"],
+            }
+          : { x: 0, scale: selected ? 1.04 : 1, y: selected ? -10 : 0, filter: "brightness(1)" }
+      }
+      transition={{ duration: 0.38, ease: "easeOut" }}
+      className={`voc-unit-card relative shrink-0 overflow-hidden text-left transition ${
+        selected
+          ? "is-selected"
+          : ""
+      } ${defeated ? "is-defeated" : ""}`}
+    >
+      <AnimatePresence>{hitEffect && <HitEffect effect={hitEffect} />}</AnimatePresence>
+      {hidden ? (
+        <div className="voc-card-back">
+          <div className="voc-card-back-title">Unknown</div>
+          <div className="voc-card-back-mark">?</div>
+          <div className="voc-card-back-caption">분석 필요</div>
+        </div>
+      ) : (
+        <div className="voc-card-face">
+          <div className="voc-card-art">
+                {entry.imageSrc && !imageFailed ? (
+                  <img
+                    src={entry.imageSrc}
+                    alt={entry.name}
+                    className="voc-card-art-image"
+                    onError={() => setImageFailed(true)}
+                    draggable="false"
+                  />
+                ) : (
+                  <div className="voc-card-fallback-icon">{entry.image}</div>
+                )}
+          </div>
+          <div className="voc-card-name">{entry.name}</div>
+          {entry.boss && <div className="voc-card-ribbon">BOSS</div>}
+          {selected && <div className="voc-card-cursor" />}
+          <div className="voc-card-intent">
+            <span>{intentIcon}</span>
+            <strong>{intent.text}</strong>
+          </div>
+          <div className="voc-stat-row">
+            <span className="voc-stat-token attack">{attackValue}</span>
+            <span className="voc-stat-token hp">{entry.hp}</span>
+            <span className="voc-stat-token shield">{entry.block}</span>
+          </div>
+          <div className="voc-card-substats">
+            <span>HP {entry.hp}/{entry.maxHp}</span>
+            {entry.vulnerable > 0 && <span>취약 {entry.vulnerable}</span>}
+          </div>
+        </div>
+      )}
+    </motion.button>
+  );
+}
+
+function BattleAllyCard({ character, player, active, defeated, rageStacks, comboStacks }) {
+  const status = character.id === player.classId ? player.vulnerable : 0;
+  const supportLabel = character.id === "warrior" ? `분노 ${rageStacks}/3` : character.id === "mage" ? `연계 ${comboStacks}` : "회피";
+
+  return (
+    <motion.div
+      animate={{ y: active ? -10 : 0, scale: active ? 1.035 : 1, opacity: defeated ? 0.38 : 1 }}
+      className={`voc-unit-card voc-ally-card relative shrink-0 overflow-hidden text-slate-950 ${active ? "is-selected is-active" : ""} ${defeated ? "is-defeated" : ""}`}
+    >
+      <div className="voc-card-face">
+        <div className="voc-card-art">
+          <CharacterImage character={character} className="voc-card-art-image" fallbackClassName="!h-16 !w-16 !text-2xl" />
+        </div>
+        <div className="voc-card-name">{character.name}</div>
+        {active && <div className="voc-card-ribbon">TURN</div>}
+        <div className="voc-card-intent">
+          <span>{active ? "행동 가능" : "지원 카드"}</span>
+          <strong>{supportLabel}</strong>
+        </div>
+        <div className="voc-stat-row">
+          <span className="voc-stat-token attack">{active ? player.attack : character.attack}</span>
+          <span className="voc-stat-token hp">{active ? player.hp : character.hp}</span>
+          <span className="voc-stat-token shield">{active ? player.block : character.defense}</span>
+        </div>
+        <div className="voc-card-substats">
+          <span>{active ? `HP ${player.hp}/${player.maxHp}` : "대기"}</span>
+          {status > 0 && <span>취약 {status}</span>}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function ManaPanel({ current, max }) {
+  return (
+    <div className="rounded-2xl border border-sky-200/35 bg-sky-200/10 px-4 py-3 text-sky-50 shadow-xl">
+      <div className="mb-2 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-sky-200">
+          <Sparkles size={16} /> Mana
+        </div>
+        <div className="text-2xl font-black">{current}/{max}</div>
+      </div>
+      <div className="flex gap-1.5">
+        {Array.from({ length: max }).map((_, index) => (
+          <span
+            key={index}
+            className={`h-7 w-5 rounded-md border ${index < current ? "border-sky-100 bg-sky-300 shadow-[0_0_12px_rgba(125,211,252,0.55)]" : "border-slate-500 bg-slate-800"}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CommandCardButton({ icon, label, active, disabled, onClick }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`voc-command-button flex min-h-[62px] items-center gap-3 rounded-2xl border px-4 py-3 text-left font-black shadow-lg transition disabled:cursor-not-allowed disabled:opacity-45 ${
+        active
+          ? "border-amber-300 bg-amber-200 text-amber-950 shadow-[0_0_24px_rgba(251,191,36,0.22)]"
+          : "border-white/10 bg-white/8 text-slate-100 hover:-translate-y-0.5 hover:border-cyan-200/45"
+      }`}
+    >
+      <span className="grid h-9 w-9 place-items-center rounded-xl bg-slate-950/85 text-cyan-100">{icon}</span>
+      <span>{label}</span>
+    </button>
   );
 }
 
@@ -2827,15 +3078,22 @@ export default function DeckbuilderRoguelikePrototype() {
   const [clearedFloors, setClearedFloors] = useState([]);
   const [clearedNodesByFloor, setClearedNodesByFloor] = useState({});
   const [hoveredCharacterId, setHoveredCharacterId] = useState(null);
-  const [speedGauge, setSpeedGauge] = useState({ player: 0, enemy: 0 });
+  const [speedGauge, setSpeedGauge] = useState({ player: 0, enemies: [] });
   const [rageStacks, setRageStacks] = useState(0);
   const [comboStacks, setComboStacks] = useState(0);
   const [showDeckManager, setShowDeckManager] = useState(false);
   const [inspectedCardId, setInspectedCardId] = useState(null);
+  const [selectedCommand, setSelectedCommand] = useState("attack");
   const [isCardAnimating, setIsCardAnimating] = useState(false);
   const [activeCardAnimation, setActiveCardAnimation] = useState(null);
+  const [enemyAttackAnimation, setEnemyAttackAnimation] = useState(null);
+  const [playerHitEffect, setPlayerHitEffect] = useState(null);
   const [hitEffects, setHitEffects] = useState({});
+  const [initiativeReady, setInitiativeReady] = useState(false);
+  const [currentActor, setCurrentActor] = useState({ type: "player" });
   const discardPileRef = useRef(null);
+  const playerTargetRef = useRef(null);
+  const enemyActorRefs = useRef([]);
 
   const liveEnemyIndex = getFirstAliveEnemyIndex(enemies);
   const safeSelectedEnemyIndex =
@@ -2852,6 +3110,25 @@ export default function DeckbuilderRoguelikePrototype() {
   const currentClearedNodeIds = getClearedNodeIds(clearedNodesByFloor, currentFloor);
   const currentFloorUnlocked = isFloorUnlocked(unlockedFloors, currentFloor);
   const currentFloorCleared = clearedFloors.includes(currentFloor);
+
+  useEffect(() => {
+    if (phase !== "combat" || initiativeReady || enemies.length === 0 || player.hp <= 0) return;
+
+    const firstActor = nextActorFromCombatGauge(normalizeSpeedGauge(speedGauge, enemies), player.speed, enemies);
+    if (firstActor.actor.type === "player") {
+      setSpeedGauge(firstActor.gauge);
+      setCurrentActor({ type: "player" });
+      setInitiativeReady(true);
+      pushLog(`${currentClassTheme.name}이 먼저 행동합니다.`);
+      return;
+    }
+
+    setCurrentActor(firstActor.actor);
+    setInitiativeReady(true);
+    window.setTimeout(() => {
+      enemyTurn({ opening: true, preserveHand: true, startingGauge: speedGauge });
+    }, 160);
+  }, [phase, initiativeReady]);
 
   function setEnemy(nextEnemyOrUpdater) {
     setEnemies((prev) => {
@@ -2903,7 +3180,7 @@ export default function DeckbuilderRoguelikePrototype() {
       hp: profile.hp,
       maxHp: profile.hp,
       gold: 80,
-      block: profile.defense,
+      block: 0,
       energy: profile.energy || 3,
       maxEnergy: profile.maxEnergy || profile.energy || 3,
       strength: 0,
@@ -2935,12 +3212,17 @@ export default function DeckbuilderRoguelikePrototype() {
     setRelics([]);
     setShowDeckManager(false);
     setInspectedCardId(null);
+    setSelectedCommand("attack");
     setIsCardAnimating(false);
     setActiveCardAnimation(null);
+    setEnemyAttackAnimation(null);
+    setPlayerHitEffect(null);
     setHitEffects({});
+    setInitiativeReady(false);
+    setCurrentActor({ type: "player" });
     setRageStacks(0);
     setComboStacks(0);
-    setSpeedGauge({ player: 0, enemy: 0 });
+    setSpeedGauge({ player: 0, enemies: [] });
     setPhase("towerMap");
     setLog([
       `${profile.name} 선택 완료. 시작 자금 80골드를 챙겨 100층 고대탑의 1층이 열렸습니다.`,
@@ -3050,17 +3332,22 @@ export default function DeckbuilderRoguelikePrototype() {
     setRoomResult(null);
     setShowDeckManager(false);
     setInspectedCardId(null);
+    setSelectedCommand("attack");
     setIsCardAnimating(false);
     setActiveCardAnimation(null);
+    setEnemyAttackAnimation(null);
+    setPlayerHitEffect(null);
     setHitEffects({});
     setTurn(1);
-    setSpeedGauge({ player: 0, enemy: 0 });
+    setSpeedGauge({ player: 0, enemies: [] });
+    setInitiativeReady(false);
+    setCurrentActor({ type: "player" });
     setComboStacks(0);
     setRageStacks(0);
     setPlayer((p) => ({
       ...p,
       energy: p.maxEnergy,
-      block: p.defense,
+      block: 0,
       vulnerable: 0,
     }));
     setPhase("combat");
@@ -3071,7 +3358,7 @@ export default function DeckbuilderRoguelikePrototype() {
   }
 
   async function playCard(cardId, handIndex, event) {
-    if (phase !== "combat" || isCardAnimating) return;
+    if (phase !== "combat" || isCardAnimating || !initiativeReady || currentActor.type !== "player") return;
     const card = CARD_POOL[cardId];
     if (player.energy < card.cost) return;
     if (aliveEnemies.length === 0) return;
@@ -3126,43 +3413,30 @@ export default function DeckbuilderRoguelikePrototype() {
 
     const effectivePlayer =
       player.classId === "mage" && card.type === "attack" ? { ...player, strength: player.strength + comboStacks } : player;
-    const result = card.play({ player: effectivePlayer, enemy: targetEnemy, enemies, drawCards: drawHelper });
+    const result = card.play({ player: effectivePlayer, enemy: targetEnemy, drawCards: drawHelper });
     const nextPlayer = { ...(result.player || player), energy: player.energy - card.cost };
-    const nextEnemies = result.enemies || enemies.map((entry, index) => (index === targetIndex ? result.enemy || targetEnemy : entry));
-    const nextTargetEnemy = nextEnemies[targetIndex] || targetEnemy;
+    const nextTargetEnemy = result.enemy || targetEnemy;
+    const nextEnemies = enemies.map((entry, index) => (index === targetIndex ? nextTargetEnemy : entry));
     const allDefeated = areAllEnemiesDefeated(nextEnemies);
-    const damageByEnemy = nextEnemies.map((entry, index) => Math.max(0, (enemies[index]?.hp || 0) - entry.hp));
-    const damageDone = damageByEnemy[targetIndex] || 0;
+    const damageDone = Math.max(0, targetEnemy.hp - nextTargetEnemy.hp);
 
     await wait(330);
 
     if (card.type === "attack") {
-      const damagedIndexes = damageByEnemy
-        .map((damage, index) => ({ damage, index }))
-        .filter(({ damage }) => damage > 0);
-      const effectTargets = damagedIndexes.length > 0 ? damagedIndexes : [{ damage: damageDone, index: targetIndex }];
       const effectKey = `${cardId}-${targetIndex}-${Date.now()}`;
       setHitEffects((current) => ({
         ...current,
-        ...Object.fromEntries(
-          effectTargets.map(({ damage, index }) => [
-            index,
-            {
-              key: `${effectKey}-${index}`,
-              type: card.animationType,
-              damage,
-            },
-          ]),
-        ),
+        [targetIndex]: {
+          key: effectKey,
+          type: card.animationType,
+          damage: damageDone,
+        },
       }));
       window.setTimeout(() => {
         setHitEffects((current) => {
+          if (current[targetIndex]?.key !== effectKey) return current;
           const next = { ...current };
-          effectTargets.forEach(({ index }) => {
-            if (next[index]?.key === `${effectKey}-${index}`) {
-              delete next[index];
-            }
-          });
+          delete next[targetIndex];
           return next;
         });
       }, 850);
@@ -3613,85 +3887,126 @@ export default function DeckbuilderRoguelikePrototype() {
     });
   }
 
-  function enemyTurn() {
+  async function playEnemyAttackAnimation(enemyActionIndex, actingEnemy, damage) {
+    const sourceRect = enemyActorRefs.current[enemyActionIndex]?.getBoundingClientRect?.();
+    const targetRect = playerTargetRef.current?.getBoundingClientRect?.();
+    const startX = sourceRect ? sourceRect.left + sourceRect.width / 2 : window.innerWidth * 0.72;
+    const startY = sourceRect ? sourceRect.top + sourceRect.height * 0.46 : window.innerHeight * 0.42;
+    const endX = targetRect ? targetRect.left + targetRect.width / 2 : window.innerWidth * 0.24;
+    const endY = targetRect ? targetRect.top + targetRect.height * 0.48 : window.innerHeight * 0.44;
+    const key = `${actingEnemy.id || actingEnemy.name}-${Date.now()}`;
+
+    setEnemyAttackAnimation({
+      key,
+      name: actingEnemy.name,
+      image: actingEnemy.image,
+      imageSrc: actingEnemy.imageSrc,
+      startX,
+      startY,
+      midX: (startX + endX) / 2,
+      midY: Math.min(startY, endY) - 72,
+      endX,
+      endY,
+      width: Math.max(76, Math.min(130, (sourceRect?.width || 160) * 0.46)),
+      height: Math.max(76, Math.min(130, (sourceRect?.height || 200) * 0.38)),
+    });
+
+    await wait(380);
+
+    setPlayerHitEffect({ key, damage });
+    await wait(280);
+    setEnemyAttackAnimation(null);
+
+    window.setTimeout(() => {
+      setPlayerHitEffect((current) => (current?.key === key ? null : current));
+    }, 360);
+  }
+
+  async function enemyTurn(options = {}) {
     if (phase !== "combat" || isCardAnimating) return;
+    setIsCardAnimating(true);
     let nextPlayer = { ...player };
     let nextEnemies = enemies.map((entry) => ({ ...entry }));
-    let nextGauge = { ...speedGauge };
+    let nextGauge = normalizeSpeedGauge(options.startingGauge || speedGauge, nextEnemies);
     let nextRage = rageStacks;
     let safety = 0;
     let enemyActions = 0;
 
     while (safety < 12) {
       safety += 1;
-      const currentEnemySpeed = Math.max(1, ...nextEnemies.filter((entry) => entry.hp > 0).map((entry) => entry.speed || 1));
-      const nextActor = nextActorFromGauge(nextGauge.player, nextGauge.enemy, Math.max(1, player.speed), currentEnemySpeed);
-      nextGauge = { player: nextActor.playerGauge, enemy: nextActor.enemyGauge };
+      const nextActor = nextActorFromCombatGauge(nextGauge, player.speed, nextEnemies);
+      nextGauge = nextActor.gauge;
 
-      if (nextActor.actor === "player") break;
-
-      const actingIndexes = nextEnemies
-        .map((entry, index) => ({ entry, index }))
-        .filter(({ entry }) => entry.hp > 0)
-        .map(({ index }) => index);
-
-      for (const enemyActionIndex of actingIndexes) {
-        let actingEnemy = nextEnemies[enemyActionIndex];
-        enemyActions += 1;
-        const action = actingEnemy.actions[actingEnemy.actionIndex % actingEnemy.actions.length];
-
-        if (action.type === "attack") {
-          const defenseMitigation = Math.floor((nextPlayer.defense || 0) / 4);
-          const damage = Math.max(1, action.value + actingEnemy.strength - defenseMitigation);
-          const finalDamage = nextPlayer.vulnerable > 0 ? Math.ceil(damage * 1.5) : damage;
-
-          let taken = finalDamage;
-          let blocked = 0;
-
-          if (nextPlayer.classId === "archer" && Math.random() < 0.25) {
-            taken = 0;
-            actingEnemy = { ...actingEnemy, hp: Math.max(0, actingEnemy.hp - 4) };
-            pushLog("궁수 패시브 발동: 회피 성공! 반격 피해 4");
-          } else {
-            blocked = Math.min(nextPlayer.block, finalDamage);
-            taken = finalDamage - blocked;
-            nextPlayer.block -= blocked;
-            nextPlayer.hp = Math.max(0, nextPlayer.hp - taken);
-          }
-
-          if (nextPlayer.classId === "warrior" && taken > 0) {
-            nextRage += 1;
-            if (nextRage >= 3) {
-              nextRage -= 3;
-              nextPlayer.strength += 1;
-              pushLog("전사 패시브 발동: 분노 폭발! 힘 +1");
-            }
-          }
-
-          pushLog(`${actingEnemy.name}의 공격: ${taken} 피해`);
-        }
-
-        if (action.type === "block") {
-          actingEnemy = { ...actingEnemy, block: actingEnemy.block + action.value };
-          pushLog(`${actingEnemy.name} 방어 ${action.value} 획득`);
-        }
-
-        if (action.type === "buff") {
-          actingEnemy = { ...actingEnemy, strength: actingEnemy.strength + action.value };
-          pushLog(`${actingEnemy.name} 힘 +${action.value}`);
-        }
-
-        if (action.type === "debuff") {
-          nextPlayer.vulnerable += action.value;
-          pushLog(`${actingEnemy.name}가 취약을 부여했습니다.`);
-        }
-
-        nextEnemies[enemyActionIndex] = { ...actingEnemy, actionIndex: actingEnemy.actionIndex + 1 };
-
-        if (nextPlayer.hp <= 0 || areAllEnemiesDefeated(nextEnemies)) break;
+      if (nextActor.actor.type === "player") {
+        setCurrentActor({ type: "player" });
+        break;
       }
 
+      const enemyActionIndex = nextActor.actor.index;
+      let actingEnemy = nextEnemies[enemyActionIndex];
+      if (!actingEnemy || actingEnemy.hp <= 0) continue;
+
+      enemyActions += 1;
+      const action = actingEnemy.actions[actingEnemy.actionIndex % actingEnemy.actions.length];
+      setCurrentActor({ type: "enemy", index: enemyActionIndex, actionType: action.type });
+
+      if (action.type === "attack") {
+        const defenseMitigation = Math.floor((nextPlayer.defense || 0) / 4);
+        const damage = Math.max(1, action.value + actingEnemy.strength - defenseMitigation);
+        const finalDamage = nextPlayer.vulnerable > 0 ? Math.ceil(damage * 1.5) : damage;
+
+        let taken = finalDamage;
+        let blocked = 0;
+
+        if (nextPlayer.classId === "archer" && Math.random() < 0.25) {
+          taken = 0;
+          actingEnemy = { ...actingEnemy, hp: Math.max(0, actingEnemy.hp - 4) };
+          pushLog("궁수 패시브 발동: 회피 성공! 반격 피해 4");
+        } else {
+          blocked = Math.min(nextPlayer.block, finalDamage);
+          taken = finalDamage - blocked;
+          nextPlayer.block -= blocked;
+          nextPlayer.hp = Math.max(0, nextPlayer.hp - taken);
+        }
+
+        if (nextPlayer.classId === "warrior" && taken > 0) {
+          nextRage += 1;
+          if (nextRage >= 3) {
+            nextRage -= 3;
+            nextPlayer.strength += 1;
+            pushLog("전사 패시브 발동: 분노 폭발! 힘 +1");
+          }
+        }
+
+        await playEnemyAttackAnimation(enemyActionIndex, actingEnemy, taken);
+        pushLog(`${actingEnemy.name}의 공격: ${taken} 피해`);
+      }
+
+      if (action.type === "block") {
+        setEnemyAttackAnimation(null);
+        actingEnemy = { ...actingEnemy, block: actingEnemy.block + action.value };
+        await wait(280);
+        pushLog(`${actingEnemy.name} 방어 ${action.value} 획득`);
+      }
+
+      if (action.type === "buff") {
+        setEnemyAttackAnimation(null);
+        actingEnemy = { ...actingEnemy, strength: actingEnemy.strength + action.value };
+        await wait(280);
+        pushLog(`${actingEnemy.name} 힘 +${action.value}`);
+      }
+
+      if (action.type === "debuff") {
+        setEnemyAttackAnimation(null);
+        nextPlayer.vulnerable += action.value;
+        await wait(280);
+        pushLog(`${actingEnemy.name}가 취약을 부여했습니다.`);
+      }
+
+      nextEnemies[enemyActionIndex] = { ...actingEnemy, actionIndex: actingEnemy.actionIndex + 1 };
+
       if (nextPlayer.hp <= 0 || areAllEnemiesDefeated(nextEnemies)) break;
+      await wait(140);
     }
 
     if (areAllEnemiesDefeated(nextEnemies)) {
@@ -3699,6 +4014,7 @@ export default function DeckbuilderRoguelikePrototype() {
       setEnemies(nextEnemies);
       setRageStacks(nextRage);
       setSpeedGauge(nextGauge);
+      setIsCardAnimating(false);
       finishBattle(nextEnemies.some((entry) => entry.boss));
       return;
     }
@@ -3708,12 +4024,13 @@ export default function DeckbuilderRoguelikePrototype() {
       setEnemies(nextEnemies);
       setRageStacks(nextRage);
       setSpeedGauge(nextGauge);
+      setIsCardAnimating(false);
       setPhase("defeat");
       pushLog("패배했습니다. 덱 구성을 다시 조정해 보세요.");
       return;
     }
 
-    const discardAfterTurn = [...discardPile, ...hand];
+    const discardAfterTurn = options.preserveHand ? discardPile : [...discardPile, ...hand];
     const drawResult = drawFromPiles(5, drawPile, discardAfterTurn);
 
     setPlayer({
@@ -3732,13 +4049,19 @@ export default function DeckbuilderRoguelikePrototype() {
     setSelectedEnemyIndex(getFirstAliveEnemyIndex(nextEnemies));
     setRageStacks(nextRage);
     setSpeedGauge(nextGauge);
-    setDiscardPile(drawResult.newDiscardPile);
-    setDrawPile(drawResult.newDrawPile);
-    setHand(drawResult.drawn);
-    setTurn((t) => t + 1);
+    if (!options.preserveHand) {
+      setDiscardPile(drawResult.newDiscardPile);
+      setDrawPile(drawResult.newDrawPile);
+      setHand(drawResult.drawn);
+      setTurn((t) => t + 1);
+    }
     setComboStacks(0);
+    setCurrentActor({ type: "player" });
+    setIsCardAnimating(false);
     if (enemyActions > 1) {
       pushLog(`속도 차이로 적이 연속 행동 ${enemyActions}회 수행`);
+    } else if (options.opening && enemyActions > 0) {
+      pushLog("적이 더 빨라 선공했습니다.");
     }
   }
 
@@ -3821,10 +4144,15 @@ export default function DeckbuilderRoguelikePrototype() {
     setHoveredCharacterId(null);
     setShowDeckManager(false);
     setInspectedCardId(null);
+    setSelectedCommand("attack");
     setIsCardAnimating(false);
     setActiveCardAnimation(null);
+    setEnemyAttackAnimation(null);
+    setPlayerHitEffect(null);
     setHitEffects({});
-    setSpeedGauge({ player: 0, enemy: 0 });
+    setSpeedGauge({ player: 0, enemies: [] });
+    setInitiativeReady(false);
+    setCurrentActor({ type: "player" });
     setRageStacks(0);
     setComboStacks(0);
     setLog(["게임 시작을 눌러 새 런을 시작하세요."]);
@@ -4016,6 +4344,364 @@ export default function DeckbuilderRoguelikePrototype() {
         inspectedCard={inspectedCard}
         onInspectCard={setInspectedCardId}
       />
+    );
+  }
+
+  if (phase === "combat") {
+    const isPlayerTurn = initiativeReady && currentActor.type === "player" && !isCardAnimating;
+    const canEndTurn = phase === "combat" && isPlayerTurn;
+    const canPlayAnyCard = isPlayerTurn && hand.some((cardId) => player.energy >= CARD_POOL[cardId].cost);
+    const stageLabel = selectedStage ? `던전 ${selectedStage.floor}층 / ${selectedStage.typeLabel}` : `${enemyIndex + 1}/${ENEMIES.length}`;
+    const combatGauge = normalizeSpeedGauge(speedGauge, enemies);
+    const timelineActors = buildCombatTimeline(combatGauge, player, enemies, 6);
+    const timelineItems = [{ ...currentActor, current: true }, ...timelineActors];
+    const enemyTotalHp = enemies.reduce((sum, entry) => sum + Math.max(0, entry.hp), 0);
+    const enemyTotalMaxHp = enemies.reduce((sum, entry) => sum + entry.maxHp, 0) || 1;
+    const commanderEnemy = enemies.find((entry) => entry.hp > 0 && entry.boss) || enemy;
+    const commanderIntent = commanderEnemy?.actions?.[commanderEnemy.actionIndex % commanderEnemy.actions.length];
+    const encounterRank = selectedStage?.type === "boss" ? "BOSS" : selectedStage?.type === "elite" ? "ELITE" : "ENCOUNTER";
+    const waveLabel = selectedStage ? `Wave ${selectedStage.type === "boss" ? 3 : selectedStage.type === "elite" ? 2 : 1}/3` : "Wave 1/1";
+    const partyMembers = Object.values(CHARACTER_CLASSES);
+    const incomingDamage = aliveEnemies.reduce((sum, entry) => {
+      const action = entry.actions[entry.actionIndex % entry.actions.length];
+      return action.type === "attack" ? sum + Math.max(0, action.value + entry.strength) : sum;
+    }, 0);
+    const predictedHpLoss = Math.max(0, incomingDamage - player.block);
+    const getTimelineLabel = (actor) => {
+      if (actor.type === "player") return currentClassTheme.name;
+      return enemies[actor.index]?.name || "적";
+    };
+    const getTimelineSpeed = (actor) => {
+      if (actor.type === "player") return player.speed || 0;
+      return enemies[actor.index]?.speed || 0;
+    };
+    const getTimelineGauge = (actor) => {
+      if (actor.type === "player") return combatGauge.player;
+      return combatGauge.enemies[actor.index] || 0;
+    };
+
+    return (
+      <div className="sts-screen">
+        <AnimatePresence>
+          {activeCardAnimation && <UsedCardOverlay key={activeCardAnimation.key} animation={activeCardAnimation} />}
+          {enemyAttackAnimation && <EnemyAttackOverlay key={enemyAttackAnimation.key} animation={enemyAttackAnimation} />}
+        </AnimatePresence>
+
+        <header className="sts-top-hud">
+          <div className="sts-run-left">
+            <span className="sts-name">infantry0</span>
+            <span>{currentClassTheme.name}</span>
+            <span className="sts-hp-text"><Heart size={17} /> {player.hp}/{player.maxHp}</span>
+            <span><Coins size={16} /> {player.gold}</span>
+            <span><TowerControl size={16} /> {stageLabel}</span>
+          </div>
+          <div className="sts-run-center">
+            <button type="button">Draw {drawPile.length}</button>
+            <button type="button">Discard {discardPile.length}</button>
+            <button type="button">Exhaust {exhaustPile.length}</button>
+          </div>
+          <div className="sts-run-right">
+            <span>Turn {turn}</span>
+            <button type="button">Map</button>
+            <button type="button" onClick={restart}><RotateCcw size={15} /> Reset</button>
+          </div>
+        </header>
+
+        <main className="sts-combat-stage">
+          <div className="sts-bg-layer">
+            <div className="sts-bg-tower left" />
+            <div className="sts-bg-tower mid" />
+            <div className="sts-bg-tower right" />
+            <div className="sts-floor-plate" />
+          </div>
+
+          <section className="sts-encounter-panel">
+            <div className="sts-encounter-head">
+              <span>{encounterRank}</span>
+              <strong>{commanderEnemy?.name || "적"}</strong>
+              <em>{waveLabel}</em>
+            </div>
+            <div className="sts-encounter-health">
+              <i style={{ width: `${Math.max(0, Math.min(100, (enemyTotalHp / enemyTotalMaxHp) * 100))}%` }} />
+              <span>{enemyTotalHp}/{enemyTotalMaxHp}</span>
+            </div>
+            <div className="sts-encounter-units">
+              {enemies.map((entry, index) => (
+                <button
+                  key={`encounter-${entry.id || entry.name}-${index}`}
+                  type="button"
+                  disabled={entry.hp <= 0 || isCardAnimating}
+                  onClick={() => {
+                    if (entry.hp > 0 && !isCardAnimating) setSelectedEnemyIndex(index);
+                  }}
+                  className={`${index === safeSelectedEnemyIndex ? "is-selected" : ""} ${entry.hp <= 0 ? "is-down" : ""}`}
+                >
+                  <span>{entry.name}</span>
+                  <b>{entry.hp}/{entry.maxHp}</b>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <aside className="sts-party-rail" aria-label="파티 상태">
+            <div className="sts-party-title">Squad</div>
+            <div className="sts-party-list">
+              {partyMembers.map((member, index) => {
+                const active = member.id === player.classId;
+                const hpValue = active ? player.hp : member.hp;
+                const maxHpValue = active ? player.maxHp : member.hp;
+                return (
+                  <div key={member.id} className={`sts-party-card ${active ? "is-active" : ""}`}>
+                    <span className="sts-party-index">{index + 1}</span>
+                    <div className="sts-party-portrait">
+                      <CharacterImage character={member} className="sts-party-image" />
+                    </div>
+                    <div className="sts-party-info">
+                      <strong>{member.name}</strong>
+                      <div className="sts-party-bars">
+                        <i style={{ width: `${Math.max(0, Math.min(100, (hpValue / maxHpValue) * 100))}%` }} />
+                      </div>
+                      <span>HP {hpValue}/{maxHpValue} · SPD {member.speed}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="sts-party-meter">
+              <span>EP</span>
+              <strong>{player.energy}</strong>
+              <div>
+                {Array.from({ length: player.maxEnergy || 1 }, (_, index) => (
+                  <i key={`ep-${index}`} className={index < player.energy ? "is-filled" : ""} />
+                ))}
+              </div>
+            </div>
+          </aside>
+
+          <aside className="sts-turn-timeline" aria-label="턴 순서">
+            <div className="sts-turn-title">
+              <Zap size={14} />
+              턴 순서
+            </div>
+            <div className="sts-turn-list">
+              {timelineItems.map((actor, index) => {
+                const enemyEntry = actor.type === "enemy" ? enemies[actor.index] : null;
+                const gaugePercent = Math.max(0, Math.min(100, getTimelineGauge(actor)));
+                return (
+                  <div
+                    key={`${actor.type}-${actor.index ?? "player"}-${index}`}
+                    className={`sts-turn-item ${actor.type === "player" ? "is-player" : "is-enemy"} ${actor.current ? "is-current" : ""}`}
+                  >
+                    <div className="sts-turn-marker">{actor.current ? "NOW" : index}</div>
+                    <div className="sts-turn-portrait">
+                      {actor.type === "player" ? (
+                        <CharacterImage character={player.classId ? currentClassTheme : null} className="sts-turn-image" />
+                      ) : enemyEntry?.imageSrc ? (
+                        <img src={enemyEntry.imageSrc} alt={enemyEntry.name} className="sts-turn-image" draggable="false" />
+                      ) : (
+                        <span>{enemyEntry?.image || "?"}</span>
+                      )}
+                    </div>
+                    <div className="sts-turn-meta">
+                      <strong>{getTimelineLabel(actor)}</strong>
+                      <span>SPD {getTimelineSpeed(actor)}</span>
+                      <div className="sts-turn-gauge">
+                        <i style={{ width: `${actor.current ? 100 : gaugePercent}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </aside>
+
+          <aside className="sts-target-panel" aria-label="타겟 정보">
+            <div className="sts-target-kicker">Target Scan</div>
+            <strong>{enemy.name}</strong>
+            <div className="sts-target-grid">
+              <span><Heart size={13} /> {enemy.hp}/{enemy.maxHp}</span>
+              <span><Zap size={13} /> SPD {enemy.speed}</span>
+              <span><Sword size={13} /> {enemy.attack || commanderIntent?.value || 0}</span>
+              <span><Shield size={13} /> {enemy.block || 0}</span>
+            </div>
+            <div className={`sts-target-intent type-${commanderIntent?.type || "attack"}`}>
+              {commanderIntent?.type === "attack" ? <Sword size={16} /> : commanderIntent?.type === "block" ? <Shield size={16} /> : <Zap size={16} />}
+              <span>{enemyIntent?.text || "행동 대기"}</span>
+            </div>
+            <div className={`sts-threat-meter ${predictedHpLoss > 0 ? "is-danger" : ""}`}>
+              <i style={{ width: `${Math.max(6, Math.min(100, (predictedHpLoss / Math.max(1, player.maxHp)) * 100))}%` }} />
+              <span>예상 피해 {predictedHpLoss}</span>
+            </div>
+          </aside>
+
+          <section className="sts-actor-layer">
+            <div ref={playerTargetRef} className={`sts-player-side ${currentActor.type === "player" ? "is-active-turn" : "is-taking-hit"}`}>
+              <div className={`sts-damage-preview ${predictedHpLoss > 0 ? "is-danger" : ""}`}>
+                받는 피해 {predictedHpLoss}
+              </div>
+              <motion.div
+                animate={
+                  playerHitEffect
+                    ? { x: [0, -12, 10, -5, 0], rotate: [0, -3, 3, -1, 0], filter: ["brightness(1)", "brightness(1.65)", "brightness(1)"] }
+                    : predictedHpLoss > 0
+                      ? { filter: ["brightness(1)", "brightness(1.16)", "brightness(1)"] }
+                      : { filter: "brightness(1)" }
+                }
+                transition={{ duration: playerHitEffect ? 0.44 : 1.2, repeat: !playerHitEffect && predictedHpLoss > 0 ? Number.POSITIVE_INFINITY : 0 }}
+                className="sts-player-sprite"
+              >
+                  <CharacterImage character={player.classId ? CHARACTER_CLASSES[player.classId] : null} className="sts-player-image" />
+                  <AnimatePresence>{playerHitEffect && <PlayerHitOverlay effect={playerHitEffect} />}</AnimatePresence>
+                </motion.div>
+              <div className="sts-player-stats">
+                <div className="sts-block-badge"><Shield size={18} /> {player.block}</div>
+                <div className="sts-health-bar">
+                  <div className="sts-hp-fill" style={{ width: `${Math.max(0, Math.min(100, (player.hp / player.maxHp) * 100))}%` }} />
+                  {predictedHpLoss > 0 && (
+                    <div
+                      className="sts-hp-loss"
+                      style={{
+                        width: `${Math.max(0, Math.min(100, (predictedHpLoss / player.maxHp) * 100))}%`,
+                      }}
+                    />
+                  )}
+                  <span>{player.hp}/{player.maxHp}</span>
+                </div>
+                <div className="sts-status-row">
+                  {player.strength > 0 && <span><Sword size={13} /> 힘 {player.strength}</span>}
+                  {player.vulnerable > 0 && <span>취약 {player.vulnerable}</span>}
+                  {player.classId === "warrior" && <span>분노 {rageStacks}/3</span>}
+                  {player.classId === "mage" && <span>연계 {comboStacks}</span>}
+                  {player.classId === "archer" && <span>회피</span>}
+                </div>
+              </div>
+            </div>
+
+            <div className="sts-enemy-side">
+              {enemies.map((entry, index) => {
+                const selected = index === safeSelectedEnemyIndex;
+                const defeated = entry.hp <= 0;
+                const intent = entry.actions[entry.actionIndex % entry.actions.length];
+                const intentIcon = intent.type === "attack" ? <Sword size={20} /> : intent.type === "block" ? <Shield size={20} /> : <Zap size={20} />;
+                const intentValue = intent.type === "attack" ? Math.max(0, intent.value + entry.strength) : intent.text;
+                return (
+                  <motion.button
+                    ref={(node) => {
+                      enemyActorRefs.current[index] = node;
+                    }}
+                    key={entry.id || `${entry.name}-${index}`}
+                    type="button"
+                    disabled={defeated || isCardAnimating}
+                    onClick={() => {
+                      if (!defeated && !isCardAnimating) setSelectedEnemyIndex(index);
+                    }}
+                    animate={
+                      hitEffects[index]
+                        ? { x: [0, -10, 9, -5, 0], filter: ["brightness(1)", "brightness(1.7)", "brightness(1)"] }
+                        : { y: selected ? -8 : 0, scale: selected ? 1.035 : 1 }
+                    }
+                    transition={{ duration: 0.42, ease: "easeOut" }}
+                    className={`sts-enemy-actor ${selected ? "is-targeted" : ""} ${
+                      currentActor.type === "enemy" && currentActor.index === index && currentActor.actionType === "attack" ? "is-attacking" : ""
+                    } ${
+                      currentActor.type === "enemy" && currentActor.index === index && currentActor.actionType === "block" ? "is-guarding" : ""
+                    } ${
+                      currentActor.type === "enemy" && currentActor.index === index && ["buff", "debuff"].includes(currentActor.actionType) ? "is-casting" : ""
+                    } ${defeated ? "is-defeated" : ""}`}
+                  >
+                    <div className={`sts-intent-badge type-${intent.type}`}>
+                      {intentIcon}
+                      <strong>{intentValue}</strong>
+                    </div>
+                    <div className="sts-enemy-sprite-wrap">
+                      {entry.imageSrc ? <img src={entry.imageSrc} alt={entry.name} className="sts-enemy-image" draggable="false" /> : <span>{entry.image}</span>}
+                      <AnimatePresence>{hitEffects[index] && <HitEffect effect={hitEffects[index]} />}</AnimatePresence>
+                    </div>
+                    <div className="sts-enemy-name">{entry.name}</div>
+                    <div className="sts-enemy-health">
+                      <div className="sts-hp-fill" style={{ width: `${Math.max(0, Math.min(100, (entry.hp / entry.maxHp) * 100))}%` }} />
+                      <span>{entry.hp}/{entry.maxHp}</span>
+                    </div>
+                    <div className="sts-status-row enemy">
+                      {entry.block > 0 && <span><Shield size={13} /> {entry.block}</span>}
+                      {entry.strength > 0 && <span><Sword size={13} /> {entry.strength}</span>}
+                      {entry.vulnerable > 0 && <span>취약 {entry.vulnerable}</span>}
+                    </div>
+                  </motion.button>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="sts-vfx-layer">
+            <AnimatePresence mode="wait">
+              {inspectedCard && (
+                <motion.div
+                  key={inspectedCard.id}
+                  initial={{ opacity: 0, y: 16, scale: 0.94 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -12, scale: 0.94 }}
+                  className="sts-card-preview"
+                >
+                  <CardDetailPanel card={inspectedCard} targetName={enemy.name} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </section>
+
+          <section className="sts-log-strip">
+            {log.slice(0, 2).map((item, index) => (
+              <div key={`${item}-${index}`}>{item}</div>
+            ))}
+          </section>
+        </main>
+
+        <footer className="sts-bottom-bar">
+          <button type="button" className="sts-pile-button">Draw <strong>{drawPile.length}</strong></button>
+          <div className="sts-energy-orb">
+            <span>{player.energy}/{player.maxEnergy}</span>
+          </div>
+          <section className="sts-hand-zone">
+            {hand.map((cardId, index) => {
+              const centerOffset = index - (hand.length - 1) / 2;
+              const rotate = centerOffset * 4;
+              const drop = Math.abs(centerOffset) * 5;
+              const isAnimatingSource = activeCardAnimation?.handIndex === index && activeCardAnimation?.cardId === cardId;
+              return (
+                <div
+                  key={`${cardId}-${index}-${turn}`}
+                  className={`sts-hand-card ${index === 0 ? "" : "is-overlapped"}`}
+                  style={{
+                    zIndex: 30 + index,
+                    transform: `translateY(${drop}px) rotate(${rotate}deg)`,
+                    opacity: isAnimatingSource ? 0 : 1,
+                  }}
+                >
+                  <Card
+                    cardId={cardId}
+                    variant="hand"
+                    disabled={!isPlayerTurn || player.energy < CARD_POOL[cardId].cost}
+                    onInspect={setInspectedCardId}
+                    onClick={(clickEvent) => playCard(cardId, index, clickEvent)}
+                    classId={player.classId}
+                  />
+                </div>
+              );
+            })}
+            {hand.length === 0 && <div className="sts-empty-hand">손패가 없습니다.</div>}
+          </section>
+          <button type="button" className="sts-pile-button" ref={discardPileRef}>Discard <strong>{discardPile.length}</strong></button>
+          <button type="button" className="sts-pile-button">Exhaust <strong>{exhaustPile.length}</strong></button>
+          <button
+            type="button"
+            onClick={enemyTurn}
+            disabled={!canEndTurn}
+            className={`sts-end-turn ${canPlayAnyCard ? "" : "is-recommended"}`}
+          >
+            턴 종료
+          </button>
+        </footer>
+      </div>
     );
   }
 

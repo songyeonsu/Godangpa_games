@@ -248,7 +248,7 @@ const RAW_CARD_POOL = {
     type: "skill",
     cost: 1,
     desc: "체력 5 회복",
-    play: ({ player }) => ({ player: { ...player, hp: Math.min(player.maxHp, player.hp + 5) } }),
+    play: ({ player }) => ({ player: applyFlatHeal(player, 5) }),
   },
   doubleTap: {
     id: "doubleTap",
@@ -686,7 +686,7 @@ const CHARACTER_CLASSES = {
     hp: 90,
     energy: 3,
     maxEnergy: 3,
-    attack: 14,
+    attack: 100,
     defense: 5,
     speed: 15,
     passive: "피격 시 25% 확률 회피, 성공하면 반격 피해 4",
@@ -694,6 +694,299 @@ const CHARACTER_CLASSES = {
     starter: Array(5).fill("archer-attack").concat(Array(5).fill("archer-defense")),
   },
 };
+
+const TRAIT_DEFINITIONS = [
+  { id: "attack_power_up", category: "attack", name: "공격력 증가", icon: Sword, maxLevel: 5, perLevelText: "공격 피해 +3% / 레벨" },
+  { id: "attack_crit_rate_up", category: "attack", name: "치명타 확률 증가", icon: Sparkles, maxLevel: 5, perLevelText: "치명타 확률 +2% / 레벨" },
+  { id: "attack_crit_damage_up", category: "attack", name: "치명타 피해 증가", icon: Crown, maxLevel: 5, perLevelText: "치명타 피해 +5% / 레벨" },
+  { id: "attack_boss_damage_up", category: "attack", name: "보스 피해 증가", icon: Skull, maxLevel: 5, perLevelText: "보스 피해 +4% / 레벨" },
+  { id: "defense_hp_up", category: "defense", name: "최대 체력 증가", icon: Heart, maxLevel: 5, perLevelText: "최대 체력 +5% / 레벨" },
+  { id: "defense_armor_up", category: "defense", name: "방어력 증가", icon: Shield, maxLevel: 5, perLevelText: "방어력 +3% / 레벨" },
+  { id: "defense_damage_reduce", category: "defense", name: "피해 감소", icon: Shield, maxLevel: 5, perLevelText: "받는 피해 -2% / 레벨" },
+  { id: "defense_heal_up", category: "defense", name: "회복량 증가", icon: Heart, maxLevel: 5, perLevelText: "회복 효과 +4% / 레벨" },
+  { id: "resource_max_energy_up", category: "resource", name: "최대 에너지 증가", icon: Zap, maxLevel: 3, perLevelText: "Lv1 최대 +1 / Lv2 최대 +1 시작 +1 / Lv3 최대 +2 시작 +1" },
+  { id: "resource_gold_up", category: "resource", name: "골드 획득량 증가", icon: Coins, maxLevel: 5, perLevelText: "골드 획득량 +5% / 레벨" },
+  { id: "resource_card_reward_up", category: "resource", name: "카드 보상 확률 증가", icon: Trophy, maxLevel: 5, perLevelText: "추가 카드 보상 확률 +3% / 레벨" },
+  { id: "resource_rare_card_up", category: "resource", name: "희귀 카드 확률 증가", icon: Sparkles, maxLevel: 5, perLevelText: "희귀 이상 카드 등장 확률 +2% / 레벨" },
+  { id: "resource_shop_discount", category: "resource", name: "상점 할인", icon: Coins, maxLevel: 5, perLevelText: "상점 가격 -3% / 레벨" },
+];
+
+const TRAIT_CATEGORIES = [
+  { id: "attack", title: "공격", subtitle: "피해와 치명타 강화", className: "attack" },
+  { id: "defense", title: "수비", subtitle: "체력, 방어, 회복 안정성", className: "defense" },
+  { id: "resource", title: "자원", subtitle: "에너지, 골드, 보상 효율", className: "resource" },
+];
+
+const TRAIT_BY_ID = Object.fromEntries(TRAIT_DEFINITIONS.map((trait) => [trait.id, trait]));
+const DEFAULT_TRAITS = Object.fromEntries(TRAIT_DEFINITIONS.map((trait) => [trait.id, 0]));
+const SAVE_VERSION = 1;
+const PERMANENT_SAVE_KEY = "permanentSaveData";
+const RUN_SAVE_KEY = "runSaveData";
+const RUN_CLEARED_KEY = "runSaveDataCleared";
+const LEGACY_SAVE_KEY = "deck-spire-prototype-save-v2";
+
+const INITIAL_PLAYER = {
+  hp: 0,
+  maxHp: 0,
+  baseMaxHp: 0,
+  gold: 0,
+  block: 0,
+  energy: 3,
+  maxEnergy: 3,
+  baseMaxEnergy: 3,
+  startEnergy: 3,
+  strength: 0,
+  vulnerable: 0,
+  classId: null,
+  attack: 10,
+  baseAttack: 10,
+  defense: 0,
+  baseDefense: 0,
+  speed: 0,
+  attackMultiplier: 1,
+  critRate: 0,
+  critDamageMultiplier: 1.5,
+  bossDamageMultiplier: 1,
+  damageReduction: 0,
+  healMultiplier: 1,
+  goldMultiplier: 1,
+  cardRewardChance: 0,
+  rareCardChance: 0,
+  shopPriceMultiplier: 1,
+};
+
+function createDefaultPermanentData() {
+  return {
+    saveVersion: SAVE_VERSION,
+    traitPoint: 0,
+    clearedBossFloors: [],
+    traits: { ...DEFAULT_TRAITS },
+    unlockedCharacters: Object.keys(CHARACTER_CLASSES),
+    totalGoldEarned: 0,
+  };
+}
+
+function createDefaultPlayerData() {
+  return createDefaultPermanentData();
+}
+
+function normalizePermanentData(data) {
+  const fallback = createDefaultPermanentData();
+  const traits = { ...fallback.traits };
+  Object.keys(traits).forEach((id) => {
+    const maxLevel = TRAIT_BY_ID[id]?.maxLevel || 0;
+    traits[id] = clampNumber(Number(data?.traits?.[id] || 0), 0, maxLevel);
+  });
+
+  return {
+    saveVersion: SAVE_VERSION,
+    traitPoint: Math.max(0, Number(data?.traitPoint || 0)),
+    clearedBossFloors: Array.isArray(data?.clearedBossFloors)
+      ? Array.from(new Set(data.clearedBossFloors.map((floor) => Number(floor)).filter((floor) => Number.isFinite(floor))))
+      : [],
+    traits,
+    unlockedCharacters: Array.isArray(data?.unlockedCharacters) && data.unlockedCharacters.length > 0 ? data.unlockedCharacters : fallback.unlockedCharacters,
+    totalGoldEarned: Math.max(0, Number(data?.totalGoldEarned || 0)),
+  };
+}
+
+function normalizePlayerData(data) {
+  return normalizePermanentData(data);
+}
+
+function getTraitLevel(playerData, traitId) {
+  return clampNumber(Number(playerData?.traits?.[traitId] || 0), 0, TRAIT_BY_ID[traitId]?.maxLevel || 0);
+}
+
+function getTraitEffects(playerData) {
+  const data = normalizePlayerData(playerData);
+  const energyLevel = getTraitLevel(data, "resource_max_energy_up");
+  const energyBonus = energyLevel >= 3 ? { max: 2, start: 1 } : energyLevel >= 2 ? { max: 1, start: 1 } : energyLevel >= 1 ? { max: 1, start: 0 } : { max: 0, start: 0 };
+
+  return {
+    attackMultiplier: 1 + getTraitLevel(data, "attack_power_up") * 0.03,
+    critRate: getTraitLevel(data, "attack_crit_rate_up") * 0.02,
+    critDamageMultiplier: 1.5 + getTraitLevel(data, "attack_crit_damage_up") * 0.05,
+    bossDamageMultiplier: 1 + getTraitLevel(data, "attack_boss_damage_up") * 0.04,
+    hpMultiplier: 1 + getTraitLevel(data, "defense_hp_up") * 0.05,
+    armorMultiplier: 1 + getTraitLevel(data, "defense_armor_up") * 0.03,
+    damageReduction: getTraitLevel(data, "defense_damage_reduce") * 0.02,
+    healMultiplier: 1 + getTraitLevel(data, "defense_heal_up") * 0.04,
+    goldMultiplier: 1 + getTraitLevel(data, "resource_gold_up") * 0.05,
+    cardRewardChance: getTraitLevel(data, "resource_card_reward_up") * 0.03,
+    rareCardChance: getTraitLevel(data, "resource_rare_card_up") * 0.02,
+    shopPriceMultiplier: Math.max(0.1, 1 - getTraitLevel(data, "resource_shop_discount") * 0.03),
+    maxEnergyBonus: energyBonus.max,
+    startEnergyBonus: energyBonus.start,
+  };
+}
+
+function applyTraitEffectsToPlayer(player, playerData, options = {}) {
+  if (!player?.classId) return { ...INITIAL_PLAYER, ...player };
+
+  const profile = CHARACTER_CLASSES[player.classId] || CHARACTER_CLASSES.warrior;
+  const effects = getTraitEffects(playerData);
+  const baseMaxHp = Number(player.baseMaxHp || profile.hp);
+  const baseAttack = Number(player.baseAttack || profile.attack);
+  const baseDefense = Number(player.baseDefense || profile.defense);
+  const baseMaxEnergy = Number(player.baseMaxEnergy || profile.maxEnergy || profile.energy || 3);
+  const previousMaxHp = Math.max(1, Number(player.maxHp || baseMaxHp));
+  const maxHp = Math.max(1, Math.round(baseMaxHp * effects.hpMultiplier));
+  const maxEnergy = Math.max(1, baseMaxEnergy + effects.maxEnergyBonus);
+  const startEnergy = Math.min(maxEnergy, Math.max(1, baseMaxEnergy + effects.startEnergyBonus));
+  const preservedHp = options.preserveHp === false ? maxHp : clampNumber(Number(player.hp || maxHp) + Math.max(0, maxHp - previousMaxHp), 1, maxHp);
+
+  return {
+    ...player,
+    baseMaxHp,
+    baseAttack,
+    baseDefense,
+    baseMaxEnergy,
+    hp: preservedHp,
+    maxHp,
+    attack: baseAttack,
+    defense: Math.max(0, Math.round(baseDefense * effects.armorMultiplier)),
+    maxEnergy,
+    startEnergy,
+    energy: options.resetEnergy ? startEnergy : Math.min(maxEnergy, Number(player.energy || startEnergy)),
+    attackMultiplier: effects.attackMultiplier,
+    critRate: effects.critRate,
+    critDamageMultiplier: effects.critDamageMultiplier,
+    bossDamageMultiplier: effects.bossDamageMultiplier,
+    damageReduction: effects.damageReduction,
+    healMultiplier: effects.healMultiplier,
+    goldMultiplier: effects.goldMultiplier,
+    cardRewardChance: effects.cardRewardChance,
+    rareCardChance: effects.rareCardChance,
+    shopPriceMultiplier: effects.shopPriceMultiplier,
+  };
+}
+
+function getTraitEffectText(traitId, level) {
+  const clamped = clampNumber(level, 0, TRAIT_BY_ID[traitId]?.maxLevel || 0);
+  if (traitId === "resource_max_energy_up") {
+    if (clamped <= 0) return "효과 없음";
+    if (clamped === 1) return "최대 에너지 +1";
+    if (clamped === 2) return "최대 에너지 +1, 시작 에너지 +1";
+    return "최대 에너지 +2, 시작 에너지 +1";
+  }
+
+  const effectTexts = {
+    attack_power_up: `공격 피해 +${clamped * 3}%`,
+    attack_crit_rate_up: `치명타 확률 +${clamped * 2}%`,
+    attack_crit_damage_up: `치명타 피해 +${clamped * 5}%`,
+    attack_boss_damage_up: `보스 피해 +${clamped * 4}%`,
+    defense_hp_up: `최대 체력 +${clamped * 5}%`,
+    defense_armor_up: `방어력 +${clamped * 3}%`,
+    defense_damage_reduce: `받는 피해 -${clamped * 2}%`,
+    defense_heal_up: `회복 효과 +${clamped * 4}%`,
+    resource_gold_up: `골드 획득량 +${clamped * 5}%`,
+    resource_card_reward_up: `추가 카드 보상 확률 +${clamped * 3}%`,
+    resource_rare_card_up: `희귀 이상 카드 확률 +${clamped * 2}%`,
+    resource_shop_discount: `상점 가격 -${clamped * 3}%`,
+  };
+
+  return clamped <= 0 ? "효과 없음" : effectTexts[traitId];
+}
+
+function loadJsonSave(key) {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (error) {
+    console.warn(`Failed to load ${key}`, error);
+    return null;
+  }
+}
+
+function saveJsonData(key, data) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(data));
+  } catch (error) {
+    console.warn(`Failed to save ${key}`, error);
+  }
+}
+
+function loadPermanentData() {
+  const current = loadJsonSave(PERMANENT_SAVE_KEY);
+  if (current?.permanentData) return normalizePermanentData(current.permanentData);
+  if (current) return normalizePermanentData(current);
+
+  const legacy = loadJsonSave(LEGACY_SAVE_KEY);
+  return normalizePermanentData(legacy?.permanentData || legacy?.playerData);
+}
+
+function savePermanentData(permanentData) {
+  const normalized = normalizePermanentData(permanentData);
+  saveJsonData(PERMANENT_SAVE_KEY, {
+    saveVersion: SAVE_VERSION,
+    permanentData: normalized,
+  });
+}
+
+function shouldPersistRunData(runData) {
+  if (!runData?.player?.classId) return false;
+  return !["start", "character-select", "how-to-play", "defeat", "victory"].includes(runData.phase);
+}
+
+function loadRunData() {
+  const current = loadJsonSave(RUN_SAVE_KEY);
+  const runData = current?.runData || current;
+  if (runData?.hasActiveRun && shouldPersistRunData(runData)) {
+    return {
+      ...runData,
+      saveVersion: SAVE_VERSION,
+      player: { ...INITIAL_PLAYER, ...(runData.player || {}) },
+      hasActiveRun: true,
+    };
+  }
+
+  if (typeof window !== "undefined" && window.localStorage.getItem(RUN_CLEARED_KEY) === "true") {
+    return { saveVersion: SAVE_VERSION, hasActiveRun: false };
+  }
+
+  const legacy = loadJsonSave(LEGACY_SAVE_KEY);
+  if (legacy?.player?.classId && shouldPersistRunData(legacy)) {
+    return {
+      ...legacy,
+      saveVersion: SAVE_VERSION,
+      player: { ...INITIAL_PLAYER, ...(legacy.player || {}) },
+      hasActiveRun: true,
+    };
+  }
+
+  return { saveVersion: SAVE_VERSION, hasActiveRun: false };
+}
+
+function saveRunData(runData) {
+  const normalizedRunData = {
+    ...runData,
+    saveVersion: SAVE_VERSION,
+    hasActiveRun: shouldPersistRunData(runData),
+  };
+
+  if (!normalizedRunData.hasActiveRun) {
+    clearRunData();
+    return;
+  }
+
+  saveJsonData(RUN_SAVE_KEY, {
+    saveVersion: SAVE_VERSION,
+    runData: normalizedRunData,
+  });
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem(RUN_CLEARED_KEY);
+  }
+}
+
+function clearRunData() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(RUN_SAVE_KEY);
+  window.localStorage.setItem(RUN_CLEARED_KEY, "true");
+}
 
 function CardTypeSigil({ type, stroke, className = "h-5 w-5" }) {
   if (type === "attack") {
@@ -865,28 +1158,67 @@ const SHOP_CARD_VALUE_BY_RARITY = {
   legendary: 150,
 };
 
+const DEFAULT_MONSTER_IMAGE = "/images/monster/default_monster.png";
+const MONSTER_IMAGE_PATHS = {
+  snail: "/images/Monsters/1층/달팽이.png",
+  slime: "/images/Monsters/1층/슬라임.png",
+  mushroom: "/images/Monsters/1층/버섯.png",
+  pig: "/images/Monsters/1층/돼지.png",
+  gatekeeper: "/images/Monsters/1층/탑 수문병.png",
+  kobold_boss: "/images/Monsters/1층/코볼트 보스.png",
+  goblin: "/images/Monsters/2층/고블린.png",
+  orc: "/images/Monsters/2층/오크.png",
+  wolf: "/images/Monsters/2층/늑대.png",
+  dark_knight: "/images/Monsters/2층/암흑기사.png",
+  rift_mage: "/images/Monsters/2층/균열 마도사.png",
+  black_iron_watcher: "/images/Monsters/2층/흑철감시자.png",
+  dragon_boss: "/images/Monsters/2층/드래곤보스.png",
+};
+
+const MONSTER_IMAGE_BY_NAME = {
+  달팽이: MONSTER_IMAGE_PATHS.snail,
+  슬라임: MONSTER_IMAGE_PATHS.slime,
+  버섯: MONSTER_IMAGE_PATHS.mushroom,
+  돼지: MONSTER_IMAGE_PATHS.pig,
+  "탑 수문병": MONSTER_IMAGE_PATHS.gatekeeper,
+  "코볼트 보스": MONSTER_IMAGE_PATHS.kobold_boss,
+  고블린: MONSTER_IMAGE_PATHS.goblin,
+  오크: MONSTER_IMAGE_PATHS.orc,
+  늑대: MONSTER_IMAGE_PATHS.wolf,
+  암흑기사: MONSTER_IMAGE_PATHS.dark_knight,
+  "균열 마도사": MONSTER_IMAGE_PATHS.rift_mage,
+  흑철감시자: MONSTER_IMAGE_PATHS.black_iron_watcher,
+  드래곤보스: MONSTER_IMAGE_PATHS.dragon_boss,
+};
+
+function getMonsterImagePath(monster) {
+  if (!monster) return "";
+  const baseName = String(monster.name || monster.enemy || "").replace(/\s+(부하|지원병)\s+\d+$/, "");
+  return monster.imagePath || MONSTER_IMAGE_PATHS[monster.monsterId] || MONSTER_IMAGE_BY_NAME[baseName] || monster.imageSrc || "";
+}
+
 const FLOOR_ENEMY_TABLE = {
   1: {
     normal: [
-      { enemy: "달팽이", maxHp: 40, attack: 6, speed: 7, image: "🐌", imageSrc: "/images/monsters/floor-1/snail.png" },
-      { enemy: "슬라임", maxHp: 50, attack: 8, speed: 8, image: "🟢", imageSrc: "/images/monsters/floor-1/slime.png" },
-      { enemy: "버섯", maxHp: 60, attack: 9, speed: 9, image: "🍄", imageSrc: "/images/monsters/floor-1/mushroom.png" },
-      { enemy: "돼지", maxHp: 70, attack: 10, speed: 9, image: "🐖", imageSrc: "/images/monsters/floor-1/pig.png" },
-      { enemy: "탑 수문병", maxHp: 74, attack: 11, speed: 10, image: "🛡️", imageSrc: "/images/monsters/floor-1/gatekeeper.png" },
+      { monsterId: "snail", enemy: "달팽이", maxHp: 40, attack: 6, speed: 7, image: "🐌", imagePath: MONSTER_IMAGE_PATHS.snail },
+      { monsterId: "slime", enemy: "슬라임", maxHp: 50, attack: 8, speed: 8, image: "🟢", imagePath: MONSTER_IMAGE_PATHS.slime },
+      { monsterId: "mushroom", enemy: "버섯", maxHp: 60, attack: 9, speed: 9, image: "🍄", imagePath: MONSTER_IMAGE_PATHS.mushroom },
+      { monsterId: "pig", enemy: "돼지", maxHp: 70, attack: 10, speed: 9, image: "🐖", imagePath: MONSTER_IMAGE_PATHS.pig },
+      { monsterId: "gatekeeper", enemy: "탑 수문병", maxHp: 74, attack: 11, speed: 10, image: "🛡️", imagePath: MONSTER_IMAGE_PATHS.gatekeeper },
     ],
-    elite: [{ enemy: "탑 수문병", maxHp: 96, attack: 13, speed: 10, image: "🛡️", imageSrc: "/images/monsters/floor-1/gatekeeper.png" }],
-    boss: [{ enemy: "코볼트 보스", maxHp: 120, attack: 14, speed: 11, image: "👑", imageSrc: "/images/monsters/floor-1/kobold-boss.png" }],
+    elite: [{ monsterId: "gatekeeper", enemy: "탑 수문병", maxHp: 96, attack: 13, speed: 10, image: "🛡️", imagePath: MONSTER_IMAGE_PATHS.gatekeeper }],
+    boss: [{ monsterId: "kobold_boss", enemy: "코볼트 보스", maxHp: 120, attack: 14, speed: 11, image: "👑", imagePath: MONSTER_IMAGE_PATHS.kobold_boss }],
   },
   2: {
     normal: [
-      { enemy: "고블린", maxHp: 80, attack: 12, speed: 11, image: "🗡️", imageSrc: "/images/monsters/floor-2/goblin.png" },
-      { enemy: "오크", maxHp: 90, attack: 13, speed: 10, image: "🪓", imageSrc: "/images/monsters/floor-2/orc.png" },
-      { enemy: "늑대", maxHp: 95, attack: 14, speed: 15, image: "🐺", imageSrc: "/images/monsters/floor-2/wolf.png" },
-      { enemy: "암흑기사", maxHp: 110, attack: 16, speed: 12, image: "♞", imageSrc: "/images/monsters/floor-2/dark-knight.png" },
-      { enemy: "균열 마도사", maxHp: 104, attack: 15, speed: 14, image: "🔮", imageSrc: "/images/monsters/floor-2/rift-mage.png" },
+      { monsterId: "goblin", enemy: "고블린", maxHp: 80, attack: 12, speed: 11, image: "🗡️", imagePath: MONSTER_IMAGE_PATHS.goblin },
+      { monsterId: "orc", enemy: "오크", maxHp: 90, attack: 13, speed: 10, image: "🪓", imagePath: MONSTER_IMAGE_PATHS.orc },
+      { monsterId: "wolf", enemy: "늑대", maxHp: 95, attack: 14, speed: 15, image: "🐺", imagePath: MONSTER_IMAGE_PATHS.wolf },
+      { monsterId: "dark_knight", enemy: "암흑기사", maxHp: 110, attack: 16, speed: 12, image: "♞", imagePath: MONSTER_IMAGE_PATHS.dark_knight },
+      { monsterId: "rift_mage", enemy: "균열 마도사", maxHp: 104, attack: 15, speed: 14, image: "🔮", imagePath: MONSTER_IMAGE_PATHS.rift_mage },
     ],
-    elite: [{ enemy: "흑철감시자", maxHp: 135, attack: 18, speed: 12, image: "🛡️", imageSrc: "/images/monsters/floor-2/black-iron-watcher.png" }],
-    boss: [{ enemy: "드래곤보스", maxHp: 180, attack: 22, speed: 13, image: "🐉", imageSrc: "/images/monsters/floor-2/dragon-boss.png" }],
+    elite: [{ monsterId: "black_iron_watcher", enemy: "흑철감시자", maxHp: 135, attack: 18, speed: 12, image: "🛡️", imagePath: MONSTER_IMAGE_PATHS.black_iron_watcher }],
+    boss: [{ monsterId: "dragon_boss", enemy: "드래곤보스", maxHp: 180, attack: 22, speed: 13, image: "🐉", imagePath: MONSTER_IMAGE_PATHS.dragon_boss }],
   },
 };
 
@@ -960,12 +1292,15 @@ function getFloorNodes(floor) {
 
 function buildStageEnemy(stage) {
   const isBoss = stage.type === "boss";
+  const imagePath = getMonsterImagePath(stage);
   return {
+    monsterId: stage.monsterId,
     name: stage.enemy,
     maxHp: stage.maxHp,
     speed: stage.speed,
     image: stage.image,
-    imageSrc: stage.imageSrc,
+    imagePath,
+    imageSrc: imagePath,
     boss: isBoss,
     actions: isBoss
       ? [
@@ -984,7 +1319,11 @@ function buildStageEnemy(stage) {
 function calcDamage(base, player, enemy) {
   const attackBonus = Math.max(0, Math.floor(((player.attack || 10) - 10) / 2));
   const raw = base + player.strength + attackBonus;
-  return enemy.vulnerable > 0 ? Math.ceil(raw * 1.5) : raw;
+  const attackAdjusted = raw * (player.attackMultiplier || 1);
+  const bossAdjusted = enemy?.boss ? attackAdjusted * (player.bossDamageMultiplier || 1) : attackAdjusted;
+  const critAdjusted = Math.random() < (player.critRate || 0) ? bossAdjusted * (player.critDamageMultiplier || 1.5) : bossAdjusted;
+  const finalDamage = enemy.vulnerable > 0 ? critAdjusted * 1.5 : critAdjusted;
+  return Math.max(1, Math.ceil(finalDamage));
 }
 
 function shuffle(array) {
@@ -1005,11 +1344,24 @@ function clampNumber(value, min, max) {
 }
 
 function healByPercent(player, percent) {
-  const amount = Math.max(1, Math.ceil(player.maxHp * (percent / 100)));
+  const amount = getModifiedHealAmount(player, Math.max(1, Math.ceil(player.maxHp * (percent / 100))));
   return {
     amount: Math.min(amount, Math.max(0, player.maxHp - player.hp)),
     rawAmount: amount,
   };
+}
+
+function getModifiedHealAmount(player, amount) {
+  return Math.max(1, Math.ceil(amount * (player?.healMultiplier || 1)));
+}
+
+function applyFlatHeal(player, amount) {
+  const healed = Math.min(Math.max(0, player.maxHp - player.hp), getModifiedHealAmount(player, amount));
+  return { ...player, hp: Math.min(player.maxHp, player.hp + healed) };
+}
+
+function getModifiedGoldGain(player, amount) {
+  return Math.max(0, Math.ceil(amount * (player?.goldMultiplier || 1)));
 }
 
 function damageByPercent(player, percent) {
@@ -1033,12 +1385,12 @@ function pickRandomExplorationCard(classId) {
   return pool[randomInt(0, Math.max(0, pool.length - 1))] || Object.keys(CARD_POOL)[0];
 }
 
-function buildShopCards(classId) {
+function buildShopCards(classId, shopPriceMultiplier = 1) {
   const pool = shuffle(getExplorationCardPool(classId)).slice(0, 3);
   return pool.map((id, index) => ({
     id,
     stockId: `${id}-${Date.now()}-${index}-${randomInt(1000, 9999)}`,
-    price: randomInt(50, 150),
+    price: Math.max(1, Math.ceil(randomInt(50, 150) * shopPriceMultiplier)),
   }));
 }
 
@@ -1217,7 +1569,8 @@ function createStageEnemies(stage) {
             attack: Math.max(4, Math.round(stage.attack * (stage.type === "boss" ? 0.55 + index * 0.06 : 0.82))),
             speed: Math.max(5, stage.speed + index - 1),
             image: stage.type === "boss" ? (index === 1 ? "🛡️" : "🔥") : "🧬",
-            imageSrc: stage.imageSrc,
+            imagePath: getMonsterImagePath(stage),
+            imageSrc: getMonsterImagePath(stage),
           };
 
     return {
@@ -1237,7 +1590,8 @@ function areAllEnemiesDefeated(enemyList) {
   return enemyList.length > 0 && enemyList.every((enemy) => enemy.hp <= 0);
 }
 
-function getRewardCards(deck, classId) {
+function getRewardCards(deck, classId, playerDataOrEffects = null) {
+  const effects = playerDataOrEffects?.traits ? getTraitEffects(playerDataOrEffects) : playerDataOrEffects || {};
   const ids = Object.keys(CARD_POOL).filter((id) => id !== "strike" && id !== "defend");
   const isClassCard = (id) => {
     const cardClass = CARD_POOL[id].cardClass || "common";
@@ -1263,18 +1617,21 @@ function getRewardCards(deck, classId) {
     },
   };
 
+  const rewardTarget = Math.min(4, 3 + (Math.random() < (effects.cardRewardChance || 0) ? 1 : 0));
   const selectedIds = [];
-  while (selectedIds.length < 3) {
+  while (selectedIds.length < rewardTarget) {
     const availableWeights = REWARD_RARITY_WEIGHTS.filter(({ rarity }) => {
       const pool = rarityPools[rarity];
       return pool.class.length > 0 || pool.shared.length > 0;
     });
     if (availableWeights.length === 0) break;
 
-    const totalWeight = availableWeights.reduce((sum, item) => sum + item.weight, 0);
+    const rareOrBetterWeights = availableWeights.filter(({ rarity }) => rarity !== "common");
+    const weights = Math.random() < (effects.rareCardChance || 0) && rareOrBetterWeights.length > 0 ? rareOrBetterWeights : availableWeights;
+    const totalWeight = weights.reduce((sum, item) => sum + item.weight, 0);
     let roll = Math.random() * totalWeight;
-    let selectedRarity = availableWeights[0].rarity;
-    for (const item of availableWeights) {
+    let selectedRarity = weights[0].rarity;
+    for (const item of weights) {
       roll -= item.weight;
       if (roll <= 0) {
         selectedRarity = item.rarity;
@@ -1314,7 +1671,7 @@ function buildRoomEncounter(stage, player, deck = []) {
   }
 
   if (stage.type === "shop") {
-    const shopCards = buildShopCards(player.classId);
+    const shopCards = buildShopCards(player.classId, player.shopPriceMultiplier || 1);
     const featured = shopCards.find((item) => item.price <= player.gold) || shopCards[0];
     const sellable = findSellableCard(deck);
     return {
@@ -1688,6 +2045,32 @@ function UsedCardOverlay({ animation }) {
   );
 }
 
+function MonsterImage({ monster, className = "monster-image", fallbackClassName = "monster-image-fallback" }) {
+  const primarySrc = getMonsterImagePath(monster);
+  const [mode, setMode] = useState(primarySrc ? "primary" : "fallback");
+  const src = mode === "primary" ? primarySrc : mode === "default" ? DEFAULT_MONSTER_IMAGE : "";
+
+  useEffect(() => {
+    setMode(primarySrc ? "primary" : "fallback");
+  }, [primarySrc]);
+
+  if (!src) {
+    return <span className={fallbackClassName}>{monster?.image || "?"}</span>;
+  }
+
+  return (
+    <img
+      src={src}
+      alt={monster?.name || "몬스터"}
+      className={className}
+      draggable="false"
+      onError={() => {
+        setMode((current) => (current === "primary" && primarySrc !== DEFAULT_MONSTER_IMAGE ? "default" : "fallback"));
+      }}
+    />
+  );
+}
+
 function EnemyAttackOverlay({ animation }) {
   if (!animation) return null;
 
@@ -1718,11 +2101,7 @@ function EnemyAttackOverlay({ animation }) {
       transition={{ duration: 0.62, times: [0, 0.36, 1], ease: [0.22, 1, 0.36, 1] }}
     >
       <div className="enemy-attack-trail" />
-      {animation.imageSrc ? (
-        <img src={animation.imageSrc} alt={animation.name} draggable="false" />
-      ) : (
-        <span>{animation.image || "!"}</span>
-      )}
+      <MonsterImage monster={animation} />
     </motion.div>
   );
 }
@@ -1907,7 +2286,6 @@ function BattleEnemyCard({ entry, index, selected, hidden, defeated, hitEffect, 
   const intent = entry.actions[entry.actionIndex % entry.actions.length];
   const intentIcon = intent.type === "attack" ? <Sword size={18} /> : intent.type === "block" ? <Shield size={18} /> : <Zap size={18} />;
   const attackValue = intent.type === "attack" ? intent.value + entry.strength : entry.strength;
-  const [imageFailed, setImageFailed] = useState(false);
 
   return (
     <motion.button
@@ -1940,17 +2318,7 @@ function BattleEnemyCard({ entry, index, selected, hidden, defeated, hitEffect, 
       ) : (
         <div className="voc-card-face">
           <div className="voc-card-art">
-                {entry.imageSrc && !imageFailed ? (
-                  <img
-                    src={entry.imageSrc}
-                    alt={entry.name}
-                    className="voc-card-art-image"
-                    onError={() => setImageFailed(true)}
-                    draggable="false"
-                  />
-                ) : (
-                  <div className="voc-card-fallback-icon">{entry.image}</div>
-                )}
+            <MonsterImage monster={entry} className="voc-card-art-image" fallbackClassName="voc-card-fallback-icon" />
           </div>
           <div className="voc-card-name">{entry.name}</div>
           {entry.boss && <div className="voc-card-ribbon">BOSS</div>}
@@ -2796,6 +3164,7 @@ function RoomEncounterPanel({ encounter, result, player, deck, onChoose, onConti
 
 function TowerMapScreen({
   player,
+  playerData,
   currentClassTheme,
   deck,
   selectedFloor,
@@ -2805,6 +3174,9 @@ function TowerMapScreen({
   onSelectFloor,
   onEnterFloor,
   onToggleDeck,
+  onOpenTraits,
+  onSave,
+  onLoad,
   showDeckManager,
   onCharacterSelect,
   onRestart,
@@ -2837,6 +3209,7 @@ function TowerMapScreen({
             <div>체력 <strong>{player.hp}/{player.maxHp}</strong></div>
             <div>골드 <strong>{player.gold}</strong></div>
             <div>덱 <strong>{deck.length}장</strong></div>
+            <div>특성 <strong>{normalizePlayerData(playerData).traitPoint}P</strong></div>
           </div>
         </header>
 
@@ -2846,6 +3219,15 @@ function TowerMapScreen({
           </button>
           <button onClick={onCharacterSelect} className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 font-black text-white hover:bg-white/15">
             직업 다시 선택
+          </button>
+          <button onClick={onOpenTraits} className="rounded-2xl bg-emerald-300 px-4 py-3 font-black text-emerald-950 hover:bg-emerald-200">
+            특성 관리
+          </button>
+          <button onClick={onSave} className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 font-black text-white hover:bg-white/15">
+            저장
+          </button>
+          <button onClick={onLoad} className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 font-black text-white hover:bg-white/15">
+            불러오기
           </button>
           <button onClick={onRestart} className="rounded-2xl bg-white px-4 py-3 font-black text-slate-950 hover:bg-cyan-100">
             처음으로
@@ -2921,9 +3303,98 @@ function TowerMapScreen({
   );
 }
 
+function TraitManagementScreen({ playerData, onUpgradeTrait, onBack, feedback, lastUpgradedTraitId }) {
+  const normalizedData = normalizePlayerData(playerData);
+
+  return (
+    <div className="trait-screen min-h-screen p-4 text-slate-100">
+      <div className="mx-auto max-w-7xl">
+        <header className="trait-header mb-5">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.18em] text-amber-200">
+              <Sparkles size={18} /> Trait Management
+            </div>
+            <h1 className="mt-1 text-4xl font-black">특성 관리</h1>
+            <p className="mt-1 text-sm text-slate-300">최초 보스 처치로 얻은 포인트를 공격, 수비, 자원 특성에 투자합니다.</p>
+          </div>
+          <div className="trait-header-actions">
+            <div className="trait-point-pill">
+              <Sparkles size={18} />
+              보유 특성 포인트 <strong>{normalizedData.traitPoint}</strong>
+            </div>
+            <button type="button" onClick={onBack} className="rounded-2xl bg-white px-4 py-3 font-black text-slate-950 hover:bg-cyan-100">
+              뒤로가기
+            </button>
+          </div>
+        </header>
+
+        {feedback && <div className={`trait-feedback ${feedback.includes("부족") || feedback.includes("최대") ? "is-error" : "is-success"}`}>{feedback}</div>}
+
+        <main className="trait-category-grid">
+          {TRAIT_CATEGORIES.map((category) => (
+            <section key={category.id} className={`trait-category-panel ${category.className}`}>
+              <div className="trait-category-head">
+                <div>
+                  <h2>{category.title}</h2>
+                  <p>{category.subtitle}</p>
+                </div>
+              </div>
+
+              <div className="trait-node-list">
+                {TRAIT_DEFINITIONS.filter((trait) => trait.category === category.id).map((trait) => {
+                  const Icon = trait.icon;
+                  const level = getTraitLevel(normalizedData, trait.id);
+                  const isMax = level >= trait.maxLevel;
+                  const canUpgrade = normalizedData.traitPoint > 0 && !isMax;
+                  const upgraded = lastUpgradedTraitId === trait.id;
+                  const locked = level <= 0;
+
+                  return (
+                    <motion.article
+                      key={trait.id}
+                      animate={upgraded ? { scale: [1, 1.03, 1], boxShadow: ["0 0 0 rgba(255,255,255,0)", "0 0 34px rgba(250,204,21,0.45)", "0 0 0 rgba(255,255,255,0)"] } : undefined}
+                      className={`trait-node ${locked ? "is-locked" : "is-active"} ${upgraded ? "is-upgraded" : ""}`}
+                    >
+                      <div className="trait-node-top">
+                        <span className="trait-node-icon"><Icon size={22} /></span>
+                        <div>
+                          <h3>{trait.name}</h3>
+                          <p>Lv {level} / {trait.maxLevel}</p>
+                        </div>
+                      </div>
+                      <div className="trait-node-effect">
+                        <span>현재 효과</span>
+                        <strong>{getTraitEffectText(trait.id, level)}</strong>
+                      </div>
+                      <div className="trait-node-effect">
+                        <span>다음 레벨</span>
+                        <strong>{isMax ? "최대 레벨" : getTraitEffectText(trait.id, level + 1)}</strong>
+                      </div>
+                      <p className="trait-node-desc">{trait.perLevelText}</p>
+                      <button
+                        type="button"
+                        onClick={() => onUpgradeTrait(trait.id)}
+                        disabled={!canUpgrade}
+                        className="trait-upgrade-button"
+                      >
+                        {isMax ? "MAX" : "강화"}
+                      </button>
+                    </motion.article>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+        </main>
+      </div>
+    </div>
+  );
+}
+
 function FloorMapScreen({
   floor,
   player,
+  playerData,
   currentClassTheme,
   deck,
   floorNodes,
@@ -2933,6 +3404,9 @@ function FloorMapScreen({
   onEnterNode,
   onBackToTower,
   onToggleDeck,
+  onOpenTraits,
+  onSave,
+  onLoad,
   showDeckManager,
   deckCount,
   inspectedCard,
@@ -2951,11 +3425,21 @@ function FloorMapScreen({
             <h1 className="mt-1 text-4xl font-black">던전 {floor}층 내부</h1>
             <p className="mt-1 text-sm text-slate-300">
               {currentClassTheme.name} / HP {player.hp}/{player.maxHp} / 골드 {player.gold} / 덱 {deck.length}장 / 현재 목표: {nextNode ? `${nextNode.ringLabel} ${ROOM_TYPE_META[nextNode.type].label}` : "중앙 보스 공략 완료"}
+              {" "} / 특성 포인트 {normalizePlayerData(playerData).traitPoint}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button onClick={onToggleDeck} className="rounded-2xl bg-cyan-300 px-4 py-3 font-black text-slate-950 hover:bg-cyan-200">
               {showDeckManager ? "층 내부 보기" : "덱 관리"}
+            </button>
+            <button onClick={onOpenTraits} className="rounded-2xl bg-emerald-300 px-4 py-3 font-black text-emerald-950 hover:bg-emerald-200">
+              특성 관리
+            </button>
+            <button onClick={onSave} className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 font-black text-white hover:bg-white/15">
+              저장
+            </button>
+            <button onClick={onLoad} className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 font-black text-white hover:bg-white/15">
+              불러오기
             </button>
             <button onClick={onBackToTower} className="rounded-2xl bg-white px-4 py-3 font-black text-slate-950 hover:bg-cyan-100">
               탑으로 돌아가기
@@ -3040,20 +3524,8 @@ function FloorMapScreen({
 }
 
 export default function DeckbuilderRoguelikePrototype() {
-  const [player, setPlayer] = useState({
-    hp: 0,
-    maxHp: 0,
-    gold: 0,
-    block: 0,
-    energy: 3,
-    maxEnergy: 3,
-    strength: 0,
-    vulnerable: 0,
-    classId: null,
-    attack: 10,
-    defense: 0,
-    speed: 0,
-  });
+  const [player, setPlayer] = useState(INITIAL_PLAYER);
+  const [playerData, setPlayerData] = useState(() => createDefaultPlayerData());
   const [deck, setDeck] = useState([]);
   const [drawPile, setDrawPile] = useState([]);
   const [hand, setHand] = useState([]);
@@ -3091,9 +3563,14 @@ export default function DeckbuilderRoguelikePrototype() {
   const [hitEffects, setHitEffects] = useState({});
   const [initiativeReady, setInitiativeReady] = useState(false);
   const [currentActor, setCurrentActor] = useState({ type: "player" });
+  const [traitReturnPhase, setTraitReturnPhase] = useState("towerMap");
+  const [traitFeedback, setTraitFeedback] = useState("");
+  const [lastUpgradedTraitId, setLastUpgradedTraitId] = useState(null);
+  const [hasSavedRun, setHasSavedRun] = useState(() => loadRunData().hasActiveRun);
   const discardPileRef = useRef(null);
   const playerTargetRef = useRef(null);
   const enemyActorRefs = useRef([]);
+  const saveReadyRef = useRef(false);
 
   const liveEnemyIndex = getFirstAliveEnemyIndex(enemies);
   const safeSelectedEnemyIndex =
@@ -3110,6 +3587,64 @@ export default function DeckbuilderRoguelikePrototype() {
   const currentClearedNodeIds = getClearedNodeIds(clearedNodesByFloor, currentFloor);
   const currentFloorUnlocked = isFloorUnlocked(unlockedFloors, currentFloor);
   const currentFloorCleared = clearedFloors.includes(currentFloor);
+
+  useEffect(() => {
+    const savedPermanentData = loadPermanentData();
+    const savedRunData = loadRunData();
+    setPlayerData(savedPermanentData);
+    if (savedRunData.hasActiveRun) {
+      restoreRunData(savedRunData, savedPermanentData, "저장된 진행상황을 불러왔습니다.");
+    } else {
+      clearRunData();
+    }
+    setHasSavedRun(Boolean(savedRunData.hasActiveRun));
+    window.setTimeout(() => {
+      saveReadyRef.current = true;
+    }, 0);
+  }, []);
+
+  useEffect(() => {
+    if (!saveReadyRef.current) return;
+    savePermanentData(playerData);
+    const runData = buildRunData();
+    if (runData.hasActiveRun) {
+      saveRunData(runData);
+      setHasSavedRun(true);
+    } else if (phase === "defeat" || phase === "victory") {
+      clearRunData();
+      setHasSavedRun(false);
+    }
+  }, [
+    player,
+    playerData,
+    deck,
+    drawPile,
+    hand,
+    discardPile,
+    exhaustPile,
+    enemyIndex,
+    enemies,
+    selectedEnemyIndex,
+    turn,
+    phase,
+    log,
+    rewards,
+    flippedRewards,
+    roomEncounter,
+    roomResult,
+    relics,
+    selectedCharacterId,
+    selectedStage,
+    selectedFloor,
+    currentFloor,
+    unlockedFloors,
+    clearedFloors,
+    clearedNodesByFloor,
+    speedGauge,
+    rageStacks,
+    comboStacks,
+    traitReturnPhase,
+  ]);
 
   useEffect(() => {
     if (phase !== "combat" || initiativeReady || enemies.length === 0 || player.hp <= 0) return;
@@ -3146,6 +3681,244 @@ export default function DeckbuilderRoguelikePrototype() {
     setLog((prev) => [text, ...prev].slice(0, 6));
   }
 
+  function buildRunData(overrides = {}) {
+    const clearedRooms = Object.values(clearedNodesByFloor).flat();
+    const snapshot = {
+      saveVersion: SAVE_VERSION,
+      player,
+      selectedCharacter: player.classId || selectedCharacterId,
+      currentRoomId: selectedStage?.id || null,
+      currentHp: player.hp,
+      currentGold: player.gold,
+      visitedRooms: Array.from(new Set([...(selectedStage?.id ? [selectedStage.id] : []), ...clearedRooms])),
+      clearedRooms,
+      deck,
+      drawPile,
+      hand,
+      discardPile,
+      exhaustPile,
+      enemyIndex,
+      enemies,
+      selectedEnemyIndex,
+      turn,
+      phase,
+      log,
+      rewards,
+      flippedRewards,
+      roomEncounter,
+      roomResult,
+      relics,
+      selectedCharacterId,
+      selectedStage,
+      selectedFloor,
+      currentFloor,
+      unlockedFloors,
+      clearedFloors,
+      clearedNodesByFloor,
+      speedGauge,
+      rageStacks,
+      comboStacks,
+      traitReturnPhase,
+      ...overrides,
+    };
+
+    return {
+      ...snapshot,
+      hasActiveRun: shouldPersistRunData(snapshot),
+    };
+  }
+
+  function restoreRunData(runData, permanentData = playerData, message = "") {
+    const normalizedPermanentData = normalizePermanentData(permanentData);
+    setPlayer(applyTraitEffectsToPlayer({ ...INITIAL_PLAYER, ...(runData?.player || {}) }, normalizedPermanentData));
+    setPlayerData(normalizedPermanentData);
+    setDeck(runData?.deck || []);
+    setDrawPile(runData?.drawPile || []);
+    setHand(runData?.hand || []);
+    setDiscardPile(runData?.discardPile || []);
+    setExhaustPile(runData?.exhaustPile || []);
+    setEnemyIndex(runData?.enemyIndex || 0);
+    setEnemies(runData?.enemies || [createEnemy(0)]);
+    setSelectedEnemyIndex(runData?.selectedEnemyIndex || 0);
+    setTurn(runData?.turn || 1);
+    setPhase(runData?.phase || "towerMap");
+    setRewards(runData?.rewards || []);
+    setFlippedRewards(runData?.flippedRewards || []);
+    setRoomEncounter(runData?.roomEncounter || null);
+    setRoomResult(runData?.roomResult || null);
+    setRelics(runData?.relics || []);
+    setSelectedCharacterId(runData?.selectedCharacterId || runData?.player?.classId || null);
+    setSelectedStage(runData?.selectedStage || null);
+    setSelectedFloor(runData?.selectedFloor || 1);
+    setCurrentFloor(runData?.currentFloor || 1);
+    setUnlockedFloors(runData?.unlockedFloors || [1]);
+    setClearedFloors(runData?.clearedFloors || []);
+    setClearedNodesByFloor(runData?.clearedNodesByFloor || {});
+    setSpeedGauge(runData?.speedGauge || { player: 0, enemies: [] });
+    setRageStacks(runData?.rageStacks || 0);
+    setComboStacks(runData?.comboStacks || 0);
+    setTraitReturnPhase(runData?.traitReturnPhase || "towerMap");
+    setHasSavedRun(true);
+    setShowDeckManager(false);
+    setInspectedCardId(null);
+    setSelectedCommand("attack");
+    setIsCardAnimating(false);
+    setActiveCardAnimation(null);
+    setEnemyAttackAnimation(null);
+    setPlayerHitEffect(null);
+    setHitEffects({});
+    setInitiativeReady(false);
+    setCurrentActor({ type: "player" });
+    setLog(message ? [message, ...(runData?.log || [])].slice(0, 6) : runData?.log || ["저장된 진행상황을 불러왔습니다."]);
+  }
+
+  function handleManualSave() {
+    savePermanentData(playerData);
+    const runData = buildRunData();
+    if (runData.hasActiveRun) {
+      saveRunData(runData);
+      setHasSavedRun(true);
+    }
+    pushLog("게임을 저장했습니다.");
+  }
+
+  function handleManualLoad() {
+    const savedPermanentData = loadPermanentData();
+    const savedRunData = loadRunData();
+    setPlayerData(savedPermanentData);
+    if (!savedRunData.hasActiveRun) {
+      pushLog("저장된 진행상황이 없습니다.");
+      return;
+    }
+    restoreRunData(savedRunData, savedPermanentData, "저장된 진행상황을 불러왔습니다.");
+  }
+
+  function handleGameStart() {
+    const savedPermanentData = loadPermanentData();
+    const savedRunData = loadRunData();
+    setPlayerData(savedPermanentData);
+    if (savedRunData.hasActiveRun) {
+      restoreRunData(savedRunData, savedPermanentData, "이어하기로 저장된 진행상황을 불러왔습니다.");
+      return;
+    }
+    setPhase("character-select");
+  }
+
+  function resetRunState(nextPhase = "start", nextLog = ["게임 시작을 눌러 새 런을 시작하세요."]) {
+    clearRunData();
+    setHasSavedRun(false);
+    setPlayer(INITIAL_PLAYER);
+    setDeck([]);
+    setDrawPile([]);
+    setHand([]);
+    setDiscardPile([]);
+    setExhaustPile([]);
+    setEnemyIndex(0);
+    setEnemies([createEnemy(0)]);
+    setSelectedEnemyIndex(0);
+    setTurn(1);
+    setPhase(nextPhase);
+    setRewards([]);
+    setFlippedRewards([]);
+    setRoomEncounter(null);
+    setRoomResult(null);
+    setRelics([]);
+    setSelectedCharacterId(null);
+    setSelectedStage(null);
+    setSelectedFloor(1);
+    setCurrentFloor(1);
+    setUnlockedFloors([1]);
+    setClearedFloors([]);
+    setClearedNodesByFloor({});
+    setHoveredCharacterId(null);
+    setShowDeckManager(false);
+    setInspectedCardId(null);
+    setSelectedCommand("attack");
+    setIsCardAnimating(false);
+    setActiveCardAnimation(null);
+    setEnemyAttackAnimation(null);
+    setPlayerHitEffect(null);
+    setHitEffects({});
+    setSpeedGauge({ player: 0, enemies: [] });
+    setInitiativeReady(false);
+    setCurrentActor({ type: "player" });
+    setRageStacks(0);
+    setComboStacks(0);
+    setLog(nextLog);
+  }
+
+  function handleClearRunProgress() {
+    const confirmed = window.confirm("현재 진행 중인 던전 진행상황만 초기화됩니다.\n특성 포인트와 특성은 유지됩니다.\n정말 초기화하시겠습니까?");
+    if (!confirmed) return;
+    resetRunState("character-select", ["진행 중인 던전만 초기화했습니다. 특성 데이터는 유지됩니다."]);
+  }
+
+  function handlePlayerDeath(message = "패배했습니다. 덱 구성을 다시 조정해 보세요.") {
+    clearRunData();
+    setHasSavedRun(false);
+    savePermanentData(playerData);
+    setPhase("defeat");
+    pushLog(message);
+  }
+
+  function openTraitScreen(returnPhase = phase) {
+    setTraitReturnPhase(returnPhase);
+    setTraitFeedback("");
+    setShowDeckManager(false);
+    setPhase("traits");
+  }
+
+  function onBossDefeated(floor) {
+    const completedFloor = Number(floor);
+    if (!Number.isFinite(completedFloor)) return false;
+
+    const current = normalizePlayerData(playerData);
+    if (current.clearedBossFloors.includes(completedFloor)) return false;
+
+    const nextPlayerData = {
+      ...current,
+      traitPoint: current.traitPoint + 1,
+      clearedBossFloors: [...current.clearedBossFloors, completedFloor],
+    };
+    setPlayerData(nextPlayerData);
+    savePermanentData(nextPlayerData);
+    const runData = buildRunData();
+    if (runData.hasActiveRun) saveRunData(runData);
+    pushLog("특성 포인트를 1 획득했습니다!");
+    return true;
+  }
+
+  function upgradeTrait(traitId) {
+    const trait = TRAIT_BY_ID[traitId];
+    if (!trait) return;
+
+    const current = normalizePlayerData(playerData);
+    const currentLevel = getTraitLevel(current, traitId);
+    if (currentLevel >= trait.maxLevel) {
+      setTraitFeedback("최대 레벨");
+      return;
+    }
+    if (current.traitPoint <= 0) {
+      setTraitFeedback("포인트 부족");
+      return;
+    }
+
+    const nextPlayerData = {
+      ...current,
+      traitPoint: current.traitPoint - 1,
+      traits: {
+        ...current.traits,
+        [traitId]: currentLevel + 1,
+      },
+    };
+
+    setPlayerData(nextPlayerData);
+    setPlayer((currentPlayer) => applyTraitEffectsToPlayer(currentPlayer, nextPlayerData));
+    setTraitFeedback(`${trait.name} 강화 완료`);
+    setLastUpgradedTraitId(traitId);
+    savePermanentData(nextPlayerData);
+  }
+
   function drawFromPiles(count, currentDrawPile, currentDiscardPile) {
     let currentDraw = [...currentDrawPile];
     let currentDiscard = [...currentDiscardPile];
@@ -3176,20 +3949,26 @@ export default function DeckbuilderRoguelikePrototype() {
     const drawResult = drawFromPiles(5, startDrawPile, []);
 
     setSelectedCharacterId(characterId);
-    setPlayer({
+    const basePlayer = {
       hp: profile.hp,
       maxHp: profile.hp,
+      baseMaxHp: profile.hp,
       gold: 80,
       block: 0,
       energy: profile.energy || 3,
       maxEnergy: profile.maxEnergy || profile.energy || 3,
+      baseMaxEnergy: profile.maxEnergy || profile.energy || 3,
+      startEnergy: profile.energy || 3,
       strength: 0,
       vulnerable: 0,
       classId: characterId,
       attack: profile.attack,
+      baseAttack: profile.attack,
       defense: profile.defense,
+      baseDefense: profile.defense,
       speed: profile.speed,
-    });
+    };
+    setPlayer(applyTraitEffectsToPlayer(basePlayer, playerData, { resetEnergy: true, preserveHp: false }));
     setDeck(freshDeck);
     setDrawPile(drawResult.newDrawPile);
     setHand(drawResult.drawn);
@@ -3224,6 +4003,7 @@ export default function DeckbuilderRoguelikePrototype() {
     setComboStacks(0);
     setSpeedGauge({ player: 0, enemies: [] });
     setPhase("towerMap");
+    setHasSavedRun(true);
     setLog([
       `${profile.name} 선택 완료. 시작 자금 80골드를 챙겨 100층 고대탑의 1층이 열렸습니다.`,
       "보상 카드, 희귀도, 속도 기반 전투가 적용됩니다.",
@@ -3344,12 +4124,17 @@ export default function DeckbuilderRoguelikePrototype() {
     setCurrentActor({ type: "player" });
     setComboStacks(0);
     setRageStacks(0);
-    setPlayer((p) => ({
-      ...p,
-      energy: p.maxEnergy,
-      block: 0,
-      vulnerable: 0,
-    }));
+    setPlayer((p) =>
+      applyTraitEffectsToPlayer(
+        {
+          ...p,
+          block: 0,
+          vulnerable: 0,
+        },
+        playerData,
+        { resetEnergy: true },
+      ),
+    );
     setPhase("combat");
     setLog([
       `던전 ${stage.floor}층 ${stage.ringLabel} ${stage.typeLabel} 시작. 몬스터 ${stage.type === "boss" ? 3 : stage.type === "elite" ? 2 : 1}마리가 등장했습니다.`,
@@ -3552,7 +4337,7 @@ export default function DeckbuilderRoguelikePrototype() {
   function handleShopHeal() {
     if (phase !== "room" || roomEncounter?.type !== "shop") return;
     const missingHp = Math.max(0, player.maxHp - player.hp);
-    const healUnit = Math.max(1, Math.ceil(player.maxHp * 0.1));
+    const healUnit = getModifiedHealAmount(player, Math.max(1, Math.ceil(player.maxHp * 0.1)));
     const affordableUnits = Math.floor(player.gold / 10);
     const neededUnits = Math.ceil(missingHp / healUnit);
     const units = Math.min(affordableUnits, neededUnits);
@@ -3632,7 +4417,7 @@ export default function DeckbuilderRoguelikePrototype() {
       applyHeal(percent, "짧은 휴식으로 호흡이 안정되었습니다.");
       const bonusRoll = Math.random();
       if (bonusRoll < 0.4) {
-        const gold = randomInt(10, 30);
+        const gold = getModifiedGoldGain(nextPlayer, randomInt(10, 30));
         nextPlayer = { ...nextPlayer, gold: nextPlayer.gold + gold };
         details.push(`작은 보너스: 숨겨둔 주머니에서 ${gold} 골드 발견`);
         summary += ` 숨겨둔 주머니에서 ${gold} 골드도 발견했습니다.`;
@@ -3693,7 +4478,7 @@ export default function DeckbuilderRoguelikePrototype() {
 
     if (choice.id === "shop-heal") {
       const missingHp = Math.max(0, nextPlayer.maxHp - nextPlayer.hp);
-      const healUnit = Math.max(1, Math.ceil(nextPlayer.maxHp * 0.1));
+      const healUnit = getModifiedHealAmount(nextPlayer, Math.max(1, Math.ceil(nextPlayer.maxHp * 0.1)));
       const affordableUnits = Math.floor(nextPlayer.gold / 10);
       const neededUnits = Math.ceil(missingHp / healUnit);
       const units = Math.min(affordableUnits, neededUnits);
@@ -3722,13 +4507,13 @@ export default function DeckbuilderRoguelikePrototype() {
       if (roll === 3) applyDamage(randomInt(5, 30), "제단의 열기가 피를 태웠습니다.");
       if (roll === 4) {
         const gain = randomInt(5, 20);
-        nextPlayer = { ...nextPlayer, maxHp: nextPlayer.maxHp + gain, hp: nextPlayer.hp + gain };
+        nextPlayer = { ...nextPlayer, baseMaxHp: (nextPlayer.baseMaxHp || nextPlayer.maxHp) + gain, maxHp: nextPlayer.maxHp + gain, hp: nextPlayer.hp + gain };
         summary = `제단이 생명력을 새겨 최대 체력 ${gain}을 얻었습니다.`;
         details.push(`최대 체력: ${player.maxHp} → ${nextPlayer.maxHp}`);
         details.push(`체력: ${player.hp}/${player.maxHp} → ${nextPlayer.hp}/${nextPlayer.maxHp}`);
       }
       if (roll === 5) {
-        const gold = randomInt(10, 100);
+        const gold = getModifiedGoldGain(nextPlayer, randomInt(10, 100));
         nextPlayer = { ...nextPlayer, gold: nextPlayer.gold + gold };
         summary = `제단 아래에서 오래된 금화 ${gold} 골드를 발견했습니다.`;
         details.push(`골드: ${player.gold} → ${nextPlayer.gold}`);
@@ -3744,7 +4529,7 @@ export default function DeckbuilderRoguelikePrototype() {
         nextPlayer = { ...nextPlayer, gold: nextPlayer.gold - cost };
         if (Math.random() < 0.7) {
           const gain = randomInt(5, 20);
-          nextPlayer = { ...nextPlayer, maxHp: nextPlayer.maxHp + gain, hp: nextPlayer.hp + gain };
+          nextPlayer = { ...nextPlayer, baseMaxHp: (nextPlayer.baseMaxHp || nextPlayer.maxHp) + gain, maxHp: nextPlayer.maxHp + gain, hp: nextPlayer.hp + gain };
           summary = `${cost} 골드를 바치자 최대 체력 ${gain}이 증가했습니다.`;
           details.push(`골드: ${player.gold} → ${nextPlayer.gold}`);
           details.push(`최대 체력: ${player.maxHp} → ${nextPlayer.maxHp}`);
@@ -3757,7 +4542,7 @@ export default function DeckbuilderRoguelikePrototype() {
 
     if (choice.id === "event-ignore") {
       if (Math.random() < 0.25) {
-        const gold = randomInt(10, 30);
+        const gold = getModifiedGoldGain(nextPlayer, randomInt(10, 30));
         nextPlayer = { ...nextPlayer, gold: nextPlayer.gold + gold };
         summary = `조용히 지나가던 중 바닥 틈에서 ${gold} 골드를 주웠습니다.`;
         details.push(`골드: ${player.gold} → ${nextPlayer.gold}`);
@@ -3776,7 +4561,7 @@ export default function DeckbuilderRoguelikePrototype() {
       } else {
         nextPlayer = { ...nextPlayer, gold: nextPlayer.gold - stake };
         if (Math.random() < 0.55) {
-          const prize = randomInt(60, 100);
+          const prize = getModifiedGoldGain(nextPlayer, randomInt(60, 100));
           nextPlayer = { ...nextPlayer, gold: nextPlayer.gold + prize };
           summary = `도박에서 이겨 ${prize} 골드를 따냈습니다.`;
           details.push(`베팅: ${stake} 골드`);
@@ -3806,7 +4591,7 @@ export default function DeckbuilderRoguelikePrototype() {
 
     if (choice.id === "event-take-coins") {
       if (Math.random() < 0.65) {
-        const gold = randomInt(10, 100);
+        const gold = getModifiedGoldGain(nextPlayer, randomInt(10, 100));
         nextPlayer = { ...nextPlayer, gold: nextPlayer.gold + gold };
         summary = `샘 바닥에서 ${gold} 골드를 건져 올렸습니다.`;
         details.push(`골드: ${player.gold} → ${nextPlayer.gold}`);
@@ -3823,7 +4608,7 @@ export default function DeckbuilderRoguelikePrototype() {
         applyHeal(randomInt(10, 30), "샘가의 고요함이 상처를 누그러뜨렸습니다.");
       } else {
         const gain = randomInt(5, 12);
-        nextPlayer = { ...nextPlayer, maxHp: nextPlayer.maxHp + gain, hp: nextPlayer.hp + gain };
+        nextPlayer = { ...nextPlayer, baseMaxHp: (nextPlayer.baseMaxHp || nextPlayer.maxHp) + gain, maxHp: nextPlayer.maxHp + gain, hp: nextPlayer.hp + gain };
         summary = `샘의 숨결이 몸에 남아 최대 체력 ${gain}이 증가했습니다.`;
         details.push(`최대 체력: ${player.maxHp} → ${nextPlayer.maxHp}`);
         details.push(`체력: ${player.hp}/${player.maxHp} → ${nextPlayer.hp}/${nextPlayer.maxHp}`);
@@ -3840,8 +4625,7 @@ export default function DeckbuilderRoguelikePrototype() {
     setSelectedStage(null);
     setTurn(1);
     if (player.hp <= 0) {
-      setPhase("defeat");
-      pushLog("탐험 중 쓰러졌습니다. 다음 런에서는 위험한 선택을 조심하세요.");
+      handlePlayerDeath("탐험 중 쓰러졌습니다. 다음 런에서는 위험한 선택을 조심하세요.");
       return;
     }
     setPhase("floorMap");
@@ -3851,11 +4635,13 @@ export default function DeckbuilderRoguelikePrototype() {
   function finishBattle(isBoss) {
     markStageCleared(selectedStage);
 
-    const battleGold = selectedStage?.type === "boss" ? randomInt(60, 100) : selectedStage?.type === "elite" ? randomInt(35, 65) : randomInt(15, 40);
+    const baseBattleGold = selectedStage?.type === "boss" ? randomInt(60, 100) : selectedStage?.type === "elite" ? randomInt(35, 65) : randomInt(15, 40);
+    const battleGold = getModifiedGoldGain(player, baseBattleGold);
     setPlayer((p) => ({ ...p, gold: p.gold + battleGold }));
 
     if (selectedStage?.type === "boss") {
       const completedFloor = selectedStage.floor;
+      onBossDefeated(completedFloor);
       setClearedFloors((prev) => Array.from(new Set([...prev, completedFloor])));
       setUnlockedFloors((prev) => {
         const nextFloor = Math.min(TOTAL_FLOORS, completedFloor + 1);
@@ -3866,12 +4652,14 @@ export default function DeckbuilderRoguelikePrototype() {
     }
 
     if (selectedStage?.finalBoss) {
+      clearRunData();
+      setHasSavedRun(false);
       setPhase("victory");
       pushLog("100층 중앙 보스방을 공략했습니다. 탑 정복 완료!");
       return;
     }
 
-    const rewardCards = getRewardCards(deck, player.classId);
+    const rewardCards = getRewardCards(deck, player.classId, player);
     setRewards(rewardCards);
     setFlippedRewards(rewardCards.map(() => false));
     setRoomEncounter(null);
@@ -3900,7 +4688,8 @@ export default function DeckbuilderRoguelikePrototype() {
       key,
       name: actingEnemy.name,
       image: actingEnemy.image,
-      imageSrc: actingEnemy.imageSrc,
+      imagePath: getMonsterImagePath(actingEnemy),
+      imageSrc: getMonsterImagePath(actingEnemy),
       startX,
       startY,
       midX: (startX + endX) / 2,
@@ -3954,8 +4743,9 @@ export default function DeckbuilderRoguelikePrototype() {
         const defenseMitigation = Math.floor((nextPlayer.defense || 0) / 4);
         const damage = Math.max(1, action.value + actingEnemy.strength - defenseMitigation);
         const finalDamage = nextPlayer.vulnerable > 0 ? Math.ceil(damage * 1.5) : damage;
+        const reducedDamage = Math.max(1, Math.floor(finalDamage * (1 - (nextPlayer.damageReduction || 0))));
 
-        let taken = finalDamage;
+        let taken = reducedDamage;
         let blocked = 0;
 
         if (nextPlayer.classId === "archer" && Math.random() < 0.25) {
@@ -3963,8 +4753,8 @@ export default function DeckbuilderRoguelikePrototype() {
           actingEnemy = { ...actingEnemy, hp: Math.max(0, actingEnemy.hp - 4) };
           pushLog("궁수 패시브 발동: 회피 성공! 반격 피해 4");
         } else {
-          blocked = Math.min(nextPlayer.block, finalDamage);
-          taken = finalDamage - blocked;
+          blocked = Math.min(nextPlayer.block, reducedDamage);
+          taken = reducedDamage - blocked;
           nextPlayer.block -= blocked;
           nextPlayer.hp = Math.max(0, nextPlayer.hp - taken);
         }
@@ -4025,8 +4815,7 @@ export default function DeckbuilderRoguelikePrototype() {
       setRageStacks(nextRage);
       setSpeedGauge(nextGauge);
       setIsCardAnimating(false);
-      setPhase("defeat");
-      pushLog("패배했습니다. 덱 구성을 다시 조정해 보세요.");
+      handlePlayerDeath("패배했습니다. 덱 구성을 다시 조정해 보세요.");
       return;
     }
 
@@ -4087,8 +4876,7 @@ export default function DeckbuilderRoguelikePrototype() {
     setComboStacks(0);
     setSelectedStage(null);
     setPlayer((p) => ({
-      ...p,
-      hp: Math.min(p.maxHp, p.hp + 8),
+      ...applyFlatHeal(p, 8),
       block: 0,
       energy: p.maxEnergy,
       vulnerable: 0,
@@ -4112,50 +4900,20 @@ export default function DeckbuilderRoguelikePrototype() {
     setPhase(returnPhase);
     setComboStacks(0);
     setSelectedStage(null);
-    setPlayer((p) => ({ ...p, hp: Math.min(p.maxHp, p.hp + 12), block: 0, energy: p.maxEnergy, vulnerable: 0 }));
+    setPlayer((p) => ({ ...applyFlatHeal(p, 12), block: 0, energy: p.maxEnergy, vulnerable: 0 }));
     setSpeedGauge((g) => ({ ...g }));
     pushLog(completedBossRoom ? "카드 보상을 건너뛰고 체력 12 회복. 탑 화면으로 돌아갑니다." : "카드 보상을 건너뛰고 체력 12 회복. 층 내부 지도로 돌아갑니다.");
   }
 
   function restart() {
-    setPlayer({ hp: 0, maxHp: 0, gold: 0, block: 0, energy: 3, maxEnergy: 3, strength: 0, vulnerable: 0, classId: null, attack: 10, defense: 0, speed: 0 });
-    setDeck([]);
-    setDrawPile([]);
-    setHand([]);
-    setDiscardPile([]);
-    setExhaustPile([]);
-    setEnemyIndex(0);
-    setEnemies([createEnemy(0)]);
-    setSelectedEnemyIndex(0);
-    setTurn(1);
-    setPhase("start");
-    setRewards([]);
-    setFlippedRewards([]);
-    setRoomEncounter(null);
-    setRoomResult(null);
-    setRelics([]);
-    setSelectedCharacterId(null);
-    setSelectedStage(null);
-    setSelectedFloor(1);
-    setCurrentFloor(1);
-    setUnlockedFloors([1]);
-    setClearedFloors([]);
-    setClearedNodesByFloor({});
-    setHoveredCharacterId(null);
-    setShowDeckManager(false);
-    setInspectedCardId(null);
-    setSelectedCommand("attack");
-    setIsCardAnimating(false);
-    setActiveCardAnimation(null);
-    setEnemyAttackAnimation(null);
-    setPlayerHitEffect(null);
-    setHitEffects({});
-    setSpeedGauge({ player: 0, enemies: [] });
-    setInitiativeReady(false);
-    setCurrentActor({ type: "player" });
-    setRageStacks(0);
-    setComboStacks(0);
-    setLog(["게임 시작을 눌러 새 런을 시작하세요."]);
+    resetRunState("start", ["게임 시작을 눌러 새 런을 시작하세요. 특성 데이터는 유지됩니다."]);
+  }
+
+  function restartRun() {
+    const characterId = player.classId || selectedCharacterId || "warrior";
+    clearRunData();
+    setHasSavedRun(false);
+    initializeRun(characterId);
   }
 
   const deckCount = useMemo(() => {
@@ -4178,13 +4936,18 @@ export default function DeckbuilderRoguelikePrototype() {
           <p className="mx-auto mt-4 max-w-2xl text-slate-300">
             직업을 선택하고 100층 고대탑을 한 층씩 공략하는 카드 전투 로그라이크입니다.
           </p>
+          <div className="mt-5 flex flex-wrap justify-center gap-2 text-sm font-bold text-slate-200">
+            <span className="rounded-xl bg-white/10 px-3 py-2">특성 포인트 {normalizePlayerData(playerData).traitPoint}</span>
+            <span className="rounded-xl bg-white/10 px-3 py-2">보스 클리어 {normalizePlayerData(playerData).clearedBossFloors.length}층</span>
+            {hasSavedRun && <span className="rounded-xl bg-emerald-300/15 px-3 py-2 text-emerald-100">저장된 진행상황 있음</span>}
+          </div>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
             <button
               type="button"
-              onClick={() => setPhase("character-select")}
+              onClick={handleGameStart}
               className="rounded-2xl bg-amber-300 px-8 py-4 text-lg font-black text-slate-950 shadow-lg hover:bg-amber-200"
             >
-              게임 시작
+              {hasSavedRun ? "이어하기" : "게임 시작"}
             </button>
             <button
               type="button"
@@ -4193,6 +4956,15 @@ export default function DeckbuilderRoguelikePrototype() {
             >
               게임 방법
             </button>
+            {hasSavedRun && (
+              <button
+                type="button"
+                onClick={handleClearRunProgress}
+                className="rounded-2xl border border-white/15 bg-white/10 px-8 py-4 text-lg font-black text-white hover:bg-white/15"
+              >
+                진행 초기화
+              </button>
+            )}
           </div>
         </section>
       </div>
@@ -4303,6 +5075,7 @@ export default function DeckbuilderRoguelikePrototype() {
     return (
       <TowerMapScreen
         player={player}
+        playerData={playerData}
         currentClassTheme={currentClassTheme}
         deck={deck}
         selectedFloor={selectedFloor}
@@ -4312,6 +5085,9 @@ export default function DeckbuilderRoguelikePrototype() {
         onSelectFloor={setSelectedFloor}
         onEnterFloor={enterSelectedFloor}
         onToggleDeck={() => setShowDeckManager((value) => !value)}
+        onOpenTraits={() => openTraitScreen("towerMap")}
+        onSave={handleManualSave}
+        onLoad={handleManualLoad}
         showDeckManager={showDeckManager}
         onCharacterSelect={() => setPhase("character-select")}
         onRestart={restart}
@@ -4327,6 +5103,7 @@ export default function DeckbuilderRoguelikePrototype() {
       <FloorMapScreen
         floor={currentFloor}
         player={player}
+        playerData={playerData}
         currentClassTheme={currentClassTheme}
         deck={deck}
         floorNodes={currentFloorNodes}
@@ -4339,10 +5116,25 @@ export default function DeckbuilderRoguelikePrototype() {
           setPhase("towerMap");
         }}
         onToggleDeck={() => setShowDeckManager((value) => !value)}
+        onOpenTraits={() => openTraitScreen("floorMap")}
+        onSave={handleManualSave}
+        onLoad={handleManualLoad}
         showDeckManager={showDeckManager}
         deckCount={deckCount}
         inspectedCard={inspectedCard}
         onInspectCard={setInspectedCardId}
+      />
+    );
+  }
+
+  if (phase === "traits") {
+    return (
+      <TraitManagementScreen
+        playerData={playerData}
+        onUpgradeTrait={upgradeTrait}
+        onBack={() => setPhase(traitReturnPhase)}
+        feedback={traitFeedback}
+        lastUpgradedTraitId={lastUpgradedTraitId}
       />
     );
   }
@@ -4364,7 +5156,11 @@ export default function DeckbuilderRoguelikePrototype() {
     const partyMembers = Object.values(CHARACTER_CLASSES);
     const incomingDamage = aliveEnemies.reduce((sum, entry) => {
       const action = entry.actions[entry.actionIndex % entry.actions.length];
-      return action.type === "attack" ? sum + Math.max(0, action.value + entry.strength) : sum;
+      if (action.type !== "attack") return sum;
+      const defenseMitigation = Math.floor((player.defense || 0) / 4);
+      const damage = Math.max(1, action.value + entry.strength - defenseMitigation);
+      const finalDamage = player.vulnerable > 0 ? Math.ceil(damage * 1.5) : damage;
+      return sum + Math.max(1, Math.floor(finalDamage * (1 - (player.damageReduction || 0))));
     }, 0);
     const predictedHpLoss = Math.max(0, incomingDamage - player.block);
     const getTimelineLabel = (actor) => {
@@ -4496,10 +5292,8 @@ export default function DeckbuilderRoguelikePrototype() {
                     <div className="sts-turn-portrait">
                       {actor.type === "player" ? (
                         <CharacterImage character={player.classId ? currentClassTheme : null} className="sts-turn-image" />
-                      ) : enemyEntry?.imageSrc ? (
-                        <img src={enemyEntry.imageSrc} alt={enemyEntry.name} className="sts-turn-image" draggable="false" />
                       ) : (
-                        <span>{enemyEntry?.image || "?"}</span>
+                        <MonsterImage monster={enemyEntry} className="sts-turn-image" fallbackClassName="sts-turn-fallback" />
                       )}
                     </div>
                     <div className="sts-turn-meta">
@@ -4614,7 +5408,7 @@ export default function DeckbuilderRoguelikePrototype() {
                       <strong>{intentValue}</strong>
                     </div>
                     <div className="sts-enemy-sprite-wrap">
-                      {entry.imageSrc ? <img src={entry.imageSrc} alt={entry.name} className="sts-enemy-image" draggable="false" /> : <span>{entry.image}</span>}
+                      <MonsterImage monster={entry} className="sts-enemy-image" fallbackClassName="sts-enemy-fallback" />
                       <AnimatePresence>{hitEffects[index] && <HitEffect effect={hitEffects[index]} />}</AnimatePresence>
                     </div>
                     <div className="sts-enemy-name">{entry.name}</div>
@@ -4849,7 +5643,9 @@ export default function DeckbuilderRoguelikePrototype() {
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <div className="flex items-center gap-2">
-                              <span className="text-2xl">{entry.image}</span>
+                              <span className="grid h-12 w-12 place-items-center rounded-xl bg-slate-100">
+                                <MonsterImage monster={entry} className="h-11 w-11 object-contain" fallbackClassName="text-2xl" />
+                              </span>
                               <span className="font-black">{entry.name}</span>
                               {entry.boss && <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-black text-amber-900">BOSS</span>}
                             </div>
@@ -5066,7 +5862,10 @@ export default function DeckbuilderRoguelikePrototype() {
                   <Trophy className="mx-auto mb-3 h-12 w-12 text-yellow-600" />
                   <h2 className="text-3xl font-black">프로토타입 클리어!</h2>
                   <p className="mt-2 text-slate-600">100층 탑의 마지막 보스방을 공략했습니다. 이제 카드, 유물, 이벤트 방을 확장하면 됩니다.</p>
-                  <button onClick={restart} className="mt-6 rounded-2xl bg-slate-950 px-5 py-3 font-bold text-white hover:bg-slate-700">새 런 시작</button>
+                  <div className="mt-6 flex flex-wrap justify-center gap-3">
+                    <button onClick={restartRun} className="rounded-2xl bg-slate-950 px-5 py-3 font-bold text-white hover:bg-slate-700">새 런 시작</button>
+                    <button onClick={restart} className="rounded-2xl border border-slate-200 px-5 py-3 font-bold text-slate-950 hover:bg-slate-100">메인으로</button>
+                  </div>
                 </motion.section>
               )}
 
@@ -5074,8 +5873,11 @@ export default function DeckbuilderRoguelikePrototype() {
                 <motion.section key="defeat" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="rounded-3xl bg-white p-8 text-center text-slate-950 shadow-2xl">
                   <Skull className="mx-auto mb-3 h-12 w-12" />
                   <h2 className="text-3xl font-black">패배</h2>
-                  <p className="mt-2 text-slate-600">공격/방어 카드 비율을 조절해서 다시 도전해 보세요.</p>
-                  <button onClick={restart} className="mt-6 rounded-2xl bg-slate-950 px-5 py-3 font-bold text-white hover:bg-slate-700">다시 시작</button>
+                  <p className="mt-2 text-slate-600">던전 진행은 초기화됐지만 특성 포인트와 투자한 특성은 유지됩니다.</p>
+                  <div className="mt-6 flex flex-wrap justify-center gap-3">
+                    <button onClick={restartRun} className="rounded-2xl bg-slate-950 px-5 py-3 font-bold text-white hover:bg-slate-700">다시 시작</button>
+                    <button onClick={restart} className="rounded-2xl border border-slate-200 px-5 py-3 font-bold text-slate-950 hover:bg-slate-100">메인으로</button>
+                  </div>
                 </motion.section>
               )}
             </AnimatePresence>

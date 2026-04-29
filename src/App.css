@@ -275,10 +275,488 @@ button {
   box-shadow: none;
 }
 
+.game-card.image-card .full-card-image {
+  position: relative;
+  z-index: 3;
+}
+
+.card-enhancement-aura,
+.card-enhancement-flame,
+.card-enhancement-frame,
+.card-enhancement-sheen,
+.card-enhancement-particles,
+.card-legend-ring,
+.card-star-badge {
+  pointer-events: none;
+}
+
+.card-enhancement-aura {
+  position: absolute;
+  inset: -12px;
+  z-index: 0;
+  border-radius: 24px;
+  opacity: 0;
+  background: radial-gradient(circle at 50% 46%, var(--star-glow), transparent 68%);
+  filter: blur(10px);
+}
+
+.card-enhancement-frame {
+  position: absolute;
+  inset: 2px;
+  z-index: 4;
+  border: 2px solid var(--star-primary);
+  border-radius: 18px;
+  opacity: 0;
+  box-shadow: 0 0 16px var(--star-glow), inset 0 0 12px var(--star-glow);
+}
+
+.card-enhancement-flame {
+  position: absolute;
+  inset: -18px -14px -10px;
+  z-index: 1;
+  border-radius: 28px;
+  opacity: 0;
+  mix-blend-mode: screen;
+  filter: blur(8px) saturate(1.35);
+  transform-origin: 50% 78%;
+}
+
+.card-enhancement-flame::before,
+.card-enhancement-flame::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  content: "";
+}
+
+.card-enhancement-flame::before {
+  background:
+    radial-gradient(ellipse at 50% 88%, rgba(255, 245, 190, 0.72) 0 7%, transparent 22%),
+    radial-gradient(ellipse at 28% 72%, rgba(255, 122, 26, 0.82) 0 13%, transparent 34%),
+    radial-gradient(ellipse at 72% 70%, rgba(255, 59, 59, 0.72) 0 12%, transparent 32%),
+    radial-gradient(ellipse at 50% 54%, rgba(255, 60, 60, 0.7) 0 20%, transparent 58%);
+  clip-path: polygon(7% 100%, 12% 62%, 21% 84%, 29% 34%, 39% 70%, 49% 10%, 58% 68%, 70% 28%, 78% 80%, 90% 55%, 96% 100%);
+}
+
+.card-enhancement-flame::after {
+  background:
+    linear-gradient(100deg, transparent 4%, rgba(255, 255, 255, 0.24) 18%, transparent 32%),
+    radial-gradient(ellipse at 38% 62%, rgba(255, 210, 90, 0.62), transparent 36%),
+    radial-gradient(ellipse at 64% 58%, rgba(255, 72, 36, 0.58), transparent 34%);
+  clip-path: polygon(11% 100%, 19% 76%, 24% 94%, 36% 42%, 44% 78%, 51% 18%, 61% 82%, 70% 47%, 79% 96%, 88% 72%, 94% 100%);
+  opacity: 0.78;
+}
+
+.card-enhancement-sheen {
+  position: absolute;
+  inset: 7px;
+  z-index: 5;
+  border-radius: 15px;
+  opacity: 0;
+  background: linear-gradient(120deg, transparent 0%, rgba(255, 255, 255, 0.3) 42%, transparent 66%);
+  transform: translateX(-120%);
+}
+
+.card-enhancement-particles {
+  position: absolute;
+  inset: -8px;
+  z-index: 6;
+  overflow: hidden;
+  border-radius: 22px;
+}
+
+.card-enhancement-particles span {
+  position: absolute;
+  bottom: 8%;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--star-secondary);
+  box-shadow: 0 0 10px var(--star-primary), 0 0 18px var(--star-glow);
+  opacity: 0;
+  animation: cardParticleRise 2.4s infinite ease-in-out;
+  animation-delay: var(--particle-delay);
+}
+
+.card-enhancement-particles span:nth-child(1) { left: 12%; }
+.card-enhancement-particles span:nth-child(2) { left: 26%; bottom: 18%; }
+.card-enhancement-particles span:nth-child(3) { left: 42%; }
+.card-enhancement-particles span:nth-child(4) { left: 58%; bottom: 14%; }
+.card-enhancement-particles span:nth-child(5) { left: 76%; }
+.card-enhancement-particles span:nth-child(6) { left: 88%; bottom: 24%; }
+.card-enhancement-particles span:nth-child(7) { left: 18%; bottom: 34%; }
+.card-enhancement-particles span:nth-child(8) { left: 68%; bottom: 32%; }
+.card-enhancement-particles span:nth-child(9) { left: 35%; bottom: 28%; }
+.card-enhancement-particles span:nth-child(10) { left: 52%; bottom: 40%; }
+.card-enhancement-particles span:nth-child(11) { left: 8%; bottom: 46%; }
+.card-enhancement-particles span:nth-child(12) { left: 84%; bottom: 48%; }
+.card-enhancement-particles span:nth-child(13) { left: 30%; bottom: 54%; }
+.card-enhancement-particles span:nth-child(14) { left: 63%; bottom: 58%; }
+
+.card-star-badge {
+  position: absolute;
+  left: 50%;
+  bottom: 13px;
+  z-index: 8;
+  transform: translateX(-50%);
+  display: flex;
+  min-width: 68px;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.74);
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 13px;
+  font-weight: 950;
+  letter-spacing: 0;
+  padding: 3px 9px;
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(4px);
+}
+
+.card-star-badge.is-compact {
+  bottom: 10px;
+  min-width: 54px;
+  font-size: 11px;
+  padding: 2px 7px;
+}
+
+.card-star-badge.is-legend {
+  color: #fff2a0;
+  border-color: rgba(255, 215, 0, 0.72);
+  background: rgba(61, 42, 0, 0.82);
+  text-shadow: 0 0 9px rgba(255, 215, 0, 0.92), 0 0 20px rgba(255, 184, 0, 0.72);
+}
+
+.card-star-2 .card-enhancement-aura {
+  opacity: 0.46;
+  animation: cardAuraPulse 2.4s infinite ease-in-out;
+}
+
+.card-star-2 .card-enhancement-frame {
+  opacity: 0.58;
+}
+
+.card-star-3 .card-enhancement-aura {
+  opacity: 0.62;
+  filter: blur(12px);
+  animation: cardAuraPulse 2s infinite ease-in-out;
+}
+
+.card-star-3 .card-enhancement-frame {
+  opacity: 0.74;
+  border-width: 2px;
+}
+
+.card-star-3 .card-enhancement-sheen {
+  opacity: 0.38;
+  animation: cardSheenSweep 2.8s infinite ease-in-out;
+}
+
+.card-star-4 .card-enhancement-aura {
+  opacity: 0.8;
+  filter: blur(14px);
+  background:
+    radial-gradient(circle at 48% 46%, var(--star-glow), transparent 62%),
+    radial-gradient(circle at 24% 72%, rgba(255, 122, 26, 0.45), transparent 48%);
+  animation: cardFirePulse 1.55s infinite ease-in-out;
+}
+
+.card-star-4 .card-enhancement-flame {
+  opacity: 0.82;
+  background:
+    radial-gradient(ellipse at 50% 85%, rgba(255, 122, 26, 0.6), transparent 48%),
+    radial-gradient(circle at 50% 54%, rgba(255, 0, 0, 0.36), transparent 64%);
+  animation: cardRedFlameFlicker 1.05s infinite ease-in-out;
+}
+
+.card-star-4 .card-enhancement-flame::before {
+  animation: cardFlameTongues 0.86s infinite ease-in-out alternate;
+}
+
+.card-star-4 .card-enhancement-flame::after {
+  animation: cardFlameTonguesAlt 1.18s infinite ease-in-out alternate;
+}
+
+.card-star-4 .card-enhancement-frame {
+  opacity: 0.9;
+  border-color: #ff5b2f;
+  box-shadow: 0 0 20px rgba(255, 59, 59, 0.82), 0 0 34px rgba(255, 122, 26, 0.54), inset 0 0 16px rgba(255, 59, 59, 0.55);
+}
+
+.card-star-4 .card-enhancement-particles span {
+  width: 7px;
+  height: 7px;
+  border-radius: 58% 42% 64% 36%;
+  animation-duration: 1.55s;
+}
+
+.card-star-5 .card-enhancement-aura {
+  inset: -18px;
+  opacity: 0.94;
+  filter: blur(16px);
+  background:
+    radial-gradient(circle at 50% 48%, rgba(255, 215, 0, 0.82), transparent 58%),
+    conic-gradient(from 0deg, transparent, rgba(255, 242, 160, 0.74), transparent, rgba(255, 184, 0, 0.58), transparent);
+  animation: cardLegendAura 2.4s infinite linear;
+}
+
+.card-star-5 .card-enhancement-flame {
+  inset: -24px -18px -12px;
+  opacity: 0.95;
+  background:
+    radial-gradient(ellipse at 50% 82%, rgba(255, 242, 160, 0.82), transparent 44%),
+    radial-gradient(circle at 50% 48%, rgba(255, 215, 0, 0.48), transparent 62%),
+    conic-gradient(from 0deg, rgba(255, 215, 0, 0.18), rgba(255, 255, 255, 0.4), transparent, rgba(255, 184, 0, 0.36), rgba(255, 215, 0, 0.18));
+  filter: blur(9px) saturate(1.5) brightness(1.08);
+  animation: cardGoldFlame 1.65s infinite ease-in-out;
+}
+
+.card-star-5 .card-enhancement-flame::before {
+  background:
+    radial-gradient(ellipse at 50% 90%, rgba(255, 255, 255, 0.9) 0 7%, transparent 22%),
+    radial-gradient(ellipse at 24% 70%, rgba(255, 184, 0, 0.74) 0 13%, transparent 34%),
+    radial-gradient(ellipse at 76% 68%, rgba(255, 242, 160, 0.72) 0 12%, transparent 32%),
+    radial-gradient(ellipse at 50% 50%, rgba(255, 215, 0, 0.72) 0 22%, transparent 58%);
+  clip-path: polygon(6% 100%, 13% 64%, 22% 88%, 30% 30%, 40% 70%, 50% 6%, 60% 69%, 70% 24%, 79% 78%, 90% 50%, 96% 100%);
+  animation: cardGoldFlameTongues 1.08s infinite ease-in-out alternate;
+}
+
+.card-star-5 .card-enhancement-flame::after {
+  background:
+    linear-gradient(96deg, transparent 0%, rgba(255, 255, 255, 0.44) 18%, transparent 34%),
+    radial-gradient(ellipse at 35% 58%, rgba(255, 255, 255, 0.55), transparent 32%),
+    radial-gradient(ellipse at 66% 58%, rgba(255, 184, 0, 0.66), transparent 34%);
+  clip-path: polygon(10% 100%, 18% 78%, 24% 94%, 35% 38%, 44% 80%, 51% 14%, 61% 82%, 71% 42%, 80% 94%, 89% 70%, 95% 100%);
+  opacity: 0.86;
+  animation: cardGoldEnergyFlow 1.38s infinite ease-in-out alternate;
+}
+
+.card-star-5 .card-enhancement-frame {
+  opacity: 1;
+  border-color: #ffd700;
+  border-width: 3px;
+  box-shadow: 0 0 18px rgba(255, 215, 0, 0.95), 0 0 42px rgba(255, 184, 0, 0.72), inset 0 0 24px rgba(255, 242, 160, 0.62);
+}
+
+.card-star-5 .card-enhancement-sheen {
+  opacity: 0.7;
+  background: linear-gradient(120deg, transparent 0%, rgba(255, 242, 160, 0.72) 42%, rgba(255, 255, 255, 0.9) 50%, transparent 68%);
+  animation: cardSheenSweep 2.15s infinite ease-in-out;
+}
+
+.card-star-5 .card-enhancement-particles span {
+  width: 7px;
+  height: 7px;
+  background: #fff2a0;
+  clip-path: polygon(50% 0%, 62% 35%, 100% 35%, 69% 56%, 82% 100%, 50% 72%, 18% 100%, 31% 56%, 0 35%, 38% 35%);
+  animation-duration: 1.75s;
+}
+
+.card-legend-ring {
+  position: absolute;
+  inset: -16px;
+  z-index: 2;
+  border: 2px solid rgba(255, 242, 160, 0.5);
+  border-radius: 28px;
+  opacity: 0;
+  box-shadow: 0 0 28px rgba(255, 215, 0, 0.5);
+}
+
+.card-star-5:hover .card-legend-ring,
+.card-star-5.is-hovering .card-legend-ring,
+.card-legend-ring.is-active {
+  opacity: 0.9;
+  animation: cardLegendRing 1.35s infinite ease-out;
+}
+
+.card-star-4:hover .card-enhancement-flame,
+.card-star-4.is-hovering .card-enhancement-flame {
+  opacity: 1;
+  filter: blur(7px) saturate(1.55) brightness(1.28);
+  transform: scale(1.12);
+}
+
+.card-star-5:hover .card-enhancement-flame,
+.card-star-5.is-hovering .card-enhancement-flame {
+  opacity: 1;
+  filter: blur(7px) saturate(1.7) brightness(1.36);
+  transform: scale(1.14);
+}
+
+.card-star-5.is-hand-card {
+  animation: cardLegendFloat 2.8s infinite ease-in-out;
+}
+
 .game-card.image-card:hover .full-card-image,
 .game-card.image-card.is-hovering .full-card-image {
   transform: scale(1.06);
   filter: drop-shadow(0 18px 28px rgba(0, 0, 0, 0.52));
+}
+
+.game-card.image-card.card-star-2:hover .full-card-image,
+.game-card.image-card.card-star-2.is-hovering .full-card-image {
+  filter: drop-shadow(0 0 18px rgba(59, 167, 255, 0.78)) drop-shadow(0 18px 28px rgba(0, 0, 0, 0.52));
+}
+
+.game-card.image-card.card-star-3:hover .full-card-image,
+.game-card.image-card.card-star-3.is-hovering .full-card-image {
+  filter: drop-shadow(0 0 22px rgba(155, 92, 255, 0.86)) drop-shadow(0 18px 28px rgba(0, 0, 0, 0.52));
+}
+
+.game-card.image-card.card-star-4:hover .full-card-image,
+.game-card.image-card.card-star-4.is-hovering .full-card-image {
+  filter: drop-shadow(0 0 26px rgba(255, 59, 59, 0.92)) drop-shadow(0 0 18px rgba(255, 122, 26, 0.62)) drop-shadow(0 18px 28px rgba(0, 0, 0, 0.52));
+}
+
+.game-card.image-card.card-star-5:hover .full-card-image,
+.game-card.image-card.card-star-5.is-hovering .full-card-image {
+  filter: drop-shadow(0 0 22px rgba(255, 215, 0, 0.95)) drop-shadow(0 0 40px rgba(255, 184, 0, 0.82)) drop-shadow(0 18px 28px rgba(0, 0, 0, 0.52));
+}
+
+@keyframes cardAuraPulse {
+  0%, 100% {
+    transform: scale(0.96);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.86;
+  }
+}
+
+@keyframes cardFirePulse {
+  0%, 100% {
+    transform: scale(0.98) rotate(-1deg);
+    opacity: 0.68;
+  }
+  50% {
+    transform: scale(1.1) rotate(1deg);
+    opacity: 1;
+  }
+}
+
+@keyframes cardLegendAura {
+  0% {
+    transform: scale(1) rotate(0deg);
+  }
+  100% {
+    transform: scale(1.05) rotate(360deg);
+  }
+}
+
+@keyframes cardRedFlameFlicker {
+  0%, 100% {
+    transform: scale(1) rotate(0deg) translateY(0);
+  }
+  24% {
+    transform: scale(1.05, 1.1) rotate(1.3deg) translateY(-2px);
+  }
+  52% {
+    transform: scale(1.1, 1.03) rotate(-1.2deg) translateY(-5px);
+  }
+  78% {
+    transform: scale(1.04, 1.12) rotate(0.8deg) translateY(-2px);
+  }
+}
+
+@keyframes cardFlameTongues {
+  0% {
+    transform: translateY(6px) scaleX(0.94) scaleY(0.95) skewX(-2deg);
+    opacity: 0.72;
+  }
+  100% {
+    transform: translateY(-12px) scaleX(1.08) scaleY(1.16) skewX(3deg);
+    opacity: 1;
+  }
+}
+
+@keyframes cardFlameTonguesAlt {
+  0% {
+    transform: translateY(10px) scaleX(1.08) scaleY(0.9) skewX(3deg);
+    opacity: 0.48;
+  }
+  100% {
+    transform: translateY(-8px) scaleX(0.96) scaleY(1.18) skewX(-4deg);
+    opacity: 0.9;
+  }
+}
+
+@keyframes cardGoldFlame {
+  0%, 100% {
+    transform: scale(1) rotate(0deg) translateY(0);
+  }
+  50% {
+    transform: scale(1.09, 1.14) rotate(2deg) translateY(-5px);
+  }
+}
+
+@keyframes cardGoldFlameTongues {
+  0% {
+    transform: translateY(7px) scaleX(0.92) scaleY(0.96) skewX(-2deg);
+    opacity: 0.76;
+  }
+  100% {
+    transform: translateY(-14px) scaleX(1.08) scaleY(1.18) skewX(3deg);
+    opacity: 1;
+  }
+}
+
+@keyframes cardGoldEnergyFlow {
+  0% {
+    transform: translate(-5px, 8px) scaleX(1.08) scaleY(0.92) rotate(-1deg);
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate(7px, -10px) scaleX(0.95) scaleY(1.18) rotate(2deg);
+    opacity: 0.95;
+  }
+}
+
+@keyframes cardLegendRing {
+  0% {
+    transform: scale(0.92);
+    opacity: 0;
+  }
+  35% {
+    opacity: 0.95;
+  }
+  100% {
+    transform: scale(1.18);
+    opacity: 0;
+  }
+}
+
+@keyframes cardLegendFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes cardSheenSweep {
+  0% {
+    transform: translateX(-135%) skewX(-12deg);
+  }
+  46%, 100% {
+    transform: translateX(135%) skewX(-12deg);
+  }
+}
+
+@keyframes cardParticleRise {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.4);
+  }
+  28% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-96px) scale(1.12);
+  }
 }
 
 .game-card.card-back .full-card-image {
@@ -363,6 +841,246 @@ button {
 
 .reward-claim-button:hover {
   background: #020617;
+}
+
+.loot-modal-backdrop,
+.card-choice-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.64);
+  backdrop-filter: blur(3px);
+  padding: 24px;
+}
+
+.loot-panel {
+  position: relative;
+  width: min(440px, calc(100vw - 36px));
+  min-height: 460px;
+  border: 4px solid #1b3039;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(28, 52, 63, 0.98), rgba(9, 18, 22, 0.98) 34%, rgba(8, 15, 18, 0.98)),
+    #0b1417;
+  box-shadow:
+    inset 0 0 0 3px rgba(75, 104, 113, 0.34),
+    inset 0 -22px 35px rgba(0, 0, 0, 0.46),
+    0 30px 70px rgba(0, 0, 0, 0.62);
+  padding: 70px 28px 24px;
+}
+
+.loot-panel::before {
+  position: absolute;
+  inset: 14px;
+  content: "";
+  border: 1px solid rgba(112, 150, 158, 0.2);
+  border-radius: 12px;
+  pointer-events: none;
+}
+
+.loot-ribbon {
+  position: absolute;
+  top: -42px;
+  left: 50%;
+  display: grid;
+  width: min(500px, calc(100% + 86px));
+  height: 86px;
+  place-items: center;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 8px 8px rgba(0, 0, 0, 0.42));
+}
+
+.loot-ribbon::before,
+.loot-ribbon::after {
+  position: absolute;
+  top: 24px;
+  z-index: 0;
+  width: 104px;
+  height: 38px;
+  content: "";
+  background: linear-gradient(180deg, #c5ad88, #8d7353);
+}
+
+.loot-ribbon::before {
+  left: 0;
+  border-radius: 8px 0 0 8px;
+  transform: skewY(-8deg);
+}
+
+.loot-ribbon::after {
+  right: 0;
+  border-radius: 0 8px 8px 0;
+  transform: skewY(8deg);
+}
+
+.loot-ribbon span {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 76%;
+  min-height: 58px;
+  place-items: center;
+  border-radius: 16px 16px 10px 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 248, 224, 0.18), transparent 45%),
+    linear-gradient(180deg, #b99f78, #8d7353);
+  color: #fff7e6;
+  font-size: 34px;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-shadow: 0 3px 3px rgba(49, 35, 22, 0.82);
+}
+
+.loot-list {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 12px;
+}
+
+.loot-reward-item {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  align-items: center;
+  min-height: 72px;
+  border: 2px solid rgba(90, 229, 219, 0.65);
+  border-radius: 13px;
+  background:
+    linear-gradient(180deg, rgba(93, 221, 217, 0.22), rgba(35, 146, 151, 0.2)),
+    linear-gradient(90deg, #2d7d83, #41b9b3);
+  color: #eafff8;
+  cursor: default;
+  padding: 12px 16px;
+  text-align: left;
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -14px 24px rgba(0, 54, 61, 0.24),
+    0 10px 18px rgba(0, 0, 0, 0.28);
+}
+
+.loot-reward-item.is-interactive {
+  cursor: pointer;
+  border-color: #facc15;
+}
+
+.loot-reward-item:hover {
+  filter: brightness(1.1);
+}
+
+.loot-reward-item.is-claimed {
+  border-color: rgba(187, 247, 208, 0.8);
+  background:
+    linear-gradient(180deg, rgba(187, 247, 208, 0.18), rgba(16, 185, 129, 0.18)),
+    linear-gradient(90deg, #256f65, #2ea58f);
+}
+
+.loot-reward-icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 10px;
+  background: rgba(3, 7, 18, 0.16);
+  font-size: 28px;
+}
+
+.loot-reward-text {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.loot-reward-text strong {
+  overflow-wrap: anywhere;
+  color: #fffbe9;
+  font-size: 18px;
+  font-weight: 950;
+  line-height: 1.15;
+  text-shadow: 0 2px 2px rgba(0, 0, 0, 0.46);
+}
+
+.loot-reward-text em {
+  color: rgba(226, 252, 247, 0.84);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.loot-continue-button {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  margin-top: 24px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f8df9a, #c9943c);
+  color: #22170c;
+  cursor: pointer;
+  font-size: 17px;
+  font-weight: 950;
+  padding: 14px 18px;
+  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.36);
+}
+
+.loot-continue-button:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.55) brightness(0.72);
+}
+
+.card-choice-panel {
+  width: min(760px, calc(100vw - 32px));
+  border: 2px solid rgba(250, 204, 21, 0.4);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.98));
+  padding: 22px;
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.65), inset 0 0 28px rgba(250, 204, 21, 0.08);
+}
+
+.card-choice-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.card-choice-head strong {
+  color: #fef3c7;
+  font-size: 28px;
+  font-weight: 950;
+}
+
+.card-choice-head span {
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.card-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.card-choice-card {
+  min-width: 0;
+}
+
+.card-choice-card .game-card {
+  width: 100%;
+}
+
+.card-choice-cancel {
+  margin-top: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
+  cursor: pointer;
+  font-weight: 900;
+  padding: 11px 15px;
 }
 
 .character-select-grid {
@@ -1206,6 +1924,48 @@ button {
   backdrop-filter: blur(8px);
 }
 
+.sts-encounter-panel.is-boss {
+  top: 14px;
+  left: 30%;
+  right: 30%;
+  gap: 9px;
+  border-color: rgba(251, 191, 36, 0.42);
+  background:
+    linear-gradient(180deg, rgba(69, 26, 3, 0.82), rgba(15, 23, 42, 0.52)),
+    rgba(15, 23, 42, 0.64);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.34), inset 0 0 28px rgba(251, 191, 36, 0.1);
+}
+
+.sts-boss-hp-label {
+  color: #fde68a;
+  font-size: 13px;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-align: center;
+  text-shadow: 0 0 14px rgba(251, 191, 36, 0.7);
+}
+
+.sts-encounter-panel.is-boss .sts-encounter-health {
+  height: 22px;
+  border-color: rgba(253, 230, 138, 0.5);
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.65), 0 0 20px rgba(251, 191, 36, 0.16);
+}
+
+.sts-encounter-panel.is-boss .sts-encounter-health i {
+  background: linear-gradient(90deg, #7f1d1d, #ef4444 48%, #f59e0b);
+  box-shadow: 0 0 28px rgba(248, 113, 113, 0.5);
+}
+
+.sts-encounter-panel.is-boss .sts-encounter-health span {
+  inset: 0;
+  font-size: 13px;
+  line-height: 22px;
+}
+
+.sts-screen.is-boss-combat .sts-combat-stage {
+  animation: bossStageArrival 0.72s cubic-bezier(0.2, 1, 0.3, 1);
+}
+
 .sts-encounter-head {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -1913,6 +2673,18 @@ button {
   transform-origin: 50% 100%;
 }
 
+.sts-enemy-actor.is-boss {
+  width: clamp(230px, 23vw, 390px);
+}
+
+.sts-enemy-actor.is-boss .sts-enemy-sprite-wrap {
+  height: clamp(280px, 44vh, 500px);
+}
+
+.sts-enemy-actor.is-boss .sts-enemy-image {
+  filter: drop-shadow(0 32px 22px rgba(0, 0, 0, 0.68)) drop-shadow(0 0 24px rgba(251, 191, 36, 0.18));
+}
+
 .sts-enemy-actor.is-targeted .sts-enemy-sprite-wrap {
   filter: drop-shadow(0 0 18px rgba(103, 232, 249, 0.82)) brightness(1.08);
 }
@@ -1934,7 +2706,22 @@ button {
 
 .sts-enemy-actor.is-defeated {
   cursor: not-allowed;
-  filter: grayscale(0.8) brightness(0.45);
+  pointer-events: none;
+}
+
+.sts-boss-warning {
+  position: relative;
+  z-index: 4;
+  margin-bottom: 5px;
+  border: 1px solid rgba(248, 113, 113, 0.52);
+  border-radius: 999px;
+  background: rgba(127, 29, 29, 0.78);
+  color: #fee2e2;
+  font-size: 12px;
+  font-weight: 950;
+  padding: 5px 11px;
+  box-shadow: 0 0 22px rgba(248, 113, 113, 0.28);
+  animation: bossWarningPulse 0.9s ease-in-out infinite alternate;
 }
 
 .sts-intent-badge {
@@ -1992,6 +2779,37 @@ button {
   filter: drop-shadow(0 24px 16px rgba(0, 0, 0, 0.54));
 }
 
+.monster-death-fx {
+  position: absolute;
+  inset: 8% 8% 6%;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.monster-death-ring {
+  position: absolute;
+  width: 62%;
+  aspect-ratio: 1;
+  border: 3px solid;
+  border-radius: 999px;
+}
+
+.monster-death-particle {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+}
+
+.monster-death-fx.death-collapse .monster-death-particle {
+  width: 12px;
+  height: 12px;
+}
+
 .monster-image {
   display: block;
   width: 180px;
@@ -2029,6 +2847,102 @@ button {
   z-index: 8;
   width: min(340px, 28vw);
   pointer-events: none;
+}
+
+.used-card-enhancement-trail {
+  position: absolute;
+  inset: -28px;
+  z-index: 0;
+  border-radius: 34px;
+  background:
+    linear-gradient(90deg, transparent, var(--star-primary), var(--star-secondary), transparent),
+    radial-gradient(circle at 50% 50%, var(--star-glow), transparent 65%);
+  filter: blur(14px);
+  opacity: 0.9;
+  transform-origin: 50% 50%;
+  animation: usedCardTrail 0.92s ease-out forwards;
+}
+
+.used-card-legend-flash {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(circle at 50% 45%, rgba(255, 255, 255, 0.58), rgba(255, 215, 0, 0.26) 18%, transparent 46%);
+  animation: usedCardLegendFlash 0.62s ease-out forwards;
+}
+
+.upgrade-success-burst {
+  position: absolute;
+  width: min(560px, 82vw);
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.72), var(--star-glow) 24%, transparent 62%),
+    conic-gradient(from 0deg, transparent, var(--star-secondary), transparent, var(--star-primary), transparent);
+  filter: blur(2px);
+  box-shadow: 0 0 80px var(--star-glow);
+}
+
+.upgrade-success-card {
+  position: relative;
+  z-index: 2;
+  width: min(220px, 48vw);
+}
+
+.upgrade-success-text {
+  position: absolute;
+  bottom: 12%;
+  z-index: 3;
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  color: white;
+  text-align: center;
+  text-shadow: 0 0 18px var(--star-glow), 0 2px 8px rgba(0, 0, 0, 0.72);
+}
+
+.upgrade-success-text strong {
+  color: var(--star-secondary);
+  font-size: clamp(34px, 7vw, 78px);
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.upgrade-success-text span {
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.58);
+  color: #f8fafc;
+  font-size: clamp(15px, 2vw, 22px);
+  font-weight: 950;
+  padding: 8px 16px;
+  backdrop-filter: blur(5px);
+}
+
+@keyframes usedCardTrail {
+  0% {
+    opacity: 0;
+    transform: scale(0.7) rotate(-12deg);
+  }
+  32% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5) rotate(24deg);
+  }
+}
+
+@keyframes usedCardLegendFlash {
+  0% {
+    opacity: 0;
+  }
+  18% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
 .sts-card-preview {
@@ -2238,6 +3152,37 @@ button {
   }
 }
 
+@keyframes bossStageArrival {
+  0% {
+    filter: brightness(0.86);
+    transform: scale(1.025) translateX(0);
+  }
+  18% {
+    transform: scale(1.032) translateX(-8px);
+  }
+  34% {
+    transform: scale(1.02) translateX(7px);
+  }
+  54% {
+    transform: scale(1.012) translateX(-4px);
+  }
+  100% {
+    filter: brightness(1);
+    transform: scale(1) translateX(0);
+  }
+}
+
+@keyframes bossWarningPulse {
+  from {
+    filter: brightness(1);
+    transform: translateY(0);
+  }
+  to {
+    filter: brightness(1.22);
+    transform: translateY(-2px);
+  }
+}
+
 @media (max-width: 980px) {
   .sts-top-hud {
     grid-template-columns: 1fr;
@@ -2264,6 +3209,11 @@ button {
     right: 18px;
   }
 
+  .sts-encounter-panel.is-boss {
+    left: 252px;
+    right: 18px;
+  }
+
   .sts-turn-timeline {
     width: 220px;
   }
@@ -2285,6 +3235,10 @@ button {
     justify-content: flex-start;
     overflow-x: auto;
     padding-bottom: 14px;
+  }
+
+  .sts-enemy-actor.is-boss {
+    width: min(360px, 82vw);
   }
 
   .sts-player-sprite {

@@ -6,6 +6,7 @@ import {
   Coins,
   Crown,
   DoorOpen,
+  Hammer,
   Heart,
   Lock,
   RotateCcw,
@@ -15,6 +16,7 @@ import {
   Sword,
   TowerControl,
   Trophy,
+  Trash2,
   Zap,
 } from "lucide-react";
 
@@ -60,6 +62,44 @@ const RAW_CARD_POOL = {
     block: 0,
     fullImage: imagePaths.warrior.attack,
     animationType: "slash",
+    upgradeOptions: [
+      {
+        id: "warrior_slash_power",
+        name: "강한 베기",
+        description: "단일 대상 피해가 크게 증가합니다.",
+        resultCardId: "warrior-slash-power",
+        cost: {
+          gold: 50,
+          materials: [{ id: "card_shard", name: "카드 조각", amount: 20 }],
+        },
+      },
+      {
+        id: "warrior_slash_wide",
+        name: "횡베기",
+        description: "선택한 적과 다른 적 하나를 함께 공격합니다.",
+        resultCardId: "warrior-slash-wide",
+        cost: {
+          gold: 80,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 30 },
+            { id: "rift_fragment", name: "균열 파편", amount: 1 },
+          ],
+        },
+      },
+      {
+        id: "warrior_slash_bleed",
+        name: "출혈 베기",
+        description: "즉시 피해와 함께 출혈을 부여합니다.",
+        resultCardId: "warrior-slash-bleed",
+        cost: {
+          gold: 80,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 25 },
+            { id: "red_fang", name: "붉은 송곳니", amount: 1 },
+          ],
+        },
+      },
+    ],
     play: ({ player, enemy }) => ({
       enemy: {
         ...enemy,
@@ -67,6 +107,270 @@ const RAW_CARD_POOL = {
         vulnerable: enemy.vulnerable + 1,
       },
     }),
+  },
+  "warrior-slash-power": {
+    id: "warrior-slash-power",
+    rarity: "rare",
+    starLevel: 2,
+    cardClass: "warrior",
+    name: "강한 베기",
+    type: "attack",
+    typeLabel: "공격",
+    cost: 1,
+    desc: "피해 22, 취약 1",
+    description: "적 하나에게 22의 피해를 줍니다. 취약 1을 부여합니다.",
+    damage: 22,
+    block: 0,
+    fullImage: imagePaths.warrior.attack,
+    animationType: "impact",
+    upgradeOptions: [
+      {
+        id: "warrior_slash_crimson",
+        name: "응혈 베기",
+        description: "피해를 유지하면서 출혈을 추가합니다.",
+        resultCardId: "warrior-slash-crimson",
+        cost: {
+          gold: 110,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 45 },
+            { id: "red_fang", name: "붉은 송곳니", amount: 1 },
+          ],
+        },
+      },
+    ],
+    play: ({ player, enemy }) => ({
+      enemy: {
+        ...enemy,
+        hp: Math.max(0, enemy.hp - calcDamage(22, player, enemy)),
+        vulnerable: enemy.vulnerable + 1,
+      },
+    }),
+  },
+  "warrior-slash-wide": {
+    id: "warrior-slash-wide",
+    rarity: "rare",
+    starLevel: 2,
+    cardClass: "warrior",
+    name: "횡베기",
+    type: "attack",
+    typeLabel: "공격",
+    cost: 1,
+    desc: "적 2명에게 피해 18",
+    description: "선택한 적과 다른 적 하나에게 각각 18의 피해를 줍니다.",
+    damage: 18,
+    block: 0,
+    fullImage: imagePaths.warrior.attack,
+    animationType: "slash",
+    maxTargets: 2,
+    upgradeOptions: [
+      {
+        id: "warrior_slash_inferno_arc",
+        name: "폭열 횡베기",
+        description: "2명의 적에게 더 큰 피해와 출혈을 부여합니다.",
+        resultCardId: "warrior-slash-inferno-arc",
+        cost: {
+          gold: 160,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 60 },
+            { id: "black_iron_heart", name: "흑철 심장", amount: 1 },
+          ],
+        },
+      },
+    ],
+    play: ({ player, enemies = [], targetIndex = 0 }) => {
+      const targets = enemies
+        .map((entry, index) => ({ entry, index }))
+        .filter(({ entry }) => isEnemyTargetable(entry));
+      const orderedTargets = [
+        ...targets.filter(({ index }) => index === targetIndex),
+        ...targets.filter(({ index }) => index !== targetIndex),
+      ].slice(0, 2);
+      const nextEnemies = enemies.map((entry) => ({ ...entry }));
+      orderedTargets.forEach(({ index }) => {
+        const target = nextEnemies[index];
+        nextEnemies[index] = { ...target, hp: Math.max(0, target.hp - calcDamage(18, player, target)) };
+      });
+      return { enemies: nextEnemies };
+    },
+  },
+  "warrior-slash-bleed": {
+    id: "warrior-slash-bleed",
+    rarity: "rare",
+    starLevel: 2,
+    cardClass: "warrior",
+    name: "출혈 베기",
+    type: "attack",
+    typeLabel: "공격",
+    cost: 1,
+    desc: "피해 20, 출혈 6",
+    description: "적 하나에게 20의 피해를 주고 출혈 6을 부여합니다.",
+    damage: 20,
+    block: 0,
+    effect: "출혈 6",
+    fullImage: imagePaths.warrior.attack,
+    animationType: "slash",
+    upgradeOptions: [
+      {
+        id: "warrior_slash_crimson",
+        name: "응혈 베기",
+        description: "피해와 출혈이 함께 강화됩니다.",
+        resultCardId: "warrior-slash-crimson",
+        cost: {
+          gold: 110,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 45 },
+            { id: "red_fang", name: "붉은 송곳니", amount: 1 },
+          ],
+        },
+      },
+    ],
+    play: ({ player, enemy }) => ({
+      enemy: {
+        ...enemy,
+        hp: Math.max(0, enemy.hp - calcDamage(20, player, enemy)),
+        bleed: (enemy.bleed || 0) + 6,
+      },
+    }),
+  },
+  "warrior-slash-crimson": {
+    id: "warrior-slash-crimson",
+    rarity: "epic",
+    starLevel: 3,
+    cardClass: "warrior",
+    name: "응혈 베기",
+    type: "attack",
+    typeLabel: "공격",
+    cost: 1,
+    desc: "피해 34, 출혈 10",
+    description: "적 하나에게 34의 피해를 주고 출혈 10을 부여합니다.",
+    damage: 34,
+    block: 0,
+    effect: "출혈 10",
+    fullImage: imagePaths.warrior.attack,
+    animationType: "slash",
+    upgradeOptions: [
+      {
+        id: "warrior_slash_inferno_arc",
+        name: "폭열 횡베기",
+        description: "베기가 폭발하며 2명의 적을 가릅니다.",
+        resultCardId: "warrior-slash-inferno-arc",
+        cost: {
+          gold: 160,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 60 },
+            { id: "black_iron_heart", name: "흑철 심장", amount: 1 },
+          ],
+        },
+      },
+    ],
+    play: ({ player, enemy }) => ({
+      enemy: {
+        ...enemy,
+        hp: Math.max(0, enemy.hp - calcDamage(34, player, enemy)),
+        bleed: (enemy.bleed || 0) + 10,
+      },
+    }),
+  },
+  "warrior-slash-inferno-arc": {
+    id: "warrior-slash-inferno-arc",
+    rarity: "epic",
+    starLevel: 4,
+    cardClass: "warrior",
+    name: "폭열 횡베기",
+    type: "attack",
+    typeLabel: "공격",
+    cost: 1,
+    desc: "적 2명에게 피해 48, 출혈 12, 약한 적에게 2배",
+    description: "적 2명에게 각각 48의 피해와 출혈 12를 부여합니다. HP 35% 이하 적에게는 피해가 2배가 됩니다.",
+    damage: 48,
+    block: 0,
+    effect: "출혈 12 / 처형",
+    fullImage: imagePaths.warrior.attack,
+    animationType: "fire",
+    maxTargets: 2,
+    upgradeOptions: [
+      {
+        id: "warrior_slash_golden_cleave",
+        name: "황금 참격",
+        description: "최고 성급의 참격. 2명을 크게 베고 처치 시 카드를 뽑습니다.",
+        resultCardId: "warrior-slash-golden-cleave",
+        cost: {
+          gold: 260,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 90 },
+            { id: "dragon_scale", name: "용의 비늘", amount: 1 },
+          ],
+        },
+      },
+    ],
+    play: ({ player, enemies = [], targetIndex = 0 }) => {
+      const targets = enemies
+        .map((entry, index) => ({ entry, index }))
+        .filter(({ entry }) => isEnemyTargetable(entry));
+      const orderedTargets = [
+        ...targets.filter(({ index }) => index === targetIndex),
+        ...targets.filter(({ index }) => index !== targetIndex),
+      ].slice(0, 2);
+      const nextEnemies = enemies.map((entry) => ({ ...entry }));
+      orderedTargets.forEach(({ index }) => {
+        const target = nextEnemies[index];
+        nextEnemies[index] = {
+          ...target,
+          hp: Math.max(0, target.hp - calcDamage((target.hp / Math.max(1, target.maxHp)) <= 0.35 ? 96 : 48, player, target)),
+          bleed: (target.bleed || 0) + 12,
+        };
+      });
+      return { enemies: nextEnemies };
+    },
+  },
+  "warrior-slash-golden-cleave": {
+    id: "warrior-slash-golden-cleave",
+    rarity: "legendary",
+    starLevel: 5,
+    cardClass: "warrior",
+    name: "황금 참격",
+    type: "attack",
+    typeLabel: "공격",
+    cost: 2,
+    desc: "적 2명에게 피해 84, 출혈 24, 처치 시 드로우 2/에너지 +1",
+    description: "적 2명에게 각각 84의 피해와 출혈 24를 부여합니다. 처치 시 카드 2장, 에너지 +1, 턴 게이지 +40을 얻고 이번 턴 공격 카드 피해가 +12 누적됩니다.",
+    damage: 84,
+    block: 0,
+    effect: "출혈 24 / 처치 시 드로우·에너지·게이지 / 공격 피해 누적",
+    fullImage: imagePaths.warrior.attack,
+    animationType: "lightning",
+    maxTargets: 2,
+    play: ({ player, enemies = [], targetIndex = 0, drawCards }) => {
+      const targets = enemies
+        .map((entry, index) => ({ entry, index }))
+        .filter(({ entry }) => isEnemyTargetable(entry));
+      const orderedTargets = [
+        ...targets.filter(({ index }) => index === targetIndex),
+        ...targets.filter(({ index }) => index !== targetIndex),
+      ].slice(0, 2);
+      const nextEnemies = enemies.map((entry) => ({ ...entry }));
+      let defeatedAny = false;
+      orderedTargets.forEach(({ index }) => {
+        const target = nextEnemies[index];
+        const nextHp = Math.max(0, target.hp - calcDamage(84, player, target));
+        defeatedAny = defeatedAny || (target.hp > 0 && nextHp <= 0);
+        nextEnemies[index] = {
+          ...target,
+          hp: nextHp,
+          bleed: (target.bleed || 0) + 24,
+        };
+      });
+      return {
+        player: {
+          ...player,
+          energy: Math.min(player.maxEnergy || 3, (player.energy || 0) + (defeatedAny ? 1 : 0)),
+          attackCardBonus: (player.attackCardBonus || 0) + 12,
+        },
+        enemies: nextEnemies,
+        draw: defeatedAny ? drawCards?.(2) : null,
+        speedGaugeBonus: defeatedAny ? 40 : 0,
+      };
+    },
   },
   "warrior-defense": {
     id: "warrior-defense",
@@ -82,7 +386,214 @@ const RAW_CARD_POOL = {
     block: 8,
     fullImage: imagePaths.warrior.defense,
     animationType: "shield",
+    upgradeOptions: [
+      {
+        id: "defense_guard_plus",
+        name: "강화 방어",
+        description: "기본 방어 수치가 크게 증가합니다.",
+        resultCardId: "guard-plus",
+        cost: {
+          gold: 45,
+          materials: [{ id: "card_shard", name: "카드 조각", amount: 18 }],
+        },
+      },
+      {
+        id: "defense_guard_thorn",
+        name: "가시 방패",
+        description: "방어하면서 공격받을 때마다 고정 피해를 반사합니다.",
+        resultCardId: "thorn-shield",
+        cost: {
+          gold: 90,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 35 },
+            { id: "rift_fragment", name: "균열 파편", amount: 1 },
+          ],
+        },
+      },
+      {
+        id: "defense_guard_recovery",
+        name: "수호 태세",
+        description: "방어도와 함께 체력을 회복합니다.",
+        resultCardId: "guardian-stance",
+        cost: {
+          gold: 80,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 30 },
+            { id: "red_fang", name: "붉은 송곳니", amount: 1 },
+          ],
+        },
+      },
+    ],
     play: ({ player }) => ({ player: { ...player, block: player.block + 8 } }),
+  },
+  "guard-plus": {
+    id: "guard-plus",
+    rarity: "rare",
+    starLevel: 2,
+    cardClass: "common",
+    name: "강화 방어",
+    type: "defense",
+    typeLabel: "방어",
+    cost: 1,
+    desc: "방어도 14",
+    description: "방어도 14를 얻습니다.",
+    damage: 0,
+    block: 14,
+    fullImage: imagePaths.warrior.defense,
+    animationType: "shield",
+    upgradeOptions: [
+      {
+        id: "defense_guardian_stance",
+        name: "수호 태세",
+        description: "방어도와 회복을 함께 얻습니다.",
+        resultCardId: "guardian-stance",
+        cost: {
+          gold: 90,
+          materials: [{ id: "card_shard", name: "카드 조각", amount: 38 }],
+        },
+      },
+    ],
+    play: ({ player }) => ({ player: { ...player, block: player.block + 14 } }),
+  },
+  "guardian-stance": {
+    id: "guardian-stance",
+    rarity: "epic",
+    starLevel: 3,
+    cardClass: "common",
+    name: "수호 태세",
+    type: "defense",
+    typeLabel: "방어",
+    cost: 1,
+    desc: "방어도 22, 체력 8 회복",
+    description: "방어도 22를 얻고 체력 8을 회복합니다.",
+    damage: 0,
+    block: 22,
+    effect: "체력 8 회복",
+    fullImage: imagePaths.warrior.defense,
+    animationType: "shield",
+    upgradeOptions: [
+      {
+        id: "defense_iron_fortress",
+        name: "반격 요새",
+        description: "고효율 방어와 피해 감소, 반사를 동시에 얻습니다.",
+        resultCardId: "counter-fortress",
+        cost: {
+          gold: 150,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 62 },
+            { id: "black_iron_heart", name: "흑철 심장", amount: 1 },
+          ],
+        },
+      },
+    ],
+    play: ({ player }) => ({ player: { ...applyFlatHeal(player, 8), block: player.block + 22 } }),
+  },
+  "thorn-shield": {
+    id: "thorn-shield",
+    rarity: "rare",
+    starLevel: 2,
+    cardClass: "common",
+    name: "가시 방패",
+    type: "defense",
+    typeLabel: "방어",
+    cost: 1,
+    desc: "방어도 13, 고정 반사 6",
+    description: "방어도 13을 얻습니다. 이번 턴 공격받을 때마다 6 피해를 반사합니다.",
+    damage: 0,
+    block: 13,
+    effect: "고정 반사 6",
+    fullImage: imagePaths.warrior.defense,
+    animationType: "shield",
+    upgradeOptions: [
+      {
+        id: "defense_iron_fortress",
+        name: "반격 요새",
+        description: "반사와 피해 감소를 핵심 전술로 강화합니다.",
+        resultCardId: "counter-fortress",
+        cost: {
+          gold: 150,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 62 },
+            { id: "black_iron_heart", name: "흑철 심장", amount: 1 },
+          ],
+        },
+      },
+    ],
+    play: ({ player }) => ({
+      player: {
+        ...player,
+        block: player.block + 13,
+        reflectFlat: (player.reflectFlat || 0) + 6,
+      },
+    }),
+  },
+  "counter-fortress": {
+    id: "counter-fortress",
+    rarity: "epic",
+    starLevel: 4,
+    cardClass: "common",
+    name: "반격 요새",
+    type: "defense",
+    typeLabel: "방어",
+    cost: 2,
+    desc: "방어도 32, 피해 30% 감소, 반사 25%",
+    description: "방어도 32를 얻습니다. 이번 턴 받는 피해가 30% 감소하고 받은 피해의 25%를 반사합니다.",
+    damage: 0,
+    block: 32,
+    effect: "피해 감소 30% / 반사 25%",
+    fullImage: imagePaths.warrior.defense,
+    animationType: "shield",
+    upgradeOptions: [
+      {
+        id: "defense_absolute_bulwark",
+        name: "절대 방벽",
+        description: "피해를 무력화하고 반격으로 전투를 뒤집습니다.",
+        resultCardId: "absolute-bulwark",
+        cost: {
+          gold: 260,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 95 },
+            { id: "dragon_scale", name: "용의 비늘", amount: 1 },
+          ],
+        },
+      },
+    ],
+    play: ({ player }) => ({
+      player: {
+        ...player,
+        block: player.block + 32,
+        turnDamageReduction: Math.min(0.75, (player.turnDamageReduction || 0) + 0.3),
+        reflectPercent: (player.reflectPercent || 0) + 0.25,
+      },
+    }),
+  },
+  "absolute-bulwark": {
+    id: "absolute-bulwark",
+    rarity: "legendary",
+    starLevel: 5,
+    cardClass: "common",
+    name: "절대 방벽",
+    type: "defense",
+    typeLabel: "방어",
+    cost: 3,
+    desc: "방어도 60, 피해 65% 감소, 반사 50%, 사망 방지",
+    description: "방어도 60을 얻습니다. 이번 턴 받는 피해가 65% 감소하고 받은 피해의 50%와 고정 12 피해를 반사합니다. 한 번 사망을 방지하고 다음 공격 피해 +12.",
+    damage: 0,
+    block: 60,
+    effect: "피해 감소 65% / 반사 50%+12 / 사망 방지 / 공격 피해 +12",
+    fullImage: imagePaths.warrior.defense,
+    animationType: "shield",
+    play: ({ player }) => ({
+      player: {
+        ...player,
+        block: player.block + 60,
+        turnDamageReduction: Math.min(0.85, (player.turnDamageReduction || 0) + 0.65),
+        reflectPercent: (player.reflectPercent || 0) + 0.5,
+        reflectFlat: (player.reflectFlat || 0) + 12,
+        deathPrevent: (player.deathPrevent || 0) + 1,
+        attackCardBonus: (player.attackCardBonus || 0) + 12,
+      },
+    }),
   },
   "mage-magic-missile": {
     id: "mage-magic-missile",
@@ -98,6 +609,44 @@ const RAW_CARD_POOL = {
     block: 0,
     fullImage: imagePaths.mage.attack,
     animationType: "magic",
+    upgradeOptions: [
+      {
+        id: "mage_missile_arcane_bolt",
+        name: "비전 탄환",
+        description: "피해가 크게 증가하고 취약을 더 부여합니다.",
+        resultCardId: "arcane-bolt",
+        cost: {
+          gold: 50,
+          materials: [{ id: "card_shard", name: "카드 조각", amount: 20 }],
+        },
+      },
+      {
+        id: "mage_missile_frost_lance",
+        name: "빙결 미사일",
+        description: "피해와 함께 턴 게이지를 당기는 냉기 마법으로 바뀝니다.",
+        resultCardId: "frost-missile",
+        cost: {
+          gold: 80,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 30 },
+            { id: "rift_fragment", name: "균열 파편", amount: 1 },
+          ],
+        },
+      },
+      {
+        id: "mage_missile_barrage",
+        name: "비전 난사",
+        description: "다중 타격과 드로우가 붙은 전략 카드로 발전합니다.",
+        resultCardId: "arcane-barrage",
+        cost: {
+          gold: 95,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 34 },
+            { id: "red_fang", name: "붉은 송곳니", amount: 1 },
+          ],
+        },
+      },
+    ],
     play: ({ player, enemy }) => ({
       enemy: {
         ...enemy,
@@ -120,7 +669,331 @@ const RAW_CARD_POOL = {
     block: 6,
     fullImage: imagePaths.mage.defense,
     animationType: "shield",
+    upgradeOptions: [
+      {
+        id: "mage_shield_guard_plus",
+        name: "강화 방어",
+        description: "기본 방어 수치가 크게 증가합니다.",
+        resultCardId: "guard-plus",
+        cost: {
+          gold: 45,
+          materials: [{ id: "card_shard", name: "카드 조각", amount: 18 }],
+        },
+      },
+      {
+        id: "mage_shield_guardian",
+        name: "수호 태세",
+        description: "방어도와 함께 체력을 회복합니다.",
+        resultCardId: "guardian-stance",
+        cost: {
+          gold: 80,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 30 },
+            { id: "red_fang", name: "붉은 송곳니", amount: 1 },
+          ],
+        },
+      },
+    ],
     play: ({ player }) => ({ player: { ...player, block: player.block + 6 } }),
+  },
+  "arcane-bolt": {
+    id: "arcane-bolt",
+    rarity: "rare",
+    starLevel: 2,
+    cardClass: "mage",
+    name: "비전 탄환",
+    type: "attack",
+    typeLabel: "공격",
+    cost: 1,
+    desc: "피해 20, 취약 2",
+    description: "적 하나에게 20의 피해를 주고 취약 2를 부여합니다.",
+    damage: 20,
+    block: 0,
+    fullImage: imagePaths.mage.attack,
+    animationType: "magic",
+    upgradeOptions: [
+      {
+        id: "mage_arcane_barrage",
+        name: "비전 난사",
+        description: "다중 타격과 드로우를 얻습니다.",
+        resultCardId: "arcane-barrage",
+        cost: {
+          gold: 105,
+          materials: [{ id: "card_shard", name: "카드 조각", amount: 42 }],
+        },
+      },
+    ],
+    play: ({ player, enemy }) => ({
+      enemy: {
+        ...enemy,
+        hp: Math.max(0, enemy.hp - calcDamage(20, player, enemy)),
+        vulnerable: enemy.vulnerable + 2,
+      },
+    }),
+  },
+  "frost-missile": {
+    id: "frost-missile",
+    rarity: "rare",
+    starLevel: 2,
+    cardClass: "mage",
+    name: "빙결 미사일",
+    type: "attack",
+    typeLabel: "공격",
+    cost: 1,
+    desc: "피해 18, 취약 1, 턴 게이지 +15",
+    description: "적 하나에게 18의 피해와 취약 1을 부여하고 턴 게이지를 15 얻습니다.",
+    damage: 18,
+    block: 0,
+    effect: "턴 게이지 +15",
+    fullImage: imagePaths.mage.attack,
+    animationType: "ice",
+    upgradeOptions: [
+      {
+        id: "mage_glacial_prison",
+        name: "빙하 감옥",
+        description: "큰 피해와 함께 다음 행동을 더 빠르게 만듭니다.",
+        resultCardId: "glacial-prison",
+        cost: {
+          gold: 125,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 48 },
+            { id: "black_iron_heart", name: "흑철 심장", amount: 1 },
+          ],
+        },
+      },
+    ],
+    play: ({ player, enemy }) => ({
+      enemy: {
+        ...enemy,
+        hp: Math.max(0, enemy.hp - calcDamage(18, player, enemy)),
+        vulnerable: enemy.vulnerable + 1,
+      },
+      player,
+      speedGaugeBonus: 15,
+    }),
+  },
+  "arcane-barrage": {
+    id: "arcane-barrage",
+    rarity: "epic",
+    starLevel: 3,
+    cardClass: "mage",
+    name: "비전 난사",
+    type: "attack",
+    typeLabel: "공격",
+    cost: 1,
+    desc: "피해 16을 3회, 카드 1장",
+    description: "적 하나에게 16의 피해를 3회 주고 카드 1장을 뽑습니다.",
+    damage: 48,
+    block: 0,
+    effect: "카드 1장",
+    fullImage: imagePaths.mage.attack,
+    animationType: "magic",
+    upgradeOptions: [
+      {
+        id: "mage_rift_nova",
+        name: "균열 폭발",
+        description: "단일 마법이 광역 핵심 카드로 변합니다.",
+        resultCardId: "rift-nova",
+        cost: {
+          gold: 170,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 65 },
+            { id: "black_iron_heart", name: "흑철 심장", amount: 1 },
+          ],
+        },
+      },
+    ],
+    play: ({ player, enemy, drawCards }) => ({
+      enemy: { ...enemy, hp: Math.max(0, enemy.hp - calcDamage(16, player, enemy) * 3) },
+      player,
+      draw: drawCards(1),
+    }),
+  },
+  "glacial-prison": {
+    id: "glacial-prison",
+    rarity: "epic",
+    starLevel: 3,
+    cardClass: "mage",
+    name: "빙하 감옥",
+    type: "attack",
+    typeLabel: "공격",
+    cost: 1,
+    desc: "피해 34, 취약 3, 턴 게이지 +25",
+    description: "적 하나에게 34의 피해와 취약 3을 부여하고 턴 게이지를 25 얻습니다.",
+    damage: 34,
+    block: 0,
+    effect: "취약 3 / 턴 게이지 +25",
+    fullImage: imagePaths.mage.attack,
+    animationType: "ice",
+    upgradeOptions: [
+      {
+        id: "mage_absolute_zero",
+        name: "절대 영도",
+        description: "적 전체를 얼리고 전투 흐름을 장악합니다.",
+        resultCardId: "absolute-zero",
+        cost: {
+          gold: 175,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 68 },
+            { id: "black_iron_heart", name: "흑철 심장", amount: 1 },
+          ],
+        },
+      },
+    ],
+    play: ({ player, enemy }) => ({
+      enemy: {
+        ...enemy,
+        hp: Math.max(0, enemy.hp - calcDamage(34, player, enemy)),
+        vulnerable: enemy.vulnerable + 3,
+      },
+      player,
+      speedGaugeBonus: 25,
+    }),
+  },
+  "rift-nova": {
+    id: "rift-nova",
+    rarity: "epic",
+    starLevel: 4,
+    cardClass: "mage",
+    name: "균열 폭발",
+    type: "attack",
+    typeLabel: "공격",
+    cost: 2,
+    desc: "적 전체 피해 58, 취약 3, 카드 1장",
+    description: "모든 적에게 58의 피해와 취약 3을 부여하고 카드 1장을 뽑습니다.",
+    damage: 58,
+    block: 0,
+    effect: "전체 공격 / 취약 3 / 카드 1장",
+    fullImage: imagePaths.mage.attack,
+    animationType: "magic",
+    upgradeOptions: [
+      {
+        id: "mage_astral_judgment",
+        name: "성좌 심판",
+        description: "광역 폭발, 드로우, 에너지, 턴 게이지가 결합된 5성 마법입니다.",
+        resultCardId: "astral-judgment",
+        cost: {
+          gold: 290,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 105 },
+            { id: "dragon_scale", name: "용의 비늘", amount: 1 },
+          ],
+        },
+      },
+    ],
+    play: ({ player, enemies = [], drawCards }) => ({
+      enemies: enemies.map((entry) =>
+        isEnemyTargetable(entry)
+          ? { ...entry, hp: Math.max(0, entry.hp - calcDamage(58, player, entry)), vulnerable: entry.vulnerable + 3 }
+          : entry,
+      ),
+      player,
+      draw: drawCards(1),
+    }),
+  },
+  "absolute-zero": {
+    id: "absolute-zero",
+    rarity: "epic",
+    starLevel: 4,
+    cardClass: "mage",
+    name: "절대 영도",
+    type: "attack",
+    typeLabel: "공격",
+    cost: 2,
+    desc: "적 전체 피해 50, 취약 5, 턴 게이지 +35",
+    description: "모든 적에게 50의 피해와 취약 5를 부여하고 턴 게이지를 35 얻습니다.",
+    damage: 50,
+    block: 0,
+    effect: "전체 공격 / 취약 5 / 턴 게이지 +35",
+    fullImage: imagePaths.mage.attack,
+    animationType: "ice",
+    upgradeOptions: [
+      {
+        id: "mage_time_fracture",
+        name: "시간 동결",
+        description: "피해와 턴 게이지를 폭발적으로 얻는 5성 냉기 마법입니다.",
+        resultCardId: "time-fracture",
+        cost: {
+          gold: 290,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 105 },
+            { id: "dragon_scale", name: "용의 비늘", amount: 1 },
+          ],
+        },
+      },
+    ],
+    play: ({ player, enemies = [] }) => ({
+      enemies: enemies.map((entry) =>
+        isEnemyTargetable(entry)
+          ? { ...entry, hp: Math.max(0, entry.hp - calcDamage(50, player, entry)), vulnerable: entry.vulnerable + 5 }
+          : entry,
+      ),
+      player,
+      speedGaugeBonus: 35,
+    }),
+  },
+  "astral-judgment": {
+    id: "astral-judgment",
+    rarity: "legendary",
+    starLevel: 5,
+    cardClass: "mage",
+    name: "성좌 심판",
+    type: "attack",
+    typeLabel: "공격",
+    cost: 3,
+    desc: "적 전체 피해 120, 취약 8, 처치 시 드로우/에너지",
+    description: "모든 적에게 120의 피해와 취약 8을 부여합니다. 처치 시 카드 3장, 에너지 +2, 턴 게이지 +60, 이번 턴 공격 피해 +18.",
+    damage: 120,
+    block: 0,
+    effect: "전체 공격 / 처치 snowball / 공격 피해 +18",
+    fullImage: imagePaths.mage.attack,
+    animationType: "lightning",
+    play: ({ player, enemies = [], drawCards }) => {
+      let defeatedAny = false;
+      const nextEnemies = enemies.map((entry) => {
+        if (!isEnemyTargetable(entry)) return entry;
+        const nextHp = Math.max(0, entry.hp - calcDamage(120, player, entry));
+        defeatedAny = defeatedAny || (entry.hp > 0 && nextHp <= 0);
+        return { ...entry, hp: nextHp, vulnerable: entry.vulnerable + 8 };
+      });
+      return {
+        enemies: nextEnemies,
+        player: {
+          ...player,
+          energy: Math.min(player.maxEnergy || 3, (player.energy || 0) + (defeatedAny ? 2 : 0)),
+          attackCardBonus: (player.attackCardBonus || 0) + 18,
+        },
+        draw: defeatedAny ? drawCards?.(3) : null,
+        speedGaugeBonus: defeatedAny ? 60 : 30,
+      };
+    },
+  },
+  "time-fracture": {
+    id: "time-fracture",
+    rarity: "legendary",
+    starLevel: 5,
+    cardClass: "mage",
+    name: "시간 동결",
+    type: "attack",
+    typeLabel: "공격",
+    cost: 2,
+    desc: "적 전체 피해 96, 취약 10, 턴 게이지 +80",
+    description: "모든 적에게 96의 피해와 취약 10을 부여합니다. 턴 게이지 +80, 카드 2장, 이번 턴 공격 피해 +14.",
+    damage: 96,
+    block: 0,
+    effect: "전체 공격 / 턴 게이지 +80 / 카드 2장",
+    fullImage: imagePaths.mage.attack,
+    animationType: "ice",
+    play: ({ player, enemies = [], drawCards }) => ({
+      enemies: enemies.map((entry) =>
+        isEnemyTargetable(entry)
+          ? { ...entry, hp: Math.max(0, entry.hp - calcDamage(96, player, entry)), vulnerable: entry.vulnerable + 10 }
+          : entry,
+      ),
+      player: { ...player, attackCardBonus: (player.attackCardBonus || 0) + 14 },
+      draw: drawCards(2),
+      speedGaugeBonus: 80,
+    }),
   },
   "archer-attack": {
     id: "archer-attack",
@@ -152,6 +1025,31 @@ const RAW_CARD_POOL = {
     block: 6,
     fullImage: imagePaths.archer.defense,
     animationType: "shield",
+    upgradeOptions: [
+      {
+        id: "archer_defense_guard_plus",
+        name: "강화 방어",
+        description: "기본 방어 수치가 크게 증가합니다.",
+        resultCardId: "guard-plus",
+        cost: {
+          gold: 45,
+          materials: [{ id: "card_shard", name: "카드 조각", amount: 18 }],
+        },
+      },
+      {
+        id: "archer_defense_thorn",
+        name: "가시 방패",
+        description: "방어하면서 공격받을 때마다 고정 피해를 반사합니다.",
+        resultCardId: "thorn-shield",
+        cost: {
+          gold: 90,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 35 },
+            { id: "rift_fragment", name: "균열 파편", amount: 1 },
+          ],
+        },
+      },
+    ],
     play: ({ player }) => ({ player: { ...player, block: player.block + 6 } }),
   },
   strike: {
@@ -228,6 +1126,18 @@ const RAW_CARD_POOL = {
     type: "skill",
     cost: 0,
     desc: "카드 2장 뽑기",
+    upgradeOptions: [
+      {
+        id: "mage_deep_focus",
+        name: "심화 집중",
+        description: "드로우와 에너지 순환을 함께 얻습니다.",
+        resultCardId: "deep-focus",
+        cost: {
+          gold: 90,
+          materials: [{ id: "card_shard", name: "카드 조각", amount: 35 }],
+        },
+      },
+    ],
     play: ({ player, drawCards }) => ({ player, draw: drawCards(2) }),
   },
   overclock: {
@@ -238,6 +1148,21 @@ const RAW_CARD_POOL = {
     type: "power",
     cost: 1,
     desc: "힘 +2, 체력 2 감소",
+    upgradeOptions: [
+      {
+        id: "mage_singularity_overclock",
+        name: "특이점 가속",
+        description: "체력 리스크 대신 압도적인 마력과 턴 흐름을 얻습니다.",
+        resultCardId: "singularity-overclock",
+        cost: {
+          gold: 300,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 110 },
+            { id: "dragon_scale", name: "용의 비늘", amount: 1 },
+          ],
+        },
+      },
+    ],
     play: ({ player }) => ({ player: { ...player, strength: player.strength + 2, hp: Math.max(1, player.hp - 2) } }),
   },
   healPulse: {
@@ -271,6 +1196,21 @@ const RAW_CARD_POOL = {
     type: "attack",
     cost: 2,
     desc: "피해 24",
+    upgradeOptions: [
+      {
+        id: "mage_meteor_cataclysm",
+        name: "대재앙 유성",
+        description: "단일 유성이 적 전체를 불태우는 핵심 카드로 변합니다.",
+        resultCardId: "cataclysm-meteor",
+        cost: {
+          gold: 190,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 72 },
+            { id: "black_iron_heart", name: "흑철 심장", amount: 1 },
+          ],
+        },
+      },
+    ],
     play: ({ player, enemy }) => ({ enemy: { ...enemy, hp: Math.max(0, enemy.hp - calcDamage(24, player, enemy)) } }),
   },
   guardianField: {
@@ -353,6 +1293,18 @@ const RAW_CARD_POOL = {
     type: "attack",
     cost: 2,
     desc: "피해 16",
+    upgradeOptions: [
+      {
+        id: "mage_greater_fireball",
+        name: "대화염구",
+        description: "화염 피해와 출혈을 크게 강화합니다.",
+        resultCardId: "greater-fireball",
+        cost: {
+          gold: 100,
+          materials: [{ id: "card_shard", name: "카드 조각", amount: 40 }],
+        },
+      },
+    ],
     play: ({ player, enemy }) => ({ enemy: { ...enemy, hp: Math.max(0, enemy.hp - calcDamage(16, player, enemy)) } }),
   },
   frostLance: {
@@ -363,6 +1315,21 @@ const RAW_CARD_POOL = {
     type: "attack",
     cost: 1,
     desc: "피해 7, 취약 1",
+    upgradeOptions: [
+      {
+        id: "mage_frost_missile",
+        name: "빙결 미사일",
+        description: "피해와 턴 게이지를 함께 얻는 냉기 마법으로 발전합니다.",
+        resultCardId: "frost-missile",
+        cost: {
+          gold: 80,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 30 },
+            { id: "rift_fragment", name: "균열 파편", amount: 1 },
+          ],
+        },
+      },
+    ],
     play: ({ player, enemy }) => ({
       enemy: {
         ...enemy,
@@ -379,6 +1346,21 @@ const RAW_CARD_POOL = {
     type: "attack",
     cost: 2,
     desc: "피해 9, 카드 1장 뽑기",
+    upgradeOptions: [
+      {
+        id: "mage_storm_conduit",
+        name: "폭풍 도관",
+        description: "번개가 적 전체로 확장되고 에너지를 되돌려줍니다.",
+        resultCardId: "storm-conduit",
+        cost: {
+          gold: 180,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 70 },
+            { id: "black_iron_heart", name: "흑철 심장", amount: 1 },
+          ],
+        },
+      },
+    ],
     play: ({ player, enemy, drawCards }) => ({
       enemy: { ...enemy, hp: Math.max(0, enemy.hp - calcDamage(9, player, enemy)) },
       player,
@@ -393,9 +1375,399 @@ const RAW_CARD_POOL = {
     type: "power",
     cost: 1,
     desc: "힘 +1, 카드 2장 뽑기, 체력 1 감소",
+    upgradeOptions: [
+      {
+        id: "mage_mana_singularity",
+        name: "마나 특이점",
+        description: "마력, 드로우, 에너지, 턴 게이지를 동시에 폭발시킵니다.",
+        resultCardId: "mana-singularity",
+        cost: {
+          gold: 300,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 110 },
+            { id: "dragon_scale", name: "용의 비늘", amount: 1 },
+          ],
+        },
+      },
+    ],
     play: ({ player, drawCards }) => ({
       player: { ...player, strength: player.strength + 1, hp: Math.max(1, player.hp - 1) },
       draw: drawCards(2),
+    }),
+  },
+  "deep-focus": {
+    id: "deep-focus",
+    rarity: "rare",
+    starLevel: 2,
+    cardClass: "mage",
+    name: "심화 집중",
+    type: "skill",
+    typeLabel: "기술",
+    cost: 0,
+    desc: "카드 3장, 에너지 +1",
+    description: "카드 3장을 뽑고 에너지 1을 얻습니다.",
+    effect: "카드 3장 / 에너지 +1",
+    animationType: "magic",
+    upgradeOptions: [
+      {
+        id: "mage_mana_flow",
+        name: "마나 흐름",
+        description: "드로우, 에너지, 공격 피해 누적을 동시에 얻습니다.",
+        resultCardId: "mana-flow",
+        cost: {
+          gold: 120,
+          materials: [{ id: "card_shard", name: "카드 조각", amount: 48 }],
+        },
+      },
+    ],
+    play: ({ player, drawCards }) => ({
+      player: { ...player, energy: Math.min(player.maxEnergy || 3, (player.energy || 0) + 1) },
+      draw: drawCards(3),
+    }),
+  },
+  "mana-flow": {
+    id: "mana-flow",
+    rarity: "epic",
+    starLevel: 3,
+    cardClass: "mage",
+    name: "마나 흐름",
+    type: "skill",
+    typeLabel: "기술",
+    cost: 0,
+    desc: "카드 4장, 에너지 +1, 공격 피해 +8",
+    description: "카드 4장을 뽑고 에너지 1과 이번 턴 공격 피해 +8을 얻습니다.",
+    effect: "카드 4장 / 에너지 +1 / 공격 피해 +8",
+    animationType: "magic",
+    upgradeOptions: [
+      {
+        id: "mage_arcane_overdrive",
+        name: "비전 과부하",
+        description: "마법사의 턴을 크게 늘리는 4성 핵심 카드입니다.",
+        resultCardId: "arcane-overdrive",
+        cost: {
+          gold: 175,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 70 },
+            { id: "black_iron_heart", name: "흑철 심장", amount: 1 },
+          ],
+        },
+      },
+    ],
+    play: ({ player, drawCards }) => ({
+      player: {
+        ...player,
+        energy: Math.min(player.maxEnergy || 3, (player.energy || 0) + 1),
+        attackCardBonus: (player.attackCardBonus || 0) + 8,
+      },
+      draw: drawCards(4),
+    }),
+  },
+  "arcane-overdrive": {
+    id: "arcane-overdrive",
+    rarity: "epic",
+    starLevel: 4,
+    cardClass: "mage",
+    name: "비전 과부하",
+    type: "skill",
+    typeLabel: "기술",
+    cost: 1,
+    desc: "카드 5장, 에너지 +2, 턴 게이지 +35, 공격 피해 +14",
+    description: "카드 5장을 뽑고 에너지 2, 턴 게이지 35, 이번 턴 공격 피해 +14를 얻습니다.",
+    effect: "카드 5장 / 에너지 +2 / 게이지 +35",
+    animationType: "magic",
+    upgradeOptions: [
+      {
+        id: "mage_infinite_circuit",
+        name: "무한 회로",
+        description: "드로우와 에너지로 턴을 폭발시키는 5성 순환 카드입니다.",
+        resultCardId: "infinite-circuit",
+        cost: {
+          gold: 285,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 105 },
+            { id: "dragon_scale", name: "용의 비늘", amount: 1 },
+          ],
+        },
+      },
+    ],
+    play: ({ player, drawCards }) => ({
+      player: {
+        ...player,
+        energy: Math.min(player.maxEnergy || 3, (player.energy || 0) + 2),
+        attackCardBonus: (player.attackCardBonus || 0) + 14,
+      },
+      draw: drawCards(5),
+      speedGaugeBonus: 35,
+    }),
+  },
+  "infinite-circuit": {
+    id: "infinite-circuit",
+    rarity: "legendary",
+    starLevel: 5,
+    cardClass: "mage",
+    name: "무한 회로",
+    type: "skill",
+    typeLabel: "기술",
+    cost: 1,
+    desc: "카드 7장, 에너지 +3, 턴 게이지 +80, 공격 피해 +28",
+    description: "카드 7장을 뽑고 에너지 3, 턴 게이지 80, 이번 턴 공격 피해 +28을 얻습니다.",
+    effect: "카드 7장 / 에너지 +3 / 게이지 +80 / 공격 피해 +28",
+    animationType: "lightning",
+    play: ({ player, drawCards }) => ({
+      player: {
+        ...player,
+        energy: Math.min(player.maxEnergy || 3, (player.energy || 0) + 3),
+        attackCardBonus: (player.attackCardBonus || 0) + 28,
+      },
+      draw: drawCards(7),
+      speedGaugeBonus: 80,
+    }),
+  },
+  "greater-fireball": {
+    id: "greater-fireball",
+    rarity: "rare",
+    starLevel: 2,
+    cardClass: "mage",
+    name: "대화염구",
+    type: "attack",
+    typeLabel: "공격",
+    cost: 2,
+    desc: "피해 42, 출혈 8",
+    description: "적 하나에게 42의 피해와 출혈 8을 부여합니다.",
+    damage: 42,
+    effect: "출혈 8",
+    animationType: "fire",
+    upgradeOptions: [
+      {
+        id: "mage_hellfire_orb",
+        name: "지옥 화구",
+        description: "화염 피해가 폭발적으로 증가하고 처형 피해가 붙습니다.",
+        resultCardId: "hellfire-orb",
+        cost: {
+          gold: 135,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 52 },
+            { id: "red_fang", name: "붉은 송곳니", amount: 1 },
+          ],
+        },
+      },
+    ],
+    play: ({ player, enemy }) => ({
+      enemy: { ...enemy, hp: Math.max(0, enemy.hp - calcDamage(42, player, enemy)), bleed: (enemy.bleed || 0) + 8 },
+    }),
+  },
+  "hellfire-orb": {
+    id: "hellfire-orb",
+    rarity: "epic",
+    starLevel: 3,
+    cardClass: "mage",
+    name: "지옥 화구",
+    type: "attack",
+    typeLabel: "공격",
+    cost: 2,
+    desc: "피해 72, 출혈 14, 약한 적 2배",
+    description: "적 하나에게 72의 피해와 출혈 14를 부여합니다. HP 35% 이하 적에게는 피해가 2배가 됩니다.",
+    damage: 72,
+    effect: "출혈 14 / 처형",
+    animationType: "fire",
+    upgradeOptions: [
+      {
+        id: "mage_cataclysm_meteor",
+        name: "대재앙 유성",
+        description: "화염이 적 전체를 집어삼키는 4성 핵심 카드가 됩니다.",
+        resultCardId: "cataclysm-meteor",
+        cost: {
+          gold: 190,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 72 },
+            { id: "black_iron_heart", name: "흑철 심장", amount: 1 },
+          ],
+        },
+      },
+    ],
+    play: ({ player, enemy }) => {
+      const base = (enemy.hp / Math.max(1, enemy.maxHp)) <= 0.35 ? 144 : 72;
+      return { enemy: { ...enemy, hp: Math.max(0, enemy.hp - calcDamage(base, player, enemy)), bleed: (enemy.bleed || 0) + 14 } };
+    },
+  },
+  "cataclysm-meteor": {
+    id: "cataclysm-meteor",
+    rarity: "epic",
+    starLevel: 4,
+    cardClass: "mage",
+    name: "대재앙 유성",
+    type: "attack",
+    typeLabel: "공격",
+    cost: 3,
+    desc: "적 전체 피해 100, 출혈 20",
+    description: "모든 적에게 100의 피해와 출혈 20을 부여합니다.",
+    damage: 100,
+    effect: "전체 공격 / 출혈 20",
+    animationType: "fire",
+    upgradeOptions: [
+      {
+        id: "mage_solar_apocalypse",
+        name: "태양 종말",
+        description: "5성 화염 마법. 처치 시 전투 흐름을 불태웁니다.",
+        resultCardId: "solar-apocalypse",
+        cost: {
+          gold: 320,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 120 },
+            { id: "dragon_scale", name: "용의 비늘", amount: 1 },
+          ],
+        },
+      },
+    ],
+    play: ({ player, enemies = [] }) => ({
+      enemies: enemies.map((entry) =>
+        isEnemyTargetable(entry)
+          ? { ...entry, hp: Math.max(0, entry.hp - calcDamage(100, player, entry)), bleed: (entry.bleed || 0) + 20 }
+          : entry,
+      ),
+      player,
+    }),
+  },
+  "solar-apocalypse": {
+    id: "solar-apocalypse",
+    rarity: "legendary",
+    starLevel: 5,
+    cardClass: "mage",
+    name: "태양 종말",
+    type: "attack",
+    typeLabel: "공격",
+    cost: 4,
+    desc: "적 전체 피해 180, 출혈 36, 처치 시 에너지/드로우",
+    description: "모든 적에게 180의 피해와 출혈 36을 부여합니다. 처치 시 카드 3장, 에너지 +2, 턴 게이지 +60, 공격 피해 +24.",
+    damage: 180,
+    effect: "전체 공격 / 출혈 36 / 처치 snowball",
+    animationType: "fire",
+    play: ({ player, enemies = [], drawCards }) => {
+      let defeatedAny = false;
+      const nextEnemies = enemies.map((entry) => {
+        if (!isEnemyTargetable(entry)) return entry;
+        const nextHp = Math.max(0, entry.hp - calcDamage(180, player, entry));
+        defeatedAny = defeatedAny || (entry.hp > 0 && nextHp <= 0);
+        return { ...entry, hp: nextHp, bleed: (entry.bleed || 0) + 36 };
+      });
+      return {
+        enemies: nextEnemies,
+        player: {
+          ...player,
+          energy: Math.min(player.maxEnergy || 3, (player.energy || 0) + (defeatedAny ? 2 : 0)),
+          attackCardBonus: (player.attackCardBonus || 0) + 24,
+        },
+        draw: defeatedAny ? drawCards?.(3) : null,
+        speedGaugeBonus: defeatedAny ? 60 : 20,
+      };
+    },
+  },
+  "storm-conduit": {
+    id: "storm-conduit",
+    rarity: "epic",
+    starLevel: 4,
+    cardClass: "mage",
+    name: "폭풍 도관",
+    type: "attack",
+    typeLabel: "공격",
+    cost: 2,
+    desc: "적 전체 피해 70, 카드 2장, 에너지 +1",
+    description: "모든 적에게 70의 피해를 주고 카드 2장과 에너지 1을 얻습니다.",
+    damage: 70,
+    effect: "전체 공격 / 카드 2장 / 에너지 +1",
+    animationType: "lightning",
+    upgradeOptions: [
+      {
+        id: "mage_thunder_god",
+        name: "뇌신 강림",
+        description: "번개로 턴을 다시 열어젖히는 5성 마법입니다.",
+        resultCardId: "thunder-god",
+        cost: {
+          gold: 310,
+          materials: [
+            { id: "card_shard", name: "카드 조각", amount: 115 },
+            { id: "dragon_scale", name: "용의 비늘", amount: 1 },
+          ],
+        },
+      },
+    ],
+    play: ({ player, enemies = [], drawCards }) => ({
+      enemies: enemies.map((entry) => (isEnemyTargetable(entry) ? { ...entry, hp: Math.max(0, entry.hp - calcDamage(70, player, entry)) } : entry)),
+      player: { ...player, energy: Math.min(player.maxEnergy || 3, (player.energy || 0) + 1) },
+      draw: drawCards(2),
+    }),
+  },
+  "thunder-god": {
+    id: "thunder-god",
+    rarity: "legendary",
+    starLevel: 5,
+    cardClass: "mage",
+    name: "뇌신 강림",
+    type: "attack",
+    typeLabel: "공격",
+    cost: 3,
+    desc: "적 전체 피해 135, 카드 3장, 에너지 +2, 게이지 +70",
+    description: "모든 적에게 135의 피해를 줍니다. 카드 3장, 에너지 2, 턴 게이지 70, 공격 피해 +20을 얻습니다.",
+    damage: 135,
+    effect: "전체 공격 / 드로우·에너지·게이지",
+    animationType: "lightning",
+    play: ({ player, enemies = [], drawCards }) => ({
+      enemies: enemies.map((entry) => (isEnemyTargetable(entry) ? { ...entry, hp: Math.max(0, entry.hp - calcDamage(135, player, entry)) } : entry)),
+      player: {
+        ...player,
+        energy: Math.min(player.maxEnergy || 3, (player.energy || 0) + 2),
+        attackCardBonus: (player.attackCardBonus || 0) + 20,
+      },
+      draw: drawCards(3),
+      speedGaugeBonus: 70,
+    }),
+  },
+  "mana-singularity": {
+    id: "mana-singularity",
+    rarity: "legendary",
+    starLevel: 5,
+    cardClass: "mage",
+    name: "마나 특이점",
+    type: "power",
+    typeLabel: "능력",
+    cost: 2,
+    desc: "힘 +5, 카드 5장, 에너지 +3, 게이지 +80",
+    description: "힘 +5, 카드 5장, 에너지 +3, 턴 게이지 +80, 이번 턴 공격 피해 +30을 얻습니다.",
+    effect: "힘 +5 / 카드 5장 / 에너지 +3 / 게이지 +80",
+    animationType: "lightning",
+    play: ({ player, drawCards }) => ({
+      player: {
+        ...player,
+        strength: player.strength + 5,
+        energy: Math.min(player.maxEnergy || 3, (player.energy || 0) + 3),
+        attackCardBonus: (player.attackCardBonus || 0) + 30,
+      },
+      draw: drawCards(5),
+      speedGaugeBonus: 80,
+    }),
+  },
+  "singularity-overclock": {
+    id: "singularity-overclock",
+    rarity: "legendary",
+    starLevel: 5,
+    cardClass: "mage",
+    name: "특이점 가속",
+    type: "power",
+    typeLabel: "능력",
+    cost: 2,
+    desc: "힘 +6, 카드 4장, 에너지 +2, 게이지 +80",
+    description: "힘 +6, 카드 4장, 에너지 +2, 턴 게이지 +80을 얻고 체력 4를 소모합니다.",
+    effect: "힘 +6 / 카드 4장 / 에너지 +2 / 게이지 +80",
+    animationType: "lightning",
+    play: ({ player, drawCards }) => ({
+      player: {
+        ...player,
+        strength: player.strength + 6,
+        hp: Math.max(1, player.hp - 4),
+        energy: Math.min(player.maxEnergy || 3, (player.energy || 0) + 2),
+      },
+      draw: drawCards(4),
+      speedGaugeBonus: 80,
     }),
   },
   rapidVolley: {
@@ -475,6 +1847,37 @@ const TYPE_LABELS = {
 };
 
 const CARD_IMAGE_BY_ID = {
+  "warrior-slash-power": "sword",
+  "warrior-slash-wide": "daggers",
+  "warrior-slash-bleed": "blade",
+  "warrior-slash-crimson": "blade",
+  "warrior-slash-inferno-arc": "fire",
+  "warrior-slash-golden-cleave": "crownBlade",
+  "guard-plus": "shield",
+  "guardian-stance": "barrier",
+  "thorn-shield": "shieldHammer",
+  "counter-fortress": "fortress",
+  "absolute-bulwark": "aegis",
+  "arcane-bolt": "arcane",
+  "frost-missile": "ice",
+  "arcane-barrage": "arcane",
+  "glacial-prison": "ice",
+  "rift-nova": "arcane",
+  "absolute-zero": "ice",
+  "astral-judgment": "crownBlade",
+  "time-fracture": "storm",
+  "deep-focus": "focus",
+  "mana-flow": "arcane",
+  "arcane-overdrive": "lightning",
+  "infinite-circuit": "aegis",
+  "greater-fireball": "fire",
+  "hellfire-orb": "meteor",
+  "cataclysm-meteor": "meteor",
+  "solar-apocalypse": "crownBlade",
+  "storm-conduit": "lightning",
+  "thunder-god": "storm",
+  "mana-singularity": "arcane",
+  "singularity-overclock": "arcane",
   strike: "sword",
   defend: "shield",
   bash: "hammer",
@@ -504,6 +1907,37 @@ const CARD_IMAGE_BY_ID = {
 };
 
 const CARD_ANIMATION_BY_ID = {
+  "warrior-slash-power": "impact",
+  "warrior-slash-wide": "slash",
+  "warrior-slash-bleed": "slash",
+  "warrior-slash-crimson": "slash",
+  "warrior-slash-inferno-arc": "fire",
+  "warrior-slash-golden-cleave": "lightning",
+  "guard-plus": "shield",
+  "guardian-stance": "shield",
+  "thorn-shield": "impact",
+  "counter-fortress": "impact",
+  "absolute-bulwark": "shield",
+  "arcane-bolt": "magic",
+  "frost-missile": "ice",
+  "arcane-barrage": "magic",
+  "glacial-prison": "ice",
+  "rift-nova": "magic",
+  "absolute-zero": "ice",
+  "astral-judgment": "lightning",
+  "time-fracture": "ice",
+  "deep-focus": "magic",
+  "mana-flow": "magic",
+  "arcane-overdrive": "lightning",
+  "infinite-circuit": "lightning",
+  "greater-fireball": "fire",
+  "hellfire-orb": "fire",
+  "cataclysm-meteor": "fire",
+  "solar-apocalypse": "fire",
+  "storm-conduit": "lightning",
+  "thunder-god": "lightning",
+  "mana-singularity": "lightning",
+  "singularity-overclock": "lightning",
   strike: "slash",
   bash: "impact",
   quickCut: "slash",
@@ -547,6 +1981,7 @@ const CARD_POOL = Object.fromEntries(
       damage: card.damage ?? readCardNumber(card.desc, "피해"),
       block: card.block ?? readCardNumber(card.desc, "방어도"),
       effect: card.effect ?? null,
+      starLevel: clampNumber(Number(card.starLevel || 1), 1, 5),
     },
   ]),
 );
@@ -641,6 +2076,14 @@ const TYPE_THEME = {
   power: { bg: "bg-violet-50", sigilBg: "rgba(139,92,246,0.16)", sigilStroke: "#6d28d9", accent: "#7c3aed", label: "능력" },
 };
 
+const CARD_STAR_EFFECTS = {
+  1: { label: "1성", primary: "#94a3b8", secondary: "#e2e8f0", glow: "rgba(148, 163, 184, 0.2)", particleCount: 0 },
+  2: { label: "2성", primary: "#3BA7FF", secondary: "#5CCBFF", glow: "rgba(59, 167, 255, 0.56)", particleCount: 5 },
+  3: { label: "3성", primary: "#9B5CFF", secondary: "#D26BFF", glow: "rgba(155, 92, 255, 0.68)", particleCount: 7 },
+  4: { label: "4성", primary: "#FF3B3B", secondary: "#FF7A1A", glow: "rgba(255, 59, 59, 0.78)", particleCount: 10 },
+  5: { label: "5성", primary: "#FFD700", secondary: "#FFF2A0", glow: "rgba(255, 215, 0, 0.9)", particleCount: 14 },
+};
+
 const CHARACTER_CLASSES = {
   warrior: {
     id: "warrior",
@@ -730,9 +2173,15 @@ const INITIAL_PLAYER = {
   maxHp: 0,
   baseMaxHp: 0,
   gold: 0,
+  resources: {},
   block: 0,
   energy: 3,
   maxEnergy: 3,
+  attackCardBonus: 0,
+  turnDamageReduction: 0,
+  reflectFlat: 0,
+  reflectPercent: 0,
+  deathPrevent: 0,
   baseMaxEnergy: 3,
   startEnergy: 3,
   strength: 0,
@@ -1157,6 +2606,41 @@ const SHOP_CARD_VALUE_BY_RARITY = {
   epic: 140,
   legendary: 150,
 };
+const MATERIAL_DEFINITIONS = {
+  card_shard: { id: "card_shard", name: "카드 조각", description: "카드를 분해해 얻는 기본 강화 재료", icon: "◇", rarity: "common", source: "card_dismantle" },
+  warrior_card_shard: { id: "warrior_card_shard", name: "전사 카드 조각", description: "전사 카드를 분해해 얻는 직업 조각", icon: "⚔", rarity: "common", source: "card_dismantle" },
+  mage_card_shard: { id: "mage_card_shard", name: "마법사 카드 조각", description: "마법사 카드를 분해해 얻는 직업 조각", icon: "✦", rarity: "common", source: "card_dismantle" },
+  archer_card_shard: { id: "archer_card_shard", name: "궁수 카드 조각", description: "궁수 카드를 분해해 얻는 직업 조각", icon: "➶", rarity: "common", source: "card_dismantle" },
+  rift_fragment: { id: "rift_fragment", name: "균열 파편", description: "1층 보스가 남기는 특수 강화 재료", icon: "◆", rarity: "rare", source: "boss_drop" },
+  black_iron_heart: { id: "black_iron_heart", name: "흑철 심장", description: "2층 보스가 남기는 묵직한 강화 재료", icon: "♥", rarity: "epic", source: "boss_drop" },
+  dragon_scale: { id: "dragon_scale", name: "용의 비늘", description: "상층 보스가 남기는 전설급 강화 재료", icon: "▰", rarity: "legendary", source: "boss_drop" },
+  red_fang: { id: "red_fang", name: "붉은 송곳니", description: "강력한 적에게서 얻는 출혈 강화 재료", icon: "♦", rarity: "rare", source: "boss_drop" },
+  manaShard: { id: "manaShard", name: "마력 파편", description: "전투 보상으로 얻는 보조 재료", icon: "🔷", rarity: "common", source: "battle_reward" },
+  orichalcum: { id: "orichalcum", name: "오리하르콘", description: "보스전에서 발견되는 희귀 금속", icon: "💎", rarity: "epic", source: "boss_drop" },
+  ancientRelicDust: { id: "ancientRelicDust", name: "고대 유물 가루", description: "오래된 유물에서 떨어지는 가루", icon: "✨", rarity: "rare", source: "boss_drop" },
+};
+const BATTLE_RESOURCE_REWARDS = MATERIAL_DEFINITIONS;
+const DISMANTLE_REWARDS_BY_RARITY = {
+  common: [{ id: "card_shard", name: "카드 조각", amount: 5 }],
+  rare: [{ id: "card_shard", name: "카드 조각", amount: 15 }],
+  epic: [{ id: "card_shard", name: "카드 조각", amount: 30 }],
+  legendary: [{ id: "card_shard", name: "카드 조각", amount: 60 }],
+};
+const CLASS_SHARD_BY_CARD_CLASS = {
+  warrior: { id: "warrior_card_shard", name: "전사 카드 조각" },
+  mage: { id: "mage_card_shard", name: "마법사 카드 조각" },
+  archer: { id: "archer_card_shard", name: "궁수 카드 조각" },
+};
+const BOSS_MATERIAL_BY_FLOOR = {
+  1: { id: "rift_fragment", amount: 1 },
+  2: { id: "black_iron_heart", amount: 1 },
+};
+const ENEMY_DEATH_ANIMATION_MS = 520;
+const BOSS_STAT_MULTIPLIERS = {
+  hp: 3,
+  attack: 1.55,
+  defense: 1.35,
+};
 
 const DEFAULT_MONSTER_IMAGE = "/images/monster/default_monster.png";
 const MONSTER_IMAGE_PATHS = {
@@ -1293,37 +2777,47 @@ function getFloorNodes(floor) {
 function buildStageEnemy(stage) {
   const isBoss = stage.type === "boss";
   const imagePath = getMonsterImagePath(stage);
+  const attack = isBoss ? Math.round(stage.attack * BOSS_STAT_MULTIPLIERS.attack) : stage.attack;
+  const maxHp = isBoss ? Math.round(stage.maxHp * BOSS_STAT_MULTIPLIERS.hp) : stage.maxHp;
+  const defense = isBoss
+    ? Math.max(1, Math.round((stage.defense || stage.attack * 0.45) * BOSS_STAT_MULTIPLIERS.defense))
+    : Math.max(0, stage.defense || 0);
   return {
     monsterId: stage.monsterId,
     name: stage.enemy,
-    maxHp: stage.maxHp,
+    maxHp,
     speed: stage.speed,
     image: stage.image,
     imagePath,
     imageSrc: imagePath,
     boss: isBoss,
+    attack,
+    defense,
+    damageResistance: isBoss ? 0.18 : 0,
+    statusResistance: isBoss ? 0.5 : 0,
     actions: isBoss
       ? [
-          { type: "attack", value: stage.attack, text: `강공격 ${stage.attack}` },
-          { type: "block", value: Math.ceil(stage.attack * 0.8), text: `방어 ${Math.ceil(stage.attack * 0.8)}` },
-          { type: "buff", value: 2, text: "힘 +2" },
-          { type: "attack", value: Math.max(1, stage.attack - 5), text: `공격 ${Math.max(1, stage.attack - 5)}` },
+          { type: "attack", value: attack, text: `공격 ${attack}` },
+          { type: "block", value: Math.ceil(attack * 0.9), text: `방어 ${Math.ceil(attack * 0.9)} / 강공격 준비`, warning: "강공격 예고" },
+          { type: "attack", value: Math.ceil(attack * 1.65), text: `광역 강공격 ${Math.ceil(attack * 1.65)}`, special: true, warning: "강공격 예고" },
         ]
       : [
-          { type: "attack", value: stage.attack, text: `공격 ${stage.attack}` },
-          { type: "block", value: Math.ceil(stage.attack * 0.6), text: `방어 ${Math.ceil(stage.attack * 0.6)}` },
+          { type: "attack", value: attack, text: `공격 ${attack}` },
+          { type: "block", value: Math.ceil(attack * 0.6), text: `방어 ${Math.ceil(attack * 0.6)}` },
         ],
   };
 }
 
 function calcDamage(base, player, enemy) {
   const attackBonus = Math.max(0, Math.floor(((player.attack || 10) - 10) / 2));
-  const raw = base + player.strength + attackBonus;
+  const raw = base + player.strength + attackBonus + (player.attackCardBonus || 0);
   const attackAdjusted = raw * (player.attackMultiplier || 1);
   const bossAdjusted = enemy?.boss ? attackAdjusted * (player.bossDamageMultiplier || 1) : attackAdjusted;
   const critAdjusted = Math.random() < (player.critRate || 0) ? bossAdjusted * (player.critDamageMultiplier || 1.5) : bossAdjusted;
   const finalDamage = enemy.vulnerable > 0 ? critAdjusted * 1.5 : critAdjusted;
-  return Math.max(1, Math.ceil(finalDamage));
+  const defenseReduction = Math.floor((enemy?.defense || 0) / 4);
+  const resistedDamage = Math.ceil(Math.max(1, finalDamage - defenseReduction) * (1 - (enemy?.damageResistance || 0)));
+  return Math.max(1, resistedDamage);
 }
 
 function shuffle(array) {
@@ -1410,6 +2904,83 @@ function findSellableCard(deck) {
   };
 }
 
+function getMaterialDefinition(id) {
+  return MATERIAL_DEFINITIONS[id] || { id, name: id, icon: "◇", rarity: "common", source: "battle_reward" };
+}
+
+function createMaterialReward(id, amount = 1) {
+  const material = getMaterialDefinition(id);
+  return { id: material.id, name: material.name, icon: material.icon, amount };
+}
+
+function getBossMaterialReward(floor) {
+  const special = BOSS_MATERIAL_BY_FLOOR[floor] || { id: "dragon_scale", amount: 1 };
+  return createMaterialReward(special.id, special.amount);
+}
+
+function addMaterialRewards(resources = {}, rewards = []) {
+  const nextResources = { ...resources };
+  rewards.forEach((reward) => {
+    nextResources[reward.id] = (nextResources[reward.id] || 0) + Math.max(0, Number(reward.amount || 0));
+  });
+  return nextResources;
+}
+
+function getDismantleRewards(card) {
+  const rarity = card?.rarity || "common";
+  const baseRewards = card?.dismantleReward || DISMANTLE_REWARDS_BY_RARITY[rarity] || DISMANTLE_REWARDS_BY_RARITY.common;
+  const rewards = baseRewards.map((reward) => ({ ...createMaterialReward(reward.id, reward.amount), name: reward.name || getMaterialDefinition(reward.id).name }));
+  const classShard = CLASS_SHARD_BY_CARD_CLASS[card?.cardClass];
+  if (classShard) {
+    const baseAmount = rewards.find((reward) => reward.id === "card_shard")?.amount || 5;
+    rewards.push({ ...createMaterialReward(classShard.id, Math.max(1, Math.floor(baseAmount / 5))), name: classShard.name });
+  }
+  return rewards;
+}
+
+function canDismantleCard(deck, cardId, classId) {
+  if (!cardId || deck.length <= 5) return false;
+  const cardCount = deck.filter((id) => id === cardId).length;
+  if (cardCount <= 0) return false;
+  const starterCards = new Set(CHARACTER_CLASSES[classId]?.starter || []);
+  if (starterCards.has(cardId) && cardCount <= 1) return false;
+  return true;
+}
+
+function canUpgradeCard(option, playerInventory) {
+  if (!option?.cost) return false;
+  if ((playerInventory?.gold ?? 0) < (option.cost.gold ?? 0)) return false;
+  return (option.cost.materials || []).every((material) => (playerInventory?.resources?.[material.id] ?? 0) >= material.amount);
+}
+
+function getUpgradeCostIssues(option, playerInventory) {
+  const issues = [];
+  const goldNeeded = option?.cost?.gold || 0;
+  if ((playerInventory?.gold || 0) < goldNeeded) {
+    issues.push(`골드 부족: ${playerInventory?.gold || 0} / ${goldNeeded}`);
+  }
+  (option?.cost?.materials || []).forEach((material) => {
+    const owned = playerInventory?.resources?.[material.id] || 0;
+    if (owned < material.amount) {
+      issues.push(`${material.name || getMaterialDefinition(material.id).name} 부족: ${owned} / ${material.amount}`);
+    }
+  });
+  return issues;
+}
+
+function consumeUpgradeCost(playerInventory, cost) {
+  const nextResources = { ...(playerInventory.resources || {}) };
+  (cost.materials || []).forEach((material) => {
+    nextResources[material.id] = Math.max(0, (nextResources[material.id] || 0) - material.amount);
+  });
+
+  return {
+    ...playerInventory,
+    gold: Math.max(0, (playerInventory.gold || 0) - (cost.gold || 0)),
+    resources: nextResources,
+  };
+}
+
 function getRoomPreview(node) {
   if (!node) return "";
   if (node.type === "event") return "알 수 없는 사건이 기다립니다.";
@@ -1487,7 +3058,7 @@ function nextActorFromCombatGauge(gauge, playerSpeed, enemies) {
   const threshold = 100;
   const aliveEnemies = enemies
     .map((entry, index) => ({ entry, index }))
-    .filter(({ entry }) => entry.hp > 0);
+    .filter(({ entry }) => isEnemyAlive(entry));
   const nextGauge = normalizeSpeedGauge(gauge, enemies);
 
   if (aliveEnemies.length === 0) {
@@ -1549,12 +3120,15 @@ function createEnemy(indexOrStage = 0) {
     block: 0,
     strength: 0,
     vulnerable: 0,
+    bleed: 0,
     actionIndex: 0,
+    status: "alive",
+    targetable: true,
   };
 }
 
 function createStageEnemies(stage) {
-  const monsterCount = stage.type === "boss" ? 3 : stage.type === "elite" ? 2 : 1;
+  const monsterCount = stage.type === "boss" ? 1 : stage.type === "elite" ? 2 : 1;
 
   return Array.from({ length: monsterCount }, (_, index) => {
     const isMainBoss = stage.type === "boss" && index === 0;
@@ -1582,12 +3156,61 @@ function createStageEnemies(stage) {
   });
 }
 
+function getEnemyDeathFx(enemy) {
+  if (enemy?.boss) return "collapse";
+  if (["slime", "snail", "mushroom"].includes(enemy?.monsterId)) return "dissolve";
+  if (["rift_mage", "dragon_boss", "kobold_boss"].includes(enemy?.monsterId)) return "light";
+  return "smoke";
+}
+
+function isEnemyAlive(enemy) {
+  return Boolean(enemy && enemy.hp > 0 && enemy.status !== "dead");
+}
+
+function isEnemyTargetable(enemy) {
+  return isEnemyAlive(enemy) && enemy.targetable !== false;
+}
+
+function applyEnemyStatusResistance(previousEnemy, nextEnemy) {
+  if (!previousEnemy?.boss || !nextEnemy) return nextEnemy;
+  const resistance = Math.max(0, Math.min(1, previousEnemy.statusResistance || 0));
+  const vulnerableGain = Math.max(0, (nextEnemy.vulnerable || 0) - (previousEnemy.vulnerable || 0));
+  const bleedGain = Math.max(0, (nextEnemy.bleed || 0) - (previousEnemy.bleed || 0));
+  if (vulnerableGain <= 0 && bleedGain <= 0) return nextEnemy;
+
+  return {
+    ...nextEnemy,
+    vulnerable: (previousEnemy.vulnerable || 0) + Math.max(0, Math.ceil(vulnerableGain * (1 - resistance))),
+    bleed: (previousEnemy.bleed || 0) + Math.max(0, Math.ceil(bleedGain * (1 - resistance))),
+  };
+}
+
+function markEnemyDead(enemy) {
+  if (!enemy || enemy.status === "dead") return enemy;
+  if (enemy.hp > 0) return enemy;
+  return {
+    ...enemy,
+    hp: 0,
+    block: 0,
+    vulnerable: 0,
+    bleed: 0,
+    status: "dead",
+    targetable: false,
+    deathFx: enemy.deathFx || getEnemyDeathFx(enemy),
+    deathKey: enemy.deathKey || `${enemy.id || enemy.name}-${Date.now()}`,
+  };
+}
+
+function settleDefeatedEnemies(enemyList) {
+  return enemyList.map((entry) => (entry?.hp <= 0 ? markEnemyDead(entry) : entry));
+}
+
 function getFirstAliveEnemyIndex(enemyList) {
-  return Math.max(0, enemyList.findIndex((enemy) => enemy.hp > 0));
+  return Math.max(0, enemyList.findIndex((enemy) => isEnemyAlive(enemy)));
 }
 
 function areAllEnemiesDefeated(enemyList) {
-  return enemyList.length > 0 && enemyList.every((enemy) => enemy.hp <= 0);
+  return enemyList.length > 0 && enemyList.every((enemy) => !isEnemyAlive(enemy));
 }
 
 function getRewardCards(deck, classId, playerDataOrEffects = null) {
@@ -1654,6 +3277,49 @@ function getRewardCards(deck, classId, playerDataOrEffects = null) {
   }
 
   return selectedIds.map((id) => CARD_POOL[id]);
+}
+
+function createResourceReward(id, amount = 1) {
+  return createMaterialReward(id, amount);
+}
+
+function generateBattleReward(stage, gold, cardChoices) {
+  const resources = [];
+  if (stage?.type === "boss") {
+    resources.push(getBossMaterialReward(stage.floor));
+    resources.push(createResourceReward("red_fang", stage.floor === 1 ? 1 : 0));
+    resources.push(createResourceReward("ancientRelicDust", 2));
+  } else if (stage?.type === "elite") {
+    resources.push(createResourceReward("manaShard", 3));
+  } else {
+    resources.push(createResourceReward("manaShard", 1));
+  }
+
+  return {
+    gold: Math.max(0, Number(gold || 0)),
+    resources: resources.filter((resource) => resource.amount > 0),
+    cardChoices: (cardChoices || []).slice(0, 3),
+  };
+}
+
+function hasBattleReward(reward) {
+  return Boolean(
+    reward &&
+      ((reward.gold || 0) > 0 || (reward.resources || []).length > 0 || (reward.cardChoices || []).length > 0),
+  );
+}
+
+function applyBattleRewardToPlayer(player, reward) {
+  const nextResources = { ...(player.resources || {}) };
+  (reward?.resources || []).forEach((resource) => {
+    nextResources[resource.id] = (nextResources[resource.id] || 0) + Math.max(0, Number(resource.amount || 0));
+  });
+
+  return {
+    ...player,
+    gold: player.gold + Math.max(0, Number(reward?.gold || 0)),
+    resources: nextResources,
+  };
 }
 
 function buildRoomEncounter(stage, player, deck = []) {
@@ -1808,11 +3474,13 @@ function CardDetailPanel({ card, targetName }) {
   if (!card) return null;
   const rarityMeta = RARITY_META[card.rarity] || RARITY_META.common;
   const rarityFrame = RARITY_FRAME[card.rarity] || RARITY_FRAME.common;
+  const starLevel = getCardStarLevel(card);
 
   return (
     <div className="rounded-3xl border bg-slate-950/70 p-4 shadow-xl" style={{ borderColor: rarityFrame.border, boxShadow: `0 0 26px ${rarityFrame.glow}` }}>
       <div className="flex flex-wrap items-center gap-2">
         <span className={`rounded-full px-2 py-1 text-xs font-black ${rarityMeta.className}`}>{rarityMeta.label}</span>
+        <span className="rounded-full bg-amber-200 px-2 py-1 text-xs font-black text-amber-950">{"★".repeat(starLevel)} {starLevel}성</span>
         <span className="rounded-full bg-white/10 px-2 py-1 text-xs font-black text-slate-200">{card.typeLabel}</span>
         <span className="rounded-full bg-amber-200 px-2 py-1 text-xs font-black text-slate-950">비용 {card.cost}</span>
         {card.type === "attack" && <span className="rounded-full bg-red-200 px-2 py-1 text-xs font-black text-red-950">연출 {card.animationType}</span>}
@@ -1837,6 +3505,43 @@ function CardDetailPanel({ card, targetName }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function getCardStarLevel(card) {
+  return clampNumber(Number(card?.starLevel || 1), 1, 5);
+}
+
+function CardStarBadge({ level, compact = false }) {
+  const starLevel = clampNumber(Number(level || 1), 1, 5);
+  const stars = "★★★★★".slice(0, starLevel);
+  return (
+    <div className={`card-star-badge ${compact ? "is-compact" : ""} ${starLevel >= 5 ? "is-legend" : ""}`}>
+      <span>{stars}</span>
+    </div>
+  );
+}
+
+function CardEnhancementLayers({ level, active = false, compact = false }) {
+  const starLevel = clampNumber(Number(level || 1), 1, 5);
+  if (starLevel <= 1) return <CardStarBadge level={starLevel} compact={compact} />;
+
+  const effect = CARD_STAR_EFFECTS[starLevel];
+  const particleCount = compact ? Math.min(effect.particleCount, 6) : effect.particleCount;
+  return (
+    <>
+      <div className="card-enhancement-aura" aria-hidden="true" />
+      {starLevel >= 4 && <div className="card-enhancement-flame" aria-hidden="true" />}
+      <div className="card-enhancement-frame" aria-hidden="true" />
+      <div className="card-enhancement-sheen" aria-hidden="true" />
+      {starLevel >= 5 && <div className={`card-legend-ring ${active ? "is-active" : ""}`} aria-hidden="true" />}
+      <div className="card-enhancement-particles" aria-hidden="true">
+        {Array.from({ length: particleCount }, (_, index) => (
+          <span key={index} style={{ "--particle-index": index, "--particle-delay": `${index * 0.17}s` }} />
+        ))}
+      </div>
+      <CardStarBadge level={starLevel} compact={compact} />
+    </>
   );
 }
 
@@ -1883,11 +3588,18 @@ function Card({ cardId, onClick, disabled, compact = false, onInspect, variant =
   const rarityFrame = RARITY_FRAME[card.rarity] || RARITY_FRAME.common;
   const rarityFx = RARITY_HOVER_FX[card.rarity] || RARITY_HOVER_FX.common;
   const typeTheme = TYPE_THEME[card.type] || TYPE_THEME.attack;
+  const starLevel = getCardStarLevel(card);
+  const starEffect = CARD_STAR_EFFECTS[starLevel] || CARD_STAR_EFFECTS[1];
+  const enhancementStyle = {
+    "--star-primary": starEffect.primary,
+    "--star-secondary": starEffect.secondary,
+    "--star-glow": starEffect.glow,
+  };
 
   if (card.fullImage && !imageFailed) {
     return (
       <motion.button
-        whileHover={{ y: disabled ? -4 : -18, scale: disabled ? 1.015 : isHand ? 1.16 : 1.075, zIndex: 60 }}
+        whileHover={{ y: disabled ? -4 : -18, scale: disabled ? 1.015 : isHand ? 1.16 + starLevel * 0.006 : 1.075 + starLevel * 0.006, zIndex: 60 }}
         whileTap={!disabled ? { scale: 0.98 } : {}}
         onHoverStart={() => {
           setIsHovering(true);
@@ -1901,8 +3613,10 @@ function Card({ cardId, onClick, disabled, compact = false, onInspect, variant =
           onClick?.(event);
         }}
         aria-disabled={disabled}
-        className={`game-card image-card rarity-${card.rarity} ${cardHeight} ${cardWidth} ${disabled ? "card-disabled" : ""} ${isHovering ? "is-hovering" : ""}`}
+        className={`game-card image-card rarity-${card.rarity} card-star-${starLevel} ${isHand ? "is-hand-card" : ""} ${compact ? "is-compact-card" : ""} ${cardHeight} ${cardWidth} ${disabled ? "card-disabled" : ""} ${isHovering ? "is-hovering" : ""}`}
+        style={enhancementStyle}
       >
+        <CardEnhancementLayers level={starLevel} active={isHovering || isHand} compact={compact} />
         <img
           src={card.fullImage}
           alt={card.name}
@@ -1916,7 +3630,7 @@ function Card({ cardId, onClick, disabled, compact = false, onInspect, variant =
 
   return (
     <motion.button
-      whileHover={{ y: disabled ? -4 : -18, scale: disabled ? 1.015 : isHand ? 1.16 : 1.075, zIndex: 60 }}
+      whileHover={{ y: disabled ? -4 : -18, scale: disabled ? 1.015 : isHand ? 1.16 + starLevel * 0.006 : 1.075 + starLevel * 0.006, zIndex: 60 }}
       whileTap={!disabled ? { scale: 0.98 } : {}}
       onHoverStart={() => {
         setIsHovering(true);
@@ -1930,10 +3644,11 @@ function Card({ cardId, onClick, disabled, compact = false, onInspect, variant =
         onClick?.(event);
       }}
       aria-disabled={disabled}
-      className={`relative isolate flex ${cardHeight} ${cardWidth} flex-col overflow-hidden rounded-[18px] border-2 p-3 text-left shadow-[0_14px_30px_rgba(15,23,42,0.28)] transition ${
+      className={`game-card-enhanced card-star-${starLevel} ${isHand ? "is-hand-card" : ""} ${compact ? "is-compact-card" : ""} relative isolate flex ${cardHeight} ${cardWidth} flex-col overflow-hidden rounded-[18px] border-2 p-3 text-left shadow-[0_14px_30px_rgba(15,23,42,0.28)] transition ${
         disabled ? "cursor-not-allowed opacity-60 grayscale-[0.25]" : "cursor-pointer"
       }`}
       style={{
+        ...enhancementStyle,
         borderColor: rarityFrame.border,
         background: rarityFrame.surface,
         boxShadow: isHovering
@@ -1942,6 +3657,7 @@ function Card({ cardId, onClick, disabled, compact = false, onInspect, variant =
         transformStyle: "preserve-3d",
       }}
     >
+      <CardEnhancementLayers level={starLevel} active={isHovering || isHand} compact={compact} />
       <div className="pointer-events-none absolute inset-1 rounded-[14px] border" style={{ borderColor: rarityFrame.inner }} />
       <div className="pointer-events-none absolute left-2 top-2 h-2.5 w-2.5 rounded-sm border-t-2 border-l-2" style={{ borderColor: rarityFrame.border }} />
       <div className="pointer-events-none absolute right-2 top-2 h-2.5 w-2.5 rounded-sm border-t-2 border-r-2" style={{ borderColor: rarityFrame.border }} />
@@ -2003,16 +3719,22 @@ function Card({ cardId, onClick, disabled, compact = false, onInspect, variant =
 
 function UsedCardOverlay({ animation }) {
   if (!animation) return null;
+  const card = CARD_POOL[animation.cardId];
+  const starLevel = getCardStarLevel(card);
+  const starEffect = CARD_STAR_EFFECTS[starLevel] || CARD_STAR_EFFECTS[1];
 
   return (
     <motion.div
-      className="pointer-events-none fixed z-[120]"
+      className={`pointer-events-none fixed z-[120] used-card-star-${starLevel}`}
       style={{
         left: animation.left,
         top: animation.top,
         width: animation.width,
         height: animation.height,
         transformOrigin: "50% 50%",
+        "--star-primary": starEffect.primary,
+        "--star-secondary": starEffect.secondary,
+        "--star-glow": starEffect.glow,
       }}
       initial={{ x: 0, y: 0, scale: 1, rotate: 0, opacity: 1, filter: "brightness(1)" }}
       animate={{
@@ -2031,12 +3753,14 @@ function UsedCardOverlay({ animation }) {
       }}
     >
       <div className="relative">
+        {starLevel >= 2 && <div className="used-card-enhancement-trail" />}
+        {starLevel >= 5 && <div className="used-card-legend-flash" />}
         <motion.div
           className="absolute -inset-5 rounded-[30px] blur-xl"
           animate={{ opacity: [0.25, 0.85, 0.1], scale: [0.9, 1.12, 0.8] }}
           transition={{ duration: 0.92, times: [0, 0.35, 1], ease: "easeOut" }}
           style={{
-            background: `radial-gradient(circle, ${(RARITY_HOVER_FX[CARD_POOL[animation.cardId]?.rarity] || RARITY_HOVER_FX.common).glow} 0%, rgba(255,255,255,0) 72%)`,
+            background: `radial-gradient(circle, ${starLevel >= 2 ? starEffect.glow : (RARITY_HOVER_FX[card?.rarity] || RARITY_HOVER_FX.common).glow} 0%, rgba(255,255,255,0) 72%)`,
           }}
         />
         <Card cardId={animation.cardId} variant="hand" disabled={false} classId={animation.classId} />
@@ -2181,7 +3905,9 @@ function HitEffect({ effect }) {
     magic: "#c4b5fd",
     impact: "#fecaca",
   };
-  const color = colorByType[effect.type] || colorByType.impact;
+  const starLevel = clampNumber(Number(effect.starLevel || 1), 1, 5);
+  const starEffect = CARD_STAR_EFFECTS[starLevel] || CARD_STAR_EFFECTS[1];
+  const color = starLevel >= 2 ? starEffect.primary : colorByType[effect.type] || colorByType.impact;
 
   return (
     <motion.div
@@ -2192,6 +3918,29 @@ function HitEffect({ effect }) {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.72, ease: "easeOut" }}
     >
+      {starLevel >= 2 && (
+        <motion.div
+          className="absolute inset-[-18%] rounded-full"
+          initial={{ opacity: 0, scale: 0.35, rotate: 0 }}
+          animate={{ opacity: [0, 0.85, 0], scale: [0.35, 1.08 + starLevel * 0.08, 1.7], rotate: starLevel >= 5 ? 180 : 30 }}
+          transition={{ duration: 0.7, ease: "easeOut" }}
+          style={{
+            border: `2px solid ${starEffect.secondary}`,
+            boxShadow: `0 0 ${12 + starLevel * 8}px ${starEffect.glow}, inset 0 0 ${8 + starLevel * 5}px ${starEffect.glow}`,
+          }}
+        />
+      )}
+      {starLevel >= 5 && (
+        <motion.div
+          className="absolute inset-0"
+          animate={{ opacity: [0, 1, 0], filter: ["blur(2px)", "blur(0px)", "blur(5px)"] }}
+          transition={{ duration: 0.62, ease: "easeOut" }}
+          style={{
+            background:
+              "radial-gradient(circle at 50% 50%, rgba(255,255,255,0.88), rgba(255,215,0,0.5) 24%, transparent 58%)",
+          }}
+        />
+      )}
       <motion.div
         className="absolute inset-0"
         animate={{ backgroundColor: ["rgba(255,255,255,0)", "rgba(255,255,255,0.55)", "rgba(255,255,255,0)"] }}
@@ -2282,6 +4031,165 @@ function HitEffect({ effect }) {
   );
 }
 
+function MonsterDeathEffect({ enemy }) {
+  const fx = enemy?.deathFx || "smoke";
+  const colors = {
+    smoke: ["rgba(203,213,225,0.72)", "rgba(148,163,184,0.34)"],
+    dissolve: ["rgba(134,239,172,0.72)", "rgba(45,212,191,0.28)"],
+    light: ["rgba(253,224,71,0.78)", "rgba(125,211,252,0.36)"],
+    collapse: ["rgba(251,191,36,0.88)", "rgba(248,113,113,0.4)"],
+  };
+  const [primary, secondary] = colors[fx] || colors.smoke;
+  const particleCount = enemy?.boss ? 16 : 8;
+
+  return (
+    <motion.div
+      className={`monster-death-fx death-${fx}`}
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: [0, 1, 0], scale: [0.9, enemy?.boss ? 1.36 : 1.15, 1.62] }}
+      transition={{ duration: ENEMY_DEATH_ANIMATION_MS / 1000, ease: "easeOut" }}
+    >
+      <motion.div
+        className="monster-death-ring"
+        animate={{ opacity: [0, 0.75, 0], scale: [0.55, 1.05, 1.55] }}
+        transition={{ duration: ENEMY_DEATH_ANIMATION_MS / 1000, ease: "easeOut" }}
+        style={{ borderColor: primary, boxShadow: `0 0 28px ${secondary}` }}
+      />
+      {Array.from({ length: particleCount }, (_, index) => {
+        const angle = (Math.PI * 2 * index) / particleCount;
+        const distance = enemy?.boss ? 92 + (index % 4) * 16 : 48 + (index % 3) * 10;
+        return (
+          <motion.span
+            key={`${enemy?.deathKey || enemy?.id || enemy?.name}-${index}`}
+            className="monster-death-particle"
+            initial={{ opacity: 0, x: 0, y: 0, scale: 0.6 }}
+            animate={{
+              opacity: [0, 1, 0],
+              x: Math.cos(angle) * distance,
+              y: Math.sin(angle) * distance + (fx === "collapse" ? 28 : -18),
+              scale: [0.6, 1, 0.18],
+            }}
+            transition={{ duration: ENEMY_DEATH_ANIMATION_MS / 1000, ease: "easeOut", delay: index * 0.012 }}
+            style={{ backgroundColor: index % 2 === 0 ? primary : secondary, boxShadow: `0 0 18px ${primary}` }}
+          />
+        );
+      })}
+    </motion.div>
+  );
+}
+
+function RewardItem({ icon, title, detail, delay = 0, interactive = false, claimed = false, onClick }) {
+  return (
+    <motion.button
+      type="button"
+      disabled={!interactive}
+      onClick={onClick}
+      initial={{ opacity: 0, y: -12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.34, delay, ease: "easeOut" }}
+      whileHover={interactive ? { scale: 1.025 } : { scale: 1.01 }}
+      className={`loot-reward-item ${interactive ? "is-interactive" : ""} ${claimed ? "is-claimed" : ""}`}
+    >
+      <span className="loot-reward-icon">{icon}</span>
+      <span className="loot-reward-text">
+        <strong>{title}</strong>
+        {detail && <em>{detail}</em>}
+      </span>
+    </motion.button>
+  );
+}
+
+function GoldRewardItem({ gold }) {
+  if (!gold || gold <= 0) return null;
+  return <RewardItem icon="🪙" title={`${gold} 골드`} detail="자동 획득" delay={0.1} />;
+}
+
+function ResourceRewardItem({ resource, index }) {
+  if (!resource) return null;
+  const amount = Number(resource.amount || 0);
+  const label = amount > 1 ? `${resource.name} x${amount}` : resource.name;
+  return <RewardItem icon={resource.icon || "💎"} title={label} detail="자동 획득" delay={0.2 + index * 0.05} />;
+}
+
+function CardChoiceRewardItem({ choices, claimedCardId, onOpen }) {
+  if (!choices?.length) return null;
+  const claimedCard = claimedCardId ? CARD_POOL[claimedCardId] : null;
+  return (
+    <RewardItem
+      icon="🃏"
+      title={claimedCard ? `선택 완료: ${claimedCard.name}` : "덱에 추가할 카드를 선택하세요"}
+      detail={claimedCard ? "덱에 추가됨" : `${choices.length}장 중 1장 선택`}
+      delay={0.3}
+      interactive={!claimedCard}
+      claimed={Boolean(claimedCard)}
+      onClick={onOpen}
+    />
+  );
+}
+
+function BattleRewardModal({ reward, claimedCardId, onOpenCardChoice, onContinue }) {
+  if (!hasBattleReward(reward)) return null;
+  const hasCardChoices = (reward.cardChoices || []).length > 0;
+  const canContinue = !hasCardChoices || Boolean(claimedCardId);
+
+  return (
+    <motion.div className="loot-modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <motion.section
+        className="loot-panel"
+        initial={{ opacity: 0, scale: 0.9, y: 18 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 12 }}
+        transition={{ duration: 0.36, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <div className="loot-ribbon">
+          <span>전리품!</span>
+        </div>
+        <div className="loot-list">
+          <GoldRewardItem gold={reward.gold} />
+          {(reward.resources || []).map((resource, index) => (
+            <ResourceRewardItem key={`${resource.id}-${index}`} resource={resource} index={index} />
+          ))}
+          <CardChoiceRewardItem choices={reward.cardChoices} claimedCardId={claimedCardId} onOpen={onOpenCardChoice} />
+        </div>
+        <button type="button" onClick={onContinue} disabled={!canContinue} className="loot-continue-button">
+          계속
+        </button>
+      </motion.section>
+    </motion.div>
+  );
+}
+
+function CardChoiceModal({ choices, classId, onSelect, onClose }) {
+  if (!choices?.length) return null;
+
+  return (
+    <motion.div className="card-choice-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <motion.section
+        className="card-choice-panel"
+        initial={{ opacity: 0, scale: 0.92, y: 18 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 12 }}
+        transition={{ duration: 0.28, ease: "easeOut" }}
+      >
+        <div className="card-choice-head">
+          <strong>카드 선택</strong>
+          <span>덱에 추가할 카드 1장을 고르세요</span>
+        </div>
+        <div className="card-choice-grid">
+          {choices.map((card) => (
+            <div key={card.id} className="card-choice-card">
+              <Card cardId={card.id} variant="deck" onInspect={() => {}} onClick={() => onSelect(card.id)} classId={classId} />
+            </div>
+          ))}
+        </div>
+        <button type="button" onClick={onClose} className="card-choice-cancel">
+          돌아가기
+        </button>
+      </motion.section>
+    </motion.div>
+  );
+}
+
 function BattleEnemyCard({ entry, index, selected, hidden, defeated, hitEffect, disabled, onSelect }) {
   const intent = entry.actions[entry.actionIndex % entry.actions.length];
   const intentIcon = intent.type === "attack" ? <Sword size={18} /> : intent.type === "block" ? <Shield size={18} /> : <Zap size={18} />;
@@ -2335,6 +4243,7 @@ function BattleEnemyCard({ entry, index, selected, hidden, defeated, hitEffect, 
           <div className="voc-card-substats">
             <span>HP {entry.hp}/{entry.maxHp}</span>
             {entry.vulnerable > 0 && <span>취약 {entry.vulnerable}</span>}
+            {entry.bleed > 0 && <span>출혈 {entry.bleed}</span>}
           </div>
         </div>
       )}
@@ -2870,34 +4779,225 @@ function getNodePosition(node, sameRingIndex, sameRingCount) {
   };
 }
 
-function DeckManagementPanel({ deck, deckCount, inspectedCard, onInspectCard, classId }) {
+function MaterialCostLine({ material, owned }) {
+  const enough = owned >= material.amount;
+  return (
+    <div className={`flex items-center justify-between rounded-xl px-3 py-2 text-sm font-bold ${enough ? "bg-emerald-500/10 text-emerald-100" : "bg-red-500/10 text-red-100"}`}>
+      <span>{material.name || getMaterialDefinition(material.id).name}</span>
+      <span>{owned} / {material.amount}</span>
+    </div>
+  );
+}
+
+function UpgradeOptionPanel({ option, player, onUpgrade }) {
+  const resultCard = CARD_POOL[option.resultCardId];
+  const available = canUpgradeCard(option, player);
+  const issues = getUpgradeCostIssues(option, player);
+
+  return (
+    <article className={`rounded-2xl border p-4 ${available ? "border-cyan-300/40 bg-cyan-300/10" : "border-white/10 bg-white/5 opacity-70"}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h4 className="text-lg font-black text-white">{option.name}</h4>
+          <p className="mt-1 text-sm leading-relaxed text-slate-300">{option.description}</p>
+        </div>
+        <span className="rounded-full bg-slate-950 px-2 py-1 text-xs font-black text-amber-200">강화</span>
+      </div>
+      {resultCard && (
+        <div className="mt-3 rounded-xl bg-slate-950/55 p-3 text-sm text-slate-200">
+          <div className="font-black text-cyan-100">{resultCard.name}</div>
+          <div className="mt-1 text-slate-300">{resultCard.description || resultCard.desc}</div>
+          <div className="mt-2 flex flex-wrap gap-2 text-xs font-black">
+            <span className="rounded-lg bg-yellow-200 px-2 py-1 text-yellow-950">{"★".repeat(getCardStarLevel(resultCard))} {getCardStarLevel(resultCard)}성</span>
+            <span className="rounded-lg bg-amber-200 px-2 py-1 text-slate-950">비용 {resultCard.cost}</span>
+            {resultCard.damage > 0 && <span className="rounded-lg bg-red-200 px-2 py-1 text-red-950">피해 {resultCard.damage}</span>}
+            {resultCard.block > 0 && <span className="rounded-lg bg-blue-200 px-2 py-1 text-blue-950">방어 {resultCard.block}</span>}
+            {resultCard.effect && <span className="rounded-lg bg-violet-200 px-2 py-1 text-violet-950">{resultCard.effect}</span>}
+            {resultCard.maxTargets && <span className="rounded-lg bg-emerald-200 px-2 py-1 text-emerald-950">대상 {resultCard.maxTargets}</span>}
+          </div>
+        </div>
+      )}
+      <div className="mt-3 grid gap-2">
+        {(option.cost.materials || []).map((material) => (
+          <MaterialCostLine key={material.id} material={material} owned={player?.resources?.[material.id] || 0} />
+        ))}
+        {option.cost.gold > 0 && (
+          <div className={`flex items-center justify-between rounded-xl px-3 py-2 text-sm font-bold ${(player?.gold || 0) >= option.cost.gold ? "bg-amber-300/10 text-amber-100" : "bg-red-500/10 text-red-100"}`}>
+            <span>골드</span>
+            <span>{player?.gold || 0} / {option.cost.gold}</span>
+          </div>
+        )}
+      </div>
+      {issues.length > 0 && <div className="mt-2 text-xs font-bold text-red-200">{issues.join(" · ")}</div>}
+      <button
+        type="button"
+        onClick={() => onUpgrade(option.id)}
+        disabled={!available}
+        className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-300 px-4 py-3 font-black text-slate-950 hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-45"
+      >
+        <Hammer size={17} /> 선택 강화
+      </button>
+    </article>
+  );
+}
+
+function UpgradeCelebrationOverlay({ celebration, classId }) {
+  if (!celebration) return null;
+  const card = CARD_POOL[celebration.cardId];
+  const starLevel = getCardStarLevel(card);
+  const effect = CARD_STAR_EFFECTS[starLevel] || CARD_STAR_EFFECTS[1];
+
+  return (
+    <motion.div
+      className={`fixed inset-0 z-[140] grid place-items-center bg-slate-950/72 backdrop-blur-sm card-star-${starLevel}`}
+      style={{ "--star-primary": effect.primary, "--star-secondary": effect.secondary, "--star-glow": effect.glow }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: [0, 1, 1, 0] }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 2.1, times: [0, 0.16, 0.82, 1], ease: "easeOut" }}
+    >
+      <motion.div
+        className="upgrade-success-burst"
+        initial={{ opacity: 0, scale: 0.35, rotate: 0 }}
+        animate={{ opacity: [0, 1, 0.75, 0], scale: [0.35, 1.1, 1.28, 1.6], rotate: starLevel >= 5 ? 240 : 70 }}
+        transition={{ duration: 2, ease: "easeOut" }}
+      />
+      <motion.div
+        className="upgrade-success-card"
+        initial={{ y: 34, scale: 0.78, opacity: 0, filter: "brightness(1)" }}
+        animate={{ y: [34, -8, 0], scale: [0.78, 1.12, 1], opacity: [0, 1, 1], filter: ["brightness(1)", "brightness(1.9)", "brightness(1.15)"] }}
+        transition={{ duration: 0.82, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <Card cardId={celebration.cardId} variant="deck" classId={classId} />
+      </motion.div>
+      <motion.div
+        className="upgrade-success-text"
+        initial={{ opacity: 0, y: 26, scale: 0.86 }}
+        animate={{ opacity: [0, 1, 1, 0], y: [26, 0, 0, -18], scale: [0.86, 1.05, 1, 0.96] }}
+        transition={{ duration: 2, times: [0, 0.24, 0.78, 1], ease: "easeOut" }}
+      >
+        <strong>강화 성공!</strong>
+        <span>{card?.name} · {"★".repeat(starLevel)} {starLevel}성</span>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function DeckManagementPanel({ deck, deckCount, inspectedCard, onInspectCard, classId, player, onDismantleCard, onUpgradeCard, upgradeCelebration }) {
   const selectedClass = CHARACTER_CLASSES[classId] || CHARACTER_CLASSES.warrior;
+  const materialEntries = Object.entries(player?.resources || {})
+    .filter(([, amount]) => amount > 0)
+    .map(([id, amount]) => ({ ...getMaterialDefinition(id), amount }));
+  const selectedCardCount = inspectedCard ? deck.filter((id) => id === inspectedCard.id).length : 0;
+  const selectedRewards = inspectedCard ? getDismantleRewards(inspectedCard) : [];
+  const selectedCanDismantle = inspectedCard ? canDismantleCard(deck, inspectedCard.id, classId) : false;
+  const upgradeOptions = inspectedCard?.upgradeOptions || [];
+
   return (
     <section className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-xl">
+      <AnimatePresence>
+        {upgradeCelebration && <UpgradeCelebrationOverlay celebration={upgradeCelebration} classId={classId} />}
+      </AnimatePresence>
       <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
           <h2 className="text-2xl font-black">덱 관리</h2>
-          <p className="text-sm text-slate-300">{selectedClass.name} 덱 {deck.length}장. 실제 카드 이미지가 우선 표시됩니다.</p>
+          <p className="text-sm text-slate-300">{selectedClass.name} 덱 {deck.length}장. 카드를 분해해 조각을 얻고, 보스 재료와 골드로 분기 강화합니다.</p>
         </div>
-        <div className="text-sm font-bold text-cyan-200">
-          공격 {deckCount.filter((card) => card.type === "attack").reduce((sum, card) => sum + card.amount, 0)}장 / 방어·기술{" "}
-          {deckCount.filter((card) => card.type !== "attack").reduce((sum, card) => sum + card.amount, 0)}장
+        <div className="flex flex-wrap gap-2 text-sm font-bold text-cyan-200">
+          <span className="rounded-xl bg-white/10 px-3 py-2">골드 {player?.gold || 0}</span>
+          <span className="rounded-xl bg-white/10 px-3 py-2">
+            공격 {deckCount.filter((card) => card.type === "attack").reduce((sum, card) => sum + card.amount, 0)}장 / 방어·기술{" "}
+            {deckCount.filter((card) => card.type !== "attack").reduce((sum, card) => sum + card.amount, 0)}장
+          </span>
         </div>
       </div>
-      <div className="mb-5 min-h-[132px]">
+      <div className="mb-5 rounded-2xl border border-white/10 bg-slate-950/35 p-4">
+        <div className="mb-2 text-sm font-black text-amber-200">재료 인벤토리</div>
+        {materialEntries.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {materialEntries.map((material) => (
+              <span key={material.id} className="rounded-xl bg-white/10 px-3 py-2 text-sm font-bold text-slate-100">
+                {material.icon} {material.name} x{material.amount}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <div className="text-sm text-slate-400">아직 보유한 강화 재료가 없습니다.</div>
+        )}
+      </div>
+      <div className="mb-5 grid gap-4">
         {inspectedCard ? (
-          <CardDetailPanel card={inspectedCard} />
+          <div>
+            <CardDetailPanel card={inspectedCard} />
+            <div className="mt-3 rounded-2xl border border-white/10 bg-slate-950/55 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-black text-red-100">카드 분해</div>
+                  <div className="mt-1 text-xs text-slate-400">선택 카드 보유 {selectedCardCount}장</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onDismantleCard?.(inspectedCard.id)}
+                  disabled={!selectedCanDismantle}
+                  className="flex items-center gap-2 rounded-2xl bg-red-300 px-4 py-3 font-black text-red-950 hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  <Trash2 size={17} /> 분해
+                </button>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-slate-200">
+                {selectedRewards.map((reward) => (
+                  <span key={reward.id} className="rounded-lg bg-white/10 px-2 py-1">
+                    {reward.name} x{reward.amount}
+                  </span>
+                ))}
+                {!selectedCanDismantle && <span className="rounded-lg bg-red-500/15 px-2 py-1 text-red-100">기본 카드 마지막 1장 또는 최소 덱은 분해 불가</span>}
+              </div>
+            </div>
+          </div>
         ) : (
           <div className="rounded-3xl border border-white/10 bg-slate-950/50 p-5 text-sm text-slate-300 shadow-xl">
             선택한 카드 정보
           </div>
         )}
+        <div className="rounded-3xl border border-white/10 bg-slate-950/50 p-4 shadow-xl">
+          <div className="mb-3 flex items-center gap-2 text-sm font-black text-cyan-200">
+            <Hammer size={17} /> 강화 방향
+          </div>
+          {inspectedCard && upgradeOptions.length > 0 ? (
+            <div className="mx-auto grid max-w-6xl gap-3 md:grid-cols-3">
+              {upgradeOptions.map((option) => (
+                <UpgradeOptionPanel key={option.id} option={option} player={player} onUpgrade={(optionId) => onUpgradeCard?.(inspectedCard.id, optionId)} />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-white/5 p-5 text-sm text-slate-400">
+              {inspectedCard ? "이 카드는 이미 최종 강화 상태이거나 강화 옵션이 없습니다." : "카드를 선택하면 가능한 강화 방향이 표시됩니다."}
+            </div>
+          )}
+        </div>
       </div>
       <div className="grid gap-x-4 gap-y-7 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
         {deckCount.map((card) => (
           <div key={card.id} className="relative">
             <Card cardId={card.id} compact disabled={false} onInspect={onInspectCard} onClick={() => onInspectCard(card.id)} classId={classId} />
             <div className="absolute right-3 top-12 z-20 rounded-full bg-slate-950 px-2 py-1 text-xs font-black text-white shadow-lg">x{card.amount}</div>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => onInspectCard(card.id)}
+                className="rounded-xl bg-cyan-300 px-3 py-2 text-xs font-black text-slate-950 hover:bg-cyan-200"
+              >
+                강화
+              </button>
+              <button
+                type="button"
+                onClick={() => onDismantleCard?.(card.id)}
+                disabled={!canDismantleCard(deck, card.id, classId)}
+                className="rounded-xl bg-red-300 px-3 py-2 text-xs font-black text-red-950 hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                분해
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -3183,6 +5283,9 @@ function TowerMapScreen({
   deckCount,
   inspectedCard,
   onInspectCard,
+  onDismantleCard,
+  onUpgradeCard,
+  upgradeCelebration,
 }) {
   const highestUnlocked = Math.max(...unlockedFloors);
   const highestVisible = Math.min(TOTAL_FLOORS, Math.max(TOWER_PREVIEW_FLOORS, highestUnlocked + 2, selectedFloor + 1));
@@ -3235,7 +5338,17 @@ function TowerMapScreen({
         </div>
 
         {showDeckManager ? (
-          <DeckManagementPanel deck={deck} deckCount={deckCount} inspectedCard={inspectedCard} onInspectCard={onInspectCard} classId={player.classId} />
+          <DeckManagementPanel
+            deck={deck}
+            deckCount={deckCount}
+            inspectedCard={inspectedCard}
+            onInspectCard={onInspectCard}
+            classId={player.classId}
+            player={player}
+            onDismantleCard={onDismantleCard}
+            onUpgradeCard={onUpgradeCard}
+            upgradeCelebration={upgradeCelebration}
+          />
         ) : (
           <main className="tower-layout">
             <section className="tower-spine" aria-label="100층 탑 진행도">
@@ -3411,6 +5524,9 @@ function FloorMapScreen({
   deckCount,
   inspectedCard,
   onInspectCard,
+  onDismantleCard,
+  onUpgradeCard,
+  upgradeCelebration,
 }) {
   const nextNode = getNextAvailableNode(floorNodes, clearedNodeIds, floorUnlocked, floorCleared);
 
@@ -3448,7 +5564,17 @@ function FloorMapScreen({
         </header>
 
         {showDeckManager ? (
-          <DeckManagementPanel deck={deck} deckCount={deckCount} inspectedCard={inspectedCard} onInspectCard={onInspectCard} classId={player.classId} />
+          <DeckManagementPanel
+            deck={deck}
+            deckCount={deckCount}
+            inspectedCard={inspectedCard}
+            onInspectCard={onInspectCard}
+            classId={player.classId}
+            player={player}
+            onDismantleCard={onDismantleCard}
+            onUpgradeCard={onUpgradeCard}
+            upgradeCelebration={upgradeCelebration}
+          />
         ) : (
           <main className="floor-layout">
             <section className="floor-magic-circle" aria-label={`던전 ${floor}층 방 지도`}>
@@ -3539,6 +5665,9 @@ export default function DeckbuilderRoguelikePrototype() {
   const [log, setLog] = useState(["캐릭터를 선택하면 첫 전투가 시작됩니다."]);
   const [rewards, setRewards] = useState([]);
   const [flippedRewards, setFlippedRewards] = useState([]);
+  const [battleReward, setBattleReward] = useState(null);
+  const [cardChoiceOpen, setCardChoiceOpen] = useState(false);
+  const [claimedRewardCardId, setClaimedRewardCardId] = useState(null);
   const [roomEncounter, setRoomEncounter] = useState(null);
   const [roomResult, setRoomResult] = useState(null);
   const [relics, setRelics] = useState([]);
@@ -3566,6 +5695,7 @@ export default function DeckbuilderRoguelikePrototype() {
   const [traitReturnPhase, setTraitReturnPhase] = useState("towerMap");
   const [traitFeedback, setTraitFeedback] = useState("");
   const [lastUpgradedTraitId, setLastUpgradedTraitId] = useState(null);
+  const [upgradeCelebration, setUpgradeCelebration] = useState(null);
   const [hasSavedRun, setHasSavedRun] = useState(() => loadRunData().hasActiveRun);
   const discardPileRef = useRef(null);
   const playerTargetRef = useRef(null);
@@ -3574,9 +5704,9 @@ export default function DeckbuilderRoguelikePrototype() {
 
   const liveEnemyIndex = getFirstAliveEnemyIndex(enemies);
   const safeSelectedEnemyIndex =
-    enemies[selectedEnemyIndex]?.hp > 0 ? selectedEnemyIndex : liveEnemyIndex;
+    isEnemyTargetable(enemies[selectedEnemyIndex]) ? selectedEnemyIndex : liveEnemyIndex;
   const enemy = enemies[safeSelectedEnemyIndex] || enemies[0] || createEnemy(0);
-  const aliveEnemies = enemies.filter((entry) => entry.hp > 0);
+  const aliveEnemies = enemies.filter((entry) => isEnemyAlive(entry));
   const enemySpeed = Math.max(1, ...aliveEnemies.map((entry) => entry.speed || 1));
   const enemyIntent = enemy.actions[enemy.actionIndex % enemy.actions.length];
   const activeCharacter = CHARACTER_CLASSES[hoveredCharacterId || selectedCharacterId || "warrior"];
@@ -3630,6 +5760,9 @@ export default function DeckbuilderRoguelikePrototype() {
     log,
     rewards,
     flippedRewards,
+    battleReward,
+    cardChoiceOpen,
+    claimedRewardCardId,
     roomEncounter,
     roomResult,
     relics,
@@ -3705,6 +5838,9 @@ export default function DeckbuilderRoguelikePrototype() {
       log,
       rewards,
       flippedRewards,
+      battleReward,
+      cardChoiceOpen,
+      claimedRewardCardId,
       roomEncounter,
       roomResult,
       relics,
@@ -3744,6 +5880,9 @@ export default function DeckbuilderRoguelikePrototype() {
     setPhase(runData?.phase || "towerMap");
     setRewards(runData?.rewards || []);
     setFlippedRewards(runData?.flippedRewards || []);
+    setBattleReward(runData?.battleReward || null);
+    setCardChoiceOpen(Boolean(runData?.cardChoiceOpen));
+    setClaimedRewardCardId(runData?.claimedRewardCardId || null);
     setRoomEncounter(runData?.roomEncounter || null);
     setRoomResult(runData?.roomResult || null);
     setRelics(runData?.relics || []);
@@ -3769,6 +5908,7 @@ export default function DeckbuilderRoguelikePrototype() {
     setHitEffects({});
     setInitiativeReady(false);
     setCurrentActor({ type: "player" });
+    setUpgradeCelebration(null);
     setLog(message ? [message, ...(runData?.log || [])].slice(0, 6) : runData?.log || ["저장된 진행상황을 불러왔습니다."]);
   }
 
@@ -3820,6 +5960,9 @@ export default function DeckbuilderRoguelikePrototype() {
     setPhase(nextPhase);
     setRewards([]);
     setFlippedRewards([]);
+    setBattleReward(null);
+    setCardChoiceOpen(false);
+    setClaimedRewardCardId(null);
     setRoomEncounter(null);
     setRoomResult(null);
     setRelics([]);
@@ -3844,6 +5987,7 @@ export default function DeckbuilderRoguelikePrototype() {
     setCurrentActor({ type: "player" });
     setRageStacks(0);
     setComboStacks(0);
+    setUpgradeCelebration(null);
     setLog(nextLog);
   }
 
@@ -3919,6 +6063,74 @@ export default function DeckbuilderRoguelikePrototype() {
     savePermanentData(nextPlayerData);
   }
 
+  function handleDismantleCard(cardId) {
+    const card = CARD_POOL[cardId];
+    if (!card) return;
+    if (!canDismantleCard(deck, cardId, player.classId)) {
+      pushLog("해당 카드는 현재 분해할 수 없습니다.");
+      return;
+    }
+
+    const rewards = getDismantleRewards(card);
+    const rewardText = rewards.map((reward) => `${reward.name} x${reward.amount}`).join(", ");
+    const confirmed = window.confirm(`정말 이 카드를 분해하시겠습니까?\n\n${card.name}\n획득 재료: ${rewardText}\n\n분해한 카드는 복구할 수 없습니다.`);
+    if (!confirmed) return;
+
+    let removed = false;
+    const nextDeck = deck.filter((id) => {
+      if (!removed && id === cardId) {
+        removed = true;
+        return false;
+      }
+      return true;
+    });
+    if (!removed) return;
+
+    setDeck(nextDeck);
+    setPlayer((currentPlayer) => ({
+      ...currentPlayer,
+      resources: addMaterialRewards(currentPlayer.resources || {}, rewards),
+    }));
+    setInspectedCardId(cardId);
+    pushLog(`${card.name} 분해 완료: ${rewardText}`);
+  }
+
+  function handleUpgradeCard(cardId, optionId) {
+    const card = CARD_POOL[cardId];
+    const option = card?.upgradeOptions?.find((item) => item.id === optionId);
+    const upgradedCard = option ? CARD_POOL[option.resultCardId] : null;
+    if (!card || !option || !upgradedCard) return;
+    if (!deck.includes(cardId)) {
+      pushLog("강화할 카드를 덱에서 찾지 못했습니다.");
+      return;
+    }
+    if (!canUpgradeCard(option, player)) {
+      pushLog(getUpgradeCostIssues(option, player).join(" / ") || "강화 재료가 부족합니다.");
+      return;
+    }
+
+    const confirmed = window.confirm(`${card.name} 카드를 ${option.name}(으)로 강화하시겠습니까?\n\n강화 후: ${upgradedCard.name}\n${upgradedCard.description || upgradedCard.desc}`);
+    if (!confirmed) return;
+
+    let replaced = false;
+    const nextDeck = deck.map((id) => {
+      if (!replaced && id === cardId) {
+        replaced = true;
+        return option.resultCardId;
+      }
+      return id;
+    });
+
+    setDeck(nextDeck);
+    setPlayer((currentPlayer) => consumeUpgradeCost(currentPlayer, option.cost));
+    setInspectedCardId(option.resultCardId);
+    setUpgradeCelebration({ cardId: option.resultCardId, key: `${option.resultCardId}-${Date.now()}` });
+    window.setTimeout(() => {
+      setUpgradeCelebration((current) => (current?.cardId === option.resultCardId ? null : current));
+    }, 2100);
+    pushLog(`${card.name} → ${upgradedCard.name} 강화 완료`);
+  }
+
   function drawFromPiles(count, currentDrawPile, currentDiscardPile) {
     let currentDraw = [...currentDrawPile];
     let currentDiscard = [...currentDiscardPile];
@@ -3954,9 +6166,15 @@ export default function DeckbuilderRoguelikePrototype() {
       maxHp: profile.hp,
       baseMaxHp: profile.hp,
       gold: 80,
+      resources: {},
       block: 0,
       energy: profile.energy || 3,
       maxEnergy: profile.maxEnergy || profile.energy || 3,
+      attackCardBonus: 0,
+      turnDamageReduction: 0,
+      reflectFlat: 0,
+      reflectPercent: 0,
+      deathPrevent: 0,
       baseMaxEnergy: profile.maxEnergy || profile.energy || 3,
       startEnergy: profile.energy || 3,
       strength: 0,
@@ -3986,6 +6204,9 @@ export default function DeckbuilderRoguelikePrototype() {
     setTurn(1);
     setRewards([]);
     setFlippedRewards([]);
+    setBattleReward(null);
+    setCardChoiceOpen(false);
+    setClaimedRewardCardId(null);
     setRoomEncounter(null);
     setRoomResult(null);
     setRelics([]);
@@ -4019,10 +6240,17 @@ export default function DeckbuilderRoguelikePrototype() {
       ...p,
       energy: p.maxEnergy,
       block: 0,
+      attackCardBonus: 0,
+      turnDamageReduction: 0,
+      reflectFlat: 0,
+      reflectPercent: 0,
+      deathPrevent: 0,
       vulnerable: Math.max(0, p.vulnerable - 1),
     }));
     setEnemies((current) =>
-      current.map((entry) => ({ ...entry, block: 0, vulnerable: Math.max(0, entry.vulnerable - 1) })),
+      current.map((entry) =>
+        isEnemyAlive(entry) ? { ...entry, block: 0, vulnerable: Math.max(0, entry.vulnerable - 1) } : entry,
+      ),
     );
   }
 
@@ -4073,6 +6301,9 @@ export default function DeckbuilderRoguelikePrototype() {
     setExhaustPile([]);
     setRewards([]);
     setFlippedRewards([]);
+    setBattleReward(null);
+    setCardChoiceOpen(false);
+    setClaimedRewardCardId(null);
     setShowDeckManager(false);
     setInspectedCardId(null);
     setPhase("room");
@@ -4108,6 +6339,9 @@ export default function DeckbuilderRoguelikePrototype() {
     setExhaustPile([]);
     setRewards([]);
     setFlippedRewards([]);
+    setBattleReward(null);
+    setCardChoiceOpen(false);
+    setClaimedRewardCardId(null);
     setRoomEncounter(null);
     setRoomResult(null);
     setShowDeckManager(false);
@@ -4130,14 +6364,20 @@ export default function DeckbuilderRoguelikePrototype() {
           ...p,
           block: 0,
           vulnerable: 0,
+          attackCardBonus: 0,
+          turnDamageReduction: 0,
+          reflectFlat: 0,
+          reflectPercent: 0,
+          deathPrevent: 0,
         },
         playerData,
         { resetEnergy: true },
       ),
     );
     setPhase("combat");
+    const monsterCount = stage.type === "boss" ? 1 : stage.type === "elite" ? 2 : 1;
     setLog([
-      `던전 ${stage.floor}층 ${stage.ringLabel} ${stage.typeLabel} 시작. 몬스터 ${stage.type === "boss" ? 3 : stage.type === "elite" ? 2 : 1}마리가 등장했습니다.`,
+      `던전 ${stage.floor}층 ${stage.ringLabel} ${stage.typeLabel} 시작. 몬스터 ${monsterCount}마리가 등장했습니다.`,
       "카드를 사용해서 적을 처치하세요.",
     ]);
   }
@@ -4148,9 +6388,9 @@ export default function DeckbuilderRoguelikePrototype() {
     if (player.energy < card.cost) return;
     if (aliveEnemies.length === 0) return;
 
-    const targetIndex = enemies[safeSelectedEnemyIndex]?.hp > 0 ? safeSelectedEnemyIndex : liveEnemyIndex;
+    const targetIndex = isEnemyTargetable(enemies[safeSelectedEnemyIndex]) ? safeSelectedEnemyIndex : liveEnemyIndex;
     const targetEnemy = enemies[targetIndex];
-    if (!targetEnemy) return;
+    if (!isEnemyTargetable(targetEnemy)) return;
 
     const sourceRect = event?.currentTarget?.getBoundingClientRect?.();
     const targetRect = discardPileRef.current?.getBoundingClientRect?.();
@@ -4198,12 +6438,20 @@ export default function DeckbuilderRoguelikePrototype() {
 
     const effectivePlayer =
       player.classId === "mage" && card.type === "attack" ? { ...player, strength: player.strength + comboStacks } : player;
-    const result = card.play({ player: effectivePlayer, enemy: targetEnemy, drawCards: drawHelper });
+    const result = card.play({ player: effectivePlayer, enemy: targetEnemy, enemies, targetIndex, drawCards: drawHelper });
     const nextPlayer = { ...(result.player || player), energy: player.energy - card.cost };
-    const nextTargetEnemy = result.enemy || targetEnemy;
-    const nextEnemies = enemies.map((entry, index) => (index === targetIndex ? nextTargetEnemy : entry));
+    const rawNextEnemies = Array.isArray(result.enemies)
+      ? result.enemies
+      : enemies.map((entry, index) => (index === targetIndex ? result.enemy || targetEnemy : entry));
+    const nextEnemies = settleDefeatedEnemies(
+      rawNextEnemies.map((entry, index) => markEnemyDead(applyEnemyStatusResistance(enemies[index], entry || enemies[index]))),
+    );
+    const nextTargetEnemy = nextEnemies[targetIndex] || targetEnemy;
     const allDefeated = areAllEnemiesDefeated(nextEnemies);
     const damageDone = Math.max(0, targetEnemy.hp - nextTargetEnemy.hp);
+    const defeatedIndexes = nextEnemies
+      .map((entry, index) => (!isEnemyAlive(entry) && isEnemyAlive(enemies[index]) ? index : -1))
+      .filter((index) => index >= 0);
 
     await wait(330);
 
@@ -4215,6 +6463,7 @@ export default function DeckbuilderRoguelikePrototype() {
           key: effectKey,
           type: card.animationType,
           damage: damageDone,
+          starLevel: getCardStarLevel(card),
         },
       }));
       window.setTimeout(() => {
@@ -4237,17 +6486,38 @@ export default function DeckbuilderRoguelikePrototype() {
 
     setPlayer(nextPlayer);
     setEnemies(nextEnemies);
-    if (nextTargetEnemy.hp <= 0 && !allDefeated) {
+    if (result.speedGaugeBonus) {
+      setSpeedGauge((currentGauge) => ({
+        ...normalizeSpeedGauge(currentGauge, nextEnemies),
+        player: normalizeSpeedGauge(currentGauge, nextEnemies).player + result.speedGaugeBonus,
+      }));
+    }
+    if (!isEnemyAlive(nextTargetEnemy) && !allDefeated) {
       setSelectedEnemyIndex(getFirstAliveEnemyIndex(nextEnemies));
     }
 
-    if (player.classId === "mage" && card.type === "attack" && comboStacks > 0) {
+    if (getCardStarLevel(card) >= 5) {
+      pushLog(`${card.name} 사용: 전설 효과 발동! 공격 피해 +12 누적${result.speedGaugeBonus ? `, 턴 게이지 +${result.speedGaugeBonus}` : ""}`);
+    } else if (player.classId === "mage" && card.type === "attack" && comboStacks > 0) {
       pushLog(`${card.name} 사용: 연계 보너스 +${comboStacks}`);
     } else {
       pushLog(`${card.name} 사용: ${card.desc}`);
     }
 
-    await wait(590);
+    await wait(defeatedIndexes.length > 0 ? ENEMY_DEATH_ANIMATION_MS : 590);
+
+    const postDeathEnemies = allDefeated ? nextEnemies : nextEnemies.filter((entry) => isEnemyAlive(entry));
+    if (!allDefeated && defeatedIndexes.length > 0) {
+      setEnemies(postDeathEnemies);
+      setSelectedEnemyIndex(getFirstAliveEnemyIndex(postDeathEnemies));
+      setSpeedGauge((currentGauge) => {
+        const normalizedGauge = normalizeSpeedGauge(currentGauge, nextEnemies);
+        return {
+          ...normalizedGauge,
+          enemies: normalizedGauge.enemies.filter((_, index) => isEnemyAlive(nextEnemies[index])),
+        };
+      });
+    }
 
     setDrawPile(workingDrawPile);
     setHand((current) => [...current.filter((_, idx) => idx !== handIndex), ...extraDrawnCards]);
@@ -4256,6 +6526,7 @@ export default function DeckbuilderRoguelikePrototype() {
     setIsCardAnimating(false);
 
     if (allDefeated) {
+      setEnemies([]);
       finishBattle(nextEnemies.some((entry) => entry.boss));
     }
   }
@@ -4637,7 +6908,6 @@ export default function DeckbuilderRoguelikePrototype() {
 
     const baseBattleGold = selectedStage?.type === "boss" ? randomInt(60, 100) : selectedStage?.type === "elite" ? randomInt(35, 65) : randomInt(15, 40);
     const battleGold = getModifiedGoldGain(player, baseBattleGold);
-    setPlayer((p) => ({ ...p, gold: p.gold + battleGold }));
 
     if (selectedStage?.type === "boss") {
       const completedFloor = selectedStage.floor;
@@ -4651,21 +6921,23 @@ export default function DeckbuilderRoguelikePrototype() {
       setCurrentFloor(completedFloor);
     }
 
-    if (selectedStage?.finalBoss) {
-      clearRunData();
-      setHasSavedRun(false);
-      setPhase("victory");
-      pushLog("100층 중앙 보스방을 공략했습니다. 탑 정복 완료!");
+    const rewardCards = getRewardCards(deck, player.classId, player).slice(0, 3);
+    const reward = generateBattleReward(selectedStage, battleGold, rewardCards);
+    if (!hasBattleReward(reward)) {
+      continueAfterBattleReward({ skipRewardUi: true });
       return;
     }
 
-    const rewardCards = getRewardCards(deck, player.classId, player);
+    setPlayer((p) => applyBattleRewardToPlayer(p, reward));
+    setBattleReward(reward);
     setRewards(rewardCards);
-    setFlippedRewards(rewardCards.map(() => false));
+    setFlippedRewards([]);
+    setCardChoiceOpen(false);
+    setClaimedRewardCardId(null);
     setRoomEncounter(null);
     setRoomResult(null);
     setPhase("reward");
-    pushLog(isBoss ? `던전 ${selectedStage?.floor}층 보스방 공략 성공! ${battleGold} 골드를 획득했고 다음 층이 열렸습니다.` : `전투 승리! ${battleGold} 골드를 획득했습니다. 카드 보상을 선택하세요.`);
+    pushLog(isBoss ? `던전 ${selectedStage?.floor}층 보스방 공략 성공! 전리품을 확인하세요.` : "전투 승리! 전리품을 확인하세요.");
   }
 
   function flipReward(index) {
@@ -4733,7 +7005,25 @@ export default function DeckbuilderRoguelikePrototype() {
 
       const enemyActionIndex = nextActor.actor.index;
       let actingEnemy = nextEnemies[enemyActionIndex];
-      if (!actingEnemy || actingEnemy.hp <= 0) continue;
+      if (!isEnemyAlive(actingEnemy)) continue;
+
+      if ((actingEnemy.bleed || 0) > 0) {
+        const bleedDamage = actingEnemy.bleed;
+        actingEnemy = markEnemyDead({
+          ...actingEnemy,
+          hp: Math.max(0, actingEnemy.hp - bleedDamage),
+          bleed: Math.max(0, actingEnemy.bleed - 1),
+        });
+        nextEnemies[enemyActionIndex] = actingEnemy;
+        setEnemies(settleDefeatedEnemies(nextEnemies));
+        pushLog(`${actingEnemy.name} 출혈: ${bleedDamage} 피해`);
+        await wait(220);
+        if (!isEnemyAlive(actingEnemy)) {
+          nextEnemies = settleDefeatedEnemies(nextEnemies);
+          if (areAllEnemiesDefeated(nextEnemies)) break;
+          continue;
+        }
+      }
 
       enemyActions += 1;
       const action = actingEnemy.actions[actingEnemy.actionIndex % actingEnemy.actions.length];
@@ -4743,20 +7033,33 @@ export default function DeckbuilderRoguelikePrototype() {
         const defenseMitigation = Math.floor((nextPlayer.defense || 0) / 4);
         const damage = Math.max(1, action.value + actingEnemy.strength - defenseMitigation);
         const finalDamage = nextPlayer.vulnerable > 0 ? Math.ceil(damage * 1.5) : damage;
-        const reducedDamage = Math.max(1, Math.floor(finalDamage * (1 - (nextPlayer.damageReduction || 0))));
+        const totalReduction = Math.min(0.95, (nextPlayer.damageReduction || 0) + (nextPlayer.turnDamageReduction || 0));
+        const reducedDamage = Math.max(1, Math.floor(finalDamage * (1 - totalReduction)));
 
         let taken = reducedDamage;
         let blocked = 0;
+        let reflectDamage = 0;
 
         if (nextPlayer.classId === "archer" && Math.random() < 0.25) {
           taken = 0;
-          actingEnemy = { ...actingEnemy, hp: Math.max(0, actingEnemy.hp - 4) };
+          actingEnemy = markEnemyDead({ ...actingEnemy, hp: Math.max(0, actingEnemy.hp - 4) });
           pushLog("궁수 패시브 발동: 회피 성공! 반격 피해 4");
         } else {
           blocked = Math.min(nextPlayer.block, reducedDamage);
           taken = reducedDamage - blocked;
           nextPlayer.block -= blocked;
           nextPlayer.hp = Math.max(0, nextPlayer.hp - taken);
+        }
+
+        reflectDamage = Math.max(0, Math.floor(reducedDamage * (nextPlayer.reflectPercent || 0)) + (nextPlayer.reflectFlat || 0));
+        if (reflectDamage > 0) {
+          actingEnemy = markEnemyDead({ ...actingEnemy, hp: Math.max(0, actingEnemy.hp - reflectDamage) });
+          pushLog(`방어 반격: ${actingEnemy.name}에게 ${reflectDamage} 피해 반사`);
+        }
+
+        if (nextPlayer.hp <= 0 && (nextPlayer.deathPrevent || 0) > 0) {
+          nextPlayer = { ...nextPlayer, hp: 1, deathPrevent: Math.max(0, (nextPlayer.deathPrevent || 0) - 1) };
+          pushLog("절대 방벽 발동: 사망을 한 번 막았습니다.");
         }
 
         if (nextPlayer.classId === "warrior" && taken > 0) {
@@ -4793,7 +7096,19 @@ export default function DeckbuilderRoguelikePrototype() {
         pushLog(`${actingEnemy.name}가 취약을 부여했습니다.`);
       }
 
-      nextEnemies[enemyActionIndex] = { ...actingEnemy, actionIndex: actingEnemy.actionIndex + 1 };
+      nextEnemies[enemyActionIndex] = markEnemyDead({ ...actingEnemy, actionIndex: actingEnemy.actionIndex + 1 });
+      nextEnemies = settleDefeatedEnemies(nextEnemies);
+      if (!isEnemyAlive(nextEnemies[enemyActionIndex]) && !areAllEnemiesDefeated(nextEnemies)) {
+        setEnemies(nextEnemies);
+        await wait(ENEMY_DEATH_ANIMATION_MS);
+        const keepAlive = nextEnemies.map((entry) => isEnemyAlive(entry));
+        nextEnemies = nextEnemies.filter((entry) => isEnemyAlive(entry));
+        nextGauge = {
+          ...nextGauge,
+          enemies: normalizeSpeedGauge(nextGauge, keepAlive).enemies.filter((_, index) => keepAlive[index]),
+        };
+        setEnemies(nextEnemies);
+      }
 
       if (nextPlayer.hp <= 0 || areAllEnemiesDefeated(nextEnemies)) break;
       await wait(140);
@@ -4801,7 +7116,7 @@ export default function DeckbuilderRoguelikePrototype() {
 
     if (areAllEnemiesDefeated(nextEnemies)) {
       setPlayer(nextPlayer);
-      setEnemies(nextEnemies);
+      setEnemies([]);
       setRageStacks(nextRage);
       setSpeedGauge(nextGauge);
       setIsCardAnimating(false);
@@ -4826,13 +7141,18 @@ export default function DeckbuilderRoguelikePrototype() {
       ...nextPlayer,
       energy: nextPlayer.maxEnergy,
       block: 0,
+      attackCardBonus: 0,
+      turnDamageReduction: 0,
+      reflectFlat: 0,
+      reflectPercent: 0,
+      deathPrevent: 0,
       vulnerable: Math.max(0, nextPlayer.vulnerable - 1),
     });
     setEnemies(
       nextEnemies.map((entry) => ({
         ...entry,
         block: 0,
-        vulnerable: Math.max(0, entry.vulnerable - 1),
+        vulnerable: isEnemyAlive(entry) ? Math.max(0, entry.vulnerable - 1) : entry.vulnerable,
       })),
     );
     setSelectedEnemyIndex(getFirstAliveEnemyIndex(nextEnemies));
@@ -4856,19 +7176,43 @@ export default function DeckbuilderRoguelikePrototype() {
 
   function chooseReward(cardId) {
     const nextDeck = [...deck, cardId];
+    setDeck(nextDeck);
+    setClaimedRewardCardId(cardId);
+    setCardChoiceOpen(false);
+    pushLog(`${CARD_POOL[cardId].name} 카드를 덱에 추가했습니다.`);
+  }
+
+  function continueAfterBattleReward(options = {}) {
+    if (!options.skipRewardUi && (battleReward?.cardChoices || []).length > 0 && !claimedRewardCardId) return;
+
     const completedBossRoom = selectedStage?.type === "boss";
     const returnPhase = completedBossRoom ? "towerMap" : "floorMap";
     const returnLog = completedBossRoom
       ? `던전 ${selectedStage.floor}층 공략 완료. 던전 ${Math.min(TOTAL_FLOORS, selectedStage.floor + 1)}층이 해금되었습니다.`
       : `던전 ${selectedStage?.floor || currentFloor}층 내부 지도로 돌아갑니다. 다음 안쪽 방을 공략하세요.`;
 
-    setDeck(nextDeck);
+    if (selectedStage?.finalBoss) {
+      clearRunData();
+      setHasSavedRun(false);
+      setBattleReward(null);
+      setRewards([]);
+      setFlippedRewards([]);
+      setCardChoiceOpen(false);
+      setClaimedRewardCardId(null);
+      setPhase("victory");
+      pushLog("100층 중앙 보스방을 공략했습니다. 탑 정복 완료!");
+      return;
+    }
+
     setDrawPile([]);
     setHand([]);
     setDiscardPile([]);
     setExhaustPile([]);
     setRewards([]);
     setFlippedRewards([]);
+    setBattleReward(null);
+    setCardChoiceOpen(false);
+    setClaimedRewardCardId(null);
     setRoomEncounter(null);
     setRoomResult(null);
     setTurn(1);
@@ -4876,33 +7220,22 @@ export default function DeckbuilderRoguelikePrototype() {
     setComboStacks(0);
     setSelectedStage(null);
     setPlayer((p) => ({
-      ...applyFlatHeal(p, 8),
+      ...p,
       block: 0,
       energy: p.maxEnergy,
+      attackCardBonus: 0,
+      turnDamageReduction: 0,
+      reflectFlat: 0,
+      reflectPercent: 0,
+      deathPrevent: 0,
       vulnerable: 0,
     }));
     setSpeedGauge((g) => ({ ...g }));
-    pushLog(`${CARD_POOL[cardId].name} 카드를 획득했습니다. 체력 8 회복. ${returnLog}`);
+    pushLog(`전리품 확인 완료. ${returnLog}`);
   }
 
   function skipReward() {
-    const completedBossRoom = selectedStage?.type === "boss";
-    const returnPhase = completedBossRoom ? "towerMap" : "floorMap";
-    setDrawPile([]);
-    setHand([]);
-    setDiscardPile([]);
-    setExhaustPile([]);
-    setRewards([]);
-    setFlippedRewards([]);
-    setRoomEncounter(null);
-    setRoomResult(null);
-    setTurn(1);
-    setPhase(returnPhase);
-    setComboStacks(0);
-    setSelectedStage(null);
-    setPlayer((p) => ({ ...applyFlatHeal(p, 12), block: 0, energy: p.maxEnergy, vulnerable: 0 }));
-    setSpeedGauge((g) => ({ ...g }));
-    pushLog(completedBossRoom ? "카드 보상을 건너뛰고 체력 12 회복. 탑 화면으로 돌아갑니다." : "카드 보상을 건너뛰고 체력 12 회복. 층 내부 지도로 돌아갑니다.");
+    continueAfterBattleReward({ skipRewardUi: true });
   }
 
   function restart() {
@@ -5094,6 +7427,9 @@ export default function DeckbuilderRoguelikePrototype() {
         deckCount={deckCount}
         inspectedCard={inspectedCard}
         onInspectCard={setInspectedCardId}
+        onDismantleCard={handleDismantleCard}
+        onUpgradeCard={handleUpgradeCard}
+        upgradeCelebration={upgradeCelebration}
       />
     );
   }
@@ -5123,6 +7459,9 @@ export default function DeckbuilderRoguelikePrototype() {
         deckCount={deckCount}
         inspectedCard={inspectedCard}
         onInspectCard={setInspectedCardId}
+        onDismantleCard={handleDismantleCard}
+        onUpgradeCard={handleUpgradeCard}
+        upgradeCelebration={upgradeCelebration}
       />
     );
   }
@@ -5147,12 +7486,13 @@ export default function DeckbuilderRoguelikePrototype() {
     const combatGauge = normalizeSpeedGauge(speedGauge, enemies);
     const timelineActors = buildCombatTimeline(combatGauge, player, enemies, 6);
     const timelineItems = [{ ...currentActor, current: true }, ...timelineActors];
-    const enemyTotalHp = enemies.reduce((sum, entry) => sum + Math.max(0, entry.hp), 0);
-    const enemyTotalMaxHp = enemies.reduce((sum, entry) => sum + entry.maxHp, 0) || 1;
-    const commanderEnemy = enemies.find((entry) => entry.hp > 0 && entry.boss) || enemy;
+    const enemyTotalHp = aliveEnemies.reduce((sum, entry) => sum + Math.max(0, entry.hp), 0);
+    const enemyTotalMaxHp = aliveEnemies.reduce((sum, entry) => sum + entry.maxHp, 0) || 1;
+    const commanderEnemy = enemies.find((entry) => isEnemyAlive(entry) && entry.boss) || enemy;
     const commanderIntent = commanderEnemy?.actions?.[commanderEnemy.actionIndex % commanderEnemy.actions.length];
     const encounterRank = selectedStage?.type === "boss" ? "BOSS" : selectedStage?.type === "elite" ? "ELITE" : "ENCOUNTER";
-    const waveLabel = selectedStage ? `Wave ${selectedStage.type === "boss" ? 3 : selectedStage.type === "elite" ? 2 : 1}/3` : "Wave 1/1";
+    const isBossEncounter = selectedStage?.type === "boss";
+    const waveLabel = selectedStage ? (isBossEncounter ? "Boss 1/1" : `Enemy ${aliveEnemies.length}/${enemies.length}`) : "Enemy 1/1";
     const partyMembers = Object.values(CHARACTER_CLASSES);
     const incomingDamage = aliveEnemies.reduce((sum, entry) => {
       const action = entry.actions[entry.actionIndex % entry.actions.length];
@@ -5177,7 +7517,7 @@ export default function DeckbuilderRoguelikePrototype() {
     };
 
     return (
-      <div className="sts-screen">
+      <div className={`sts-screen ${isBossEncounter ? "is-boss-combat" : ""}`}>
         <AnimatePresence>
           {activeCardAnimation && <UsedCardOverlay key={activeCardAnimation.key} animation={activeCardAnimation} />}
           {enemyAttackAnimation && <EnemyAttackOverlay key={enemyAttackAnimation.key} animation={enemyAttackAnimation} />}
@@ -5211,12 +7551,13 @@ export default function DeckbuilderRoguelikePrototype() {
             <div className="sts-floor-plate" />
           </div>
 
-          <section className="sts-encounter-panel">
+          <section className={`sts-encounter-panel ${isBossEncounter ? "is-boss" : ""}`}>
             <div className="sts-encounter-head">
               <span>{encounterRank}</span>
               <strong>{commanderEnemy?.name || "적"}</strong>
               <em>{waveLabel}</em>
             </div>
+            {isBossEncounter && <div className="sts-boss-hp-label">BOSS</div>}
             <div className="sts-encounter-health">
               <i style={{ width: `${Math.max(0, Math.min(100, (enemyTotalHp / enemyTotalMaxHp) * 100))}%` }} />
               <span>{enemyTotalHp}/{enemyTotalMaxHp}</span>
@@ -5226,11 +7567,11 @@ export default function DeckbuilderRoguelikePrototype() {
                 <button
                   key={`encounter-${entry.id || entry.name}-${index}`}
                   type="button"
-                  disabled={entry.hp <= 0 || isCardAnimating}
+                  disabled={!isEnemyTargetable(entry) || isCardAnimating}
                   onClick={() => {
-                    if (entry.hp > 0 && !isCardAnimating) setSelectedEnemyIndex(index);
+                    if (isEnemyTargetable(entry) && !isCardAnimating) setSelectedEnemyIndex(index);
                   }}
-                  className={`${index === safeSelectedEnemyIndex ? "is-selected" : ""} ${entry.hp <= 0 ? "is-down" : ""}`}
+                  className={`${index === safeSelectedEnemyIndex ? "is-selected" : ""} ${!isEnemyAlive(entry) ? "is-down" : ""}`}
                 >
                   <span>{entry.name}</span>
                   <b>{entry.hp}/{entry.maxHp}</b>
@@ -5316,7 +7657,7 @@ export default function DeckbuilderRoguelikePrototype() {
               <span><Heart size={13} /> {enemy.hp}/{enemy.maxHp}</span>
               <span><Zap size={13} /> SPD {enemy.speed}</span>
               <span><Sword size={13} /> {enemy.attack || commanderIntent?.value || 0}</span>
-              <span><Shield size={13} /> {enemy.block || 0}</span>
+              <span><Shield size={13} /> DEF {enemy.defense || enemy.block || 0}</span>
             </div>
             <div className={`sts-target-intent type-${commanderIntent?.type || "attack"}`}>
               {commanderIntent?.type === "attack" ? <Sword size={16} /> : commanderIntent?.type === "block" ? <Shield size={16} /> : <Zap size={16} />}
@@ -5372,9 +7713,10 @@ export default function DeckbuilderRoguelikePrototype() {
             </div>
 
             <div className="sts-enemy-side">
+              <AnimatePresence>
               {enemies.map((entry, index) => {
                 const selected = index === safeSelectedEnemyIndex;
-                const defeated = entry.hp <= 0;
+                const defeated = !isEnemyAlive(entry);
                 const intent = entry.actions[entry.actionIndex % entry.actions.length];
                 const intentIcon = intent.type === "attack" ? <Sword size={20} /> : intent.type === "block" ? <Shield size={20} /> : <Zap size={20} />;
                 const intentValue = intent.type === "attack" ? Math.max(0, intent.value + entry.strength) : intent.text;
@@ -5385,17 +7727,27 @@ export default function DeckbuilderRoguelikePrototype() {
                     }}
                     key={entry.id || `${entry.name}-${index}`}
                     type="button"
-                    disabled={defeated || isCardAnimating}
+                    disabled={!isEnemyTargetable(entry) || isCardAnimating}
                     onClick={() => {
-                      if (!defeated && !isCardAnimating) setSelectedEnemyIndex(index);
+                      if (isEnemyTargetable(entry) && !isCardAnimating) setSelectedEnemyIndex(index);
                     }}
+                    exit={{ opacity: 0, y: 72, scale: 0.72, filter: "blur(5px) brightness(0.6)" }}
                     animate={
-                      hitEffects[index]
+                      defeated
+                        ? {
+                            opacity: 0,
+                            y: entry.boss ? 34 : 52,
+                            scale: entry.boss ? 1.08 : 0.86,
+                            filter: "grayscale(1) blur(2px) brightness(0.62)",
+                          }
+                        : hitEffects[index]
                         ? { x: [0, -10, 9, -5, 0], filter: ["brightness(1)", "brightness(1.7)", "brightness(1)"] }
-                        : { y: selected ? -8 : 0, scale: selected ? 1.035 : 1 }
+                        : { y: selected ? -8 : 0, scale: selected ? (entry.boss ? 1.12 : 1.035) : entry.boss ? 1.08 : 1, opacity: 1 }
                     }
                     transition={{ duration: 0.42, ease: "easeOut" }}
                     className={`sts-enemy-actor ${selected ? "is-targeted" : ""} ${
+                      entry.boss ? "is-boss" : ""
+                    } ${
                       currentActor.type === "enemy" && currentActor.index === index && currentActor.actionType === "attack" ? "is-attacking" : ""
                     } ${
                       currentActor.type === "enemy" && currentActor.index === index && currentActor.actionType === "block" ? "is-guarding" : ""
@@ -5403,12 +7755,14 @@ export default function DeckbuilderRoguelikePrototype() {
                       currentActor.type === "enemy" && currentActor.index === index && ["buff", "debuff"].includes(currentActor.actionType) ? "is-casting" : ""
                     } ${defeated ? "is-defeated" : ""}`}
                   >
+                    {entry.boss && intent.warning && <div className="sts-boss-warning">{intent.warning}</div>}
                     <div className={`sts-intent-badge type-${intent.type}`}>
                       {intentIcon}
                       <strong>{intentValue}</strong>
                     </div>
                     <div className="sts-enemy-sprite-wrap">
                       <MonsterImage monster={entry} className="sts-enemy-image" fallbackClassName="sts-enemy-fallback" />
+                      {defeated && <MonsterDeathEffect enemy={entry} />}
                       <AnimatePresence>{hitEffects[index] && <HitEffect effect={hitEffects[index]} />}</AnimatePresence>
                     </div>
                     <div className="sts-enemy-name">{entry.name}</div>
@@ -5418,12 +7772,14 @@ export default function DeckbuilderRoguelikePrototype() {
                     </div>
                     <div className="sts-status-row enemy">
                       {entry.block > 0 && <span><Shield size={13} /> {entry.block}</span>}
+                      {entry.defense > 0 && <span><Shield size={13} /> DEF {entry.defense}</span>}
                       {entry.strength > 0 && <span><Sword size={13} /> {entry.strength}</span>}
                       {entry.vulnerable > 0 && <span>취약 {entry.vulnerable}</span>}
                     </div>
                   </motion.button>
                 );
               })}
+              </AnimatePresence>
             </div>
           </section>
 
@@ -5613,7 +7969,7 @@ export default function DeckbuilderRoguelikePrototype() {
                   {enemies.map((entry, index) => {
                     const intent = entry.actions[entry.actionIndex % entry.actions.length];
                     const selected = index === safeSelectedEnemyIndex;
-                    const defeated = entry.hp <= 0;
+                    const defeated = !isEnemyAlive(entry);
                     const hitEffect = hitEffects[index];
                     return (
                       <motion.button
@@ -5828,32 +8184,23 @@ export default function DeckbuilderRoguelikePrototype() {
               )}
 
               {phase === "reward" && (
-                <motion.section
-                  key="reward"
-                  initial={{ opacity: 0, scale: 0.98 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.98 }}
-                  className={`rounded-3xl bg-gradient-to-br ${currentClassTheme.color} p-5 text-slate-950 shadow-2xl`}
-                >
-                  <div className="mb-4 flex items-center gap-2">
-                    <Trophy className="text-yellow-600" />
-                    <h2 className="text-2xl font-black">카드 보상 선택</h2>
-                  </div>
-                  <div className="grid gap-3 md:grid-cols-3">
-                    {rewards.map((card, index) => (
-                      <RewardFlipCard
-                        key={`${card.id}-${index}`}
-                        cardId={card.id}
-                        flipped={Boolean(flippedRewards[index])}
-                        onFlip={() => flipReward(index)}
-                        onClaim={() => chooseReward(card.id)}
+                <motion.section key="reward" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="min-h-[560px]">
+                  <BattleRewardModal
+                    reward={battleReward || { cardChoices: rewards }}
+                    claimedCardId={claimedRewardCardId}
+                    onOpenCardChoice={() => setCardChoiceOpen(true)}
+                    onContinue={continueAfterBattleReward}
+                  />
+                  <AnimatePresence>
+                    {cardChoiceOpen && (
+                      <CardChoiceModal
+                        choices={battleReward?.cardChoices || rewards}
                         classId={player.classId}
+                        onSelect={chooseReward}
+                        onClose={() => setCardChoiceOpen(false)}
                       />
-                    ))}
-                  </div>
-                  <button onClick={skipReward} className="mt-4 rounded-2xl border border-slate-300 px-4 py-3 font-bold hover:bg-slate-100">
-                    보상 건너뛰기 / 체력 12 회복
-                  </button>
+                    )}
+                  </AnimatePresence>
                 </motion.section>
               )}
 

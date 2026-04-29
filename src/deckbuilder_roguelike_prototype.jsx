@@ -3545,7 +3545,7 @@ function CardEnhancementLayers({ level, active = false, compact = false }) {
   );
 }
 
-function Card({ cardId, onClick, disabled, compact = false, onInspect, variant = "deck", isBack = false, classId = "warrior" }) {
+function Card({ cardId, onClick, disabled, compact = false, onInspect, onInspectEnd, variant = "deck", isBack = false, classId = "warrior" }) {
   const card = CARD_POOL[cardId];
   const [isHovering, setIsHovering] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
@@ -3605,10 +3605,13 @@ function Card({ cardId, onClick, disabled, compact = false, onInspect, variant =
           setIsHovering(true);
           onInspect?.(cardId);
         }}
-        onHoverEnd={() => setIsHovering(false)}
+        onHoverEnd={() => {
+          setIsHovering(false);
+          onInspectEnd?.(cardId);
+        }}
         onFocus={() => onInspect?.(cardId)}
+        onBlur={() => onInspectEnd?.(cardId)}
         onClick={(event) => {
-          onInspect?.(cardId);
           if (disabled) return;
           onClick?.(event);
         }}
@@ -3636,10 +3639,13 @@ function Card({ cardId, onClick, disabled, compact = false, onInspect, variant =
         setIsHovering(true);
         onInspect?.(cardId);
       }}
-      onHoverEnd={() => setIsHovering(false)}
+      onHoverEnd={() => {
+        setIsHovering(false);
+        onInspectEnd?.(cardId);
+      }}
       onFocus={() => onInspect?.(cardId)}
+      onBlur={() => onInspectEnd?.(cardId)}
       onClick={(event) => {
-        onInspect?.(cardId);
         if (disabled) return;
         onClick?.(event);
       }}
@@ -5682,6 +5688,7 @@ export default function DeckbuilderRoguelikePrototype() {
   const [comboStacks, setComboStacks] = useState(0);
   const [showDeckManager, setShowDeckManager] = useState(false);
   const [inspectedCardId, setInspectedCardId] = useState(null);
+  const [hoveredCombatCardId, setHoveredCombatCardId] = useState(null);
   const [selectedCommand, setSelectedCommand] = useState("attack");
   const [isCardAnimating, setIsCardAnimating] = useState(false);
   const [activeCardAnimation, setActiveCardAnimation] = useState(null);
@@ -5711,6 +5718,7 @@ export default function DeckbuilderRoguelikePrototype() {
   const speedPreview = buildTurnPreview(activeCharacter.speed, createEnemy(0).speed);
   const currentClassTheme = CHARACTER_CLASSES[player.classId || selectedCharacterId || "warrior"];
   const inspectedCard = inspectedCardId ? CARD_POOL[inspectedCardId] : null;
+  const hoveredCombatCard = hoveredCombatCardId ? CARD_POOL[hoveredCombatCardId] : null;
   const currentFloorNodes = getFloorNodes(currentFloor);
   const currentClearedNodeIds = getClearedNodeIds(clearedNodesByFloor, currentFloor);
   const currentFloorUnlocked = isFloorUnlocked(unlockedFloors, currentFloor);
@@ -5898,6 +5906,7 @@ export default function DeckbuilderRoguelikePrototype() {
     setHasSavedRun(true);
     setShowDeckManager(false);
     setInspectedCardId(null);
+    setHoveredCombatCardId(null);
     setSelectedCommand("attack");
     setIsCardAnimating(false);
     setActiveCardAnimation(null);
@@ -5974,6 +5983,7 @@ export default function DeckbuilderRoguelikePrototype() {
     setHoveredCharacterId(null);
     setShowDeckManager(false);
     setInspectedCardId(null);
+    setHoveredCombatCardId(null);
     setSelectedCommand("attack");
     setIsCardAnimating(false);
     setActiveCardAnimation(null);
@@ -6210,6 +6220,7 @@ export default function DeckbuilderRoguelikePrototype() {
     setRelics([]);
     setShowDeckManager(false);
     setInspectedCardId(null);
+    setHoveredCombatCardId(null);
     setSelectedCommand("attack");
     setIsCardAnimating(false);
     setActiveCardAnimation(null);
@@ -6304,6 +6315,7 @@ export default function DeckbuilderRoguelikePrototype() {
     setClaimedRewardCardId(null);
     setShowDeckManager(false);
     setInspectedCardId(null);
+    setHoveredCombatCardId(null);
     setPhase("room");
     setLog([
       `상황: ${encounter.situation}`,
@@ -6344,6 +6356,7 @@ export default function DeckbuilderRoguelikePrototype() {
     setRoomResult(null);
     setShowDeckManager(false);
     setInspectedCardId(null);
+    setHoveredCombatCardId(null);
     setSelectedCommand("attack");
     setIsCardAnimating(false);
     setActiveCardAnimation(null);
@@ -6421,7 +6434,7 @@ export default function DeckbuilderRoguelikePrototype() {
         y: [0, midY, endCenterY - startCenterY],
       },
     });
-    setInspectedCardId(cardId);
+    setHoveredCombatCardId(null);
 
     let workingDrawPile = [...drawPile];
     let workingDiscardPile = [...discardPile];
@@ -7247,6 +7260,10 @@ export default function DeckbuilderRoguelikePrototype() {
     initializeRun(characterId);
   }
 
+  function clearHoveredCombatCard(cardId) {
+    setHoveredCombatCardId((current) => (current === cardId ? null : current));
+  }
+
   const deckCount = useMemo(() => {
     const count = {};
     deck.forEach((id) => {
@@ -7751,15 +7768,15 @@ export default function DeckbuilderRoguelikePrototype() {
 
           <section className="sts-vfx-layer">
             <AnimatePresence mode="wait">
-              {inspectedCard && (
+              {hoveredCombatCard && (
                 <motion.div
-                  key={inspectedCard.id}
+                  key={hoveredCombatCard.id}
                   initial={{ opacity: 0, y: 16, scale: 0.94 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -12, scale: 0.94 }}
                   className="sts-card-preview"
                 >
-                  <CardDetailPanel card={inspectedCard} targetName={enemy.name} />
+                  <CardDetailPanel card={hoveredCombatCard} targetName={enemy.name} />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -7797,7 +7814,8 @@ export default function DeckbuilderRoguelikePrototype() {
                     cardId={cardId}
                     variant="hand"
                     disabled={!isPlayerTurn || player.energy < CARD_POOL[cardId].cost}
-                    onInspect={setInspectedCardId}
+                    onInspect={setHoveredCombatCardId}
+                    onInspectEnd={clearHoveredCombatCard}
                     onClick={(clickEvent) => playCard(cardId, index, clickEvent)}
                     classId={player.classId}
                   />
@@ -8106,8 +8124,8 @@ export default function DeckbuilderRoguelikePrototype() {
                     <div className="text-sm text-slate-300">카드를 클릭하면 선택된 몬스터에게 사용됩니다.</div>
                   </div>
                   <div className="mb-4 min-h-[132px]">
-                    {inspectedCard ? (
-                      <CardDetailPanel card={inspectedCard} targetName={enemy.name} />
+                    {hoveredCombatCard ? (
+                      <CardDetailPanel card={hoveredCombatCard} targetName={enemy.name} />
                     ) : (
                       <div className="rounded-3xl border border-white/10 bg-slate-950/50 p-5 text-sm text-slate-300 shadow-xl">
                         전투 카드 상세
@@ -8136,7 +8154,8 @@ export default function DeckbuilderRoguelikePrototype() {
                               cardId={cardId}
                               variant="hand"
                               disabled={isCardAnimating || player.energy < CARD_POOL[cardId].cost}
-                              onInspect={setInspectedCardId}
+                              onInspect={setHoveredCombatCardId}
+                              onInspectEnd={clearHoveredCombatCard}
                               onClick={(clickEvent) => playCard(cardId, index, clickEvent)}
                               classId={player.classId}
                             />

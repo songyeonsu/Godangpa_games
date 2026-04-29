@@ -5596,8 +5596,6 @@ function FloorMapScreen({
                   <motion.button
                     key={node.id}
                     type="button"
-                    whileHover={available ? { scale: node.type === "boss" ? 1.08 : 1.1 } : undefined}
-                    whileTap={available ? { scale: 0.95 } : undefined}
                     onClick={() => available && onEnterNode(node)}
                     disabled={!available}
                     className={`floor-room-node type-${node.type} ${available ? "is-available" : ""} ${cleared ? "is-cleared" : ""} ${locked ? "is-locked" : ""}`}
@@ -7485,7 +7483,11 @@ export default function DeckbuilderRoguelikePrototype() {
     const stageLabel = selectedStage ? `던전 ${selectedStage.floor}층 / ${selectedStage.typeLabel}` : `${enemyIndex + 1}/${ENEMIES.length}`;
     const combatGauge = normalizeSpeedGauge(speedGauge, enemies);
     const timelineActors = buildCombatTimeline(combatGauge, player, enemies, 6);
-    const timelineItems = [{ ...currentActor, current: true }, ...timelineActors];
+    const currentTimelineActor =
+      currentActor.type === "enemy" && !isEnemyAlive(enemies[currentActor.index])
+        ? null
+        : { ...currentActor, current: true };
+    const timelineItems = [currentTimelineActor, ...timelineActors].filter(Boolean);
     const enemyTotalHp = aliveEnemies.reduce((sum, entry) => sum + Math.max(0, entry.hp), 0);
     const enemyTotalMaxHp = aliveEnemies.reduce((sum, entry) => sum + entry.maxHp, 0) || 1;
     const commanderEnemy = enemies.find((entry) => isEnemyAlive(entry) && entry.boss) || enemy;
@@ -7493,7 +7495,6 @@ export default function DeckbuilderRoguelikePrototype() {
     const encounterRank = selectedStage?.type === "boss" ? "BOSS" : selectedStage?.type === "elite" ? "ELITE" : "ENCOUNTER";
     const isBossEncounter = selectedStage?.type === "boss";
     const waveLabel = selectedStage ? (isBossEncounter ? "Boss 1/1" : `Enemy ${aliveEnemies.length}/${enemies.length}`) : "Enemy 1/1";
-    const partyMembers = Object.values(CHARACTER_CLASSES);
     const incomingDamage = aliveEnemies.reduce((sum, entry) => {
       const action = entry.actions[entry.actionIndex % entry.actions.length];
       if (action.type !== "attack") return sum;
@@ -7580,41 +7581,6 @@ export default function DeckbuilderRoguelikePrototype() {
             </div>
           </section>
 
-          <aside className="sts-party-rail" aria-label="파티 상태">
-            <div className="sts-party-title">Squad</div>
-            <div className="sts-party-list">
-              {partyMembers.map((member, index) => {
-                const active = member.id === player.classId;
-                const hpValue = active ? player.hp : member.hp;
-                const maxHpValue = active ? player.maxHp : member.hp;
-                return (
-                  <div key={member.id} className={`sts-party-card ${active ? "is-active" : ""}`}>
-                    <span className="sts-party-index">{index + 1}</span>
-                    <div className="sts-party-portrait">
-                      <CharacterImage character={member} className="sts-party-image" />
-                    </div>
-                    <div className="sts-party-info">
-                      <strong>{member.name}</strong>
-                      <div className="sts-party-bars">
-                        <i style={{ width: `${Math.max(0, Math.min(100, (hpValue / maxHpValue) * 100))}%` }} />
-                      </div>
-                      <span>HP {hpValue}/{maxHpValue} · SPD {member.speed}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="sts-party-meter">
-              <span>EP</span>
-              <strong>{player.energy}</strong>
-              <div>
-                {Array.from({ length: player.maxEnergy || 1 }, (_, index) => (
-                  <i key={`ep-${index}`} className={index < player.energy ? "is-filled" : ""} />
-                ))}
-              </div>
-            </div>
-          </aside>
-
           <aside className="sts-turn-timeline" aria-label="턴 순서">
             <div className="sts-turn-title">
               <Zap size={14} />
@@ -7629,7 +7595,7 @@ export default function DeckbuilderRoguelikePrototype() {
                     key={`${actor.type}-${actor.index ?? "player"}-${index}`}
                     className={`sts-turn-item ${actor.type === "player" ? "is-player" : "is-enemy"} ${actor.current ? "is-current" : ""}`}
                   >
-                    <div className="sts-turn-marker">{actor.current ? "NOW" : index}</div>
+                    <div className="sts-turn-marker">{actor.current ? "현재" : index}</div>
                     <div className="sts-turn-portrait">
                       {actor.type === "player" ? (
                         <CharacterImage character={player.classId ? currentClassTheme : null} className="sts-turn-image" />
@@ -7639,7 +7605,7 @@ export default function DeckbuilderRoguelikePrototype() {
                     </div>
                     <div className="sts-turn-meta">
                       <strong>{getTimelineLabel(actor)}</strong>
-                      <span>SPD {getTimelineSpeed(actor)}</span>
+                      <span>{actor.current ? "현재 턴" : "예정"} · SPD {getTimelineSpeed(actor)}</span>
                       <div className="sts-turn-gauge">
                         <i style={{ width: `${actor.current ? 100 : gaugePercent}%` }} />
                       </div>

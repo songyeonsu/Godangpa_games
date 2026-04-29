@@ -2070,157 +2070,6 @@ button {
   color: #fecaca;
 }
 
-.sts-party-rail {
-  position: absolute;
-  top: 348px;
-  left: 20px;
-  z-index: 14;
-  display: grid;
-  width: min(250px, 23vw);
-  gap: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  border-radius: 10px;
-  background:
-    linear-gradient(90deg, rgba(2, 6, 23, 0.88), rgba(15, 23, 42, 0.56)),
-    rgba(2, 6, 23, 0.62);
-  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.28), inset 4px 0 0 rgba(244, 114, 182, 0.28);
-  padding: 9px;
-  backdrop-filter: blur(8px);
-}
-
-.sts-party-title {
-  color: #fbcfe8;
-  font-size: 11px;
-  font-weight: 950;
-  text-transform: uppercase;
-}
-
-.sts-party-list {
-  display: grid;
-  gap: 6px;
-}
-
-.sts-party-card {
-  display: grid;
-  grid-template-columns: 22px 38px minmax(0, 1fr);
-  align-items: center;
-  gap: 7px;
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  border-radius: 8px;
-  background: rgba(15, 23, 42, 0.62);
-  padding: 5px;
-}
-
-.sts-party-card.is-active {
-  border-color: rgba(244, 114, 182, 0.56);
-  background:
-    radial-gradient(circle at 20% 50%, rgba(244, 114, 182, 0.18), transparent 48%),
-    rgba(30, 41, 59, 0.78);
-}
-
-.sts-party-index {
-  display: grid;
-  height: 24px;
-  place-items: center;
-  border-radius: 6px;
-  background: rgba(2, 6, 23, 0.72);
-  color: #e2e8f0;
-  font-size: 11px;
-  font-weight: 950;
-}
-
-.sts-party-portrait {
-  display: grid;
-  width: 38px;
-  height: 38px;
-  place-items: center;
-  overflow: hidden;
-  border-radius: 8px;
-  background: rgba(2, 6, 23, 0.74);
-}
-
-.sts-party-image {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.sts-party-info {
-  display: grid;
-  min-width: 0;
-  gap: 3px;
-}
-
-.sts-party-info strong,
-.sts-party-info span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sts-party-info strong {
-  color: #f8fafc;
-  font-size: 11px;
-  font-weight: 950;
-}
-
-.sts-party-info span {
-  color: #94a3b8;
-  font-size: 10px;
-  font-weight: 900;
-}
-
-.sts-party-bars {
-  position: relative;
-  overflow: hidden;
-  height: 5px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.95);
-}
-
-.sts-party-bars i {
-  position: absolute;
-  inset: 0 auto 0 0;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #22c55e, #86efac);
-}
-
-.sts-party-meter {
-  display: grid;
-  grid-template-columns: auto auto 1fr;
-  align-items: center;
-  gap: 7px;
-  border-radius: 8px;
-  background: rgba(2, 6, 23, 0.66);
-  padding: 7px;
-}
-
-.sts-party-meter span,
-.sts-party-meter strong {
-  color: #bae6fd;
-  font-size: 12px;
-  font-weight: 950;
-}
-
-.sts-party-meter div {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 3px;
-}
-
-.sts-party-meter i {
-  height: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  border-radius: 4px;
-  background: rgba(15, 23, 42, 0.9);
-}
-
-.sts-party-meter i.is-filled {
-  border-color: rgba(125, 211, 252, 0.74);
-  background: linear-gradient(180deg, #67e8f9, #0284c7);
-  box-shadow: 0 0 12px rgba(34, 211, 238, 0.32);
-}
-
 .sts-target-panel {
   position: absolute;
   top: 112px;
@@ -2318,8 +2167,8 @@ button {
   left: 20px;
   z-index: 14;
   width: min(250px, 23vw);
-  max-height: 310px;
-  overflow: hidden;
+  max-height: min(520px, calc(100vh - 310px));
+  overflow-y: auto;
   border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 10px;
   background:
@@ -2345,7 +2194,7 @@ button {
   gap: 6px;
 }
 
-.sts-turn-item:nth-child(n + 6) {
+.sts-turn-item:nth-child(n + 8) {
   display: none;
 }
 
@@ -3199,7 +3048,6 @@ button {
     min-height: 690px;
   }
 
-  .sts-party-rail,
   .sts-target-panel {
     display: none;
   }
@@ -3663,7 +3511,9 @@ button {
   padding: 10px;
   text-align: center;
   transform: translate(-50%, -50%);
+  transform-origin: center;
   transition:
+    background 180ms ease,
     border-color 180ms ease,
     box-shadow 180ms ease,
     filter 180ms ease,
@@ -3717,6 +3567,20 @@ button {
     0 0 34px rgba(34, 211, 238, 0.32);
 }
 
+.floor-room-node.is-available:hover {
+  border-color: rgba(165, 243, 252, 0.95);
+  filter: brightness(1.08) saturate(1.08);
+  box-shadow:
+    0 0 0 5px rgba(34, 211, 238, 0.16),
+    0 0 42px rgba(34, 211, 238, 0.46),
+    inset 0 0 18px rgba(255, 255, 255, 0.08);
+}
+
+.floor-room-node.is-available:hover .room-icon {
+  color: #ecfeff;
+  transform: scale(1.08);
+}
+
 .floor-room-node.is-cleared {
   border-color: rgba(52, 211, 153, 0.8);
   background: radial-gradient(circle at 50% 35%, rgba(110, 231, 183, 0.32), rgba(6, 78, 59, 0.96) 68%);
@@ -3731,6 +3595,10 @@ button {
 .room-icon {
   display: grid;
   place-items: center;
+  transform-origin: center;
+  transition:
+    color 180ms ease,
+    transform 180ms ease;
 }
 
 .room-label {

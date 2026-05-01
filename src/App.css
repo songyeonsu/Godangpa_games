@@ -4017,3 +4017,272 @@ button {
   border-color: #7f4c22;
   box-shadow: 0 8px 0 rgba(122, 75, 35, 0.66), 0 0 24px rgba(255, 223, 88, 0.65);
 }
+.accessory-card {
+  background: #fff;
+  color: #0f172a;
+  border-color: #d7dde7;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
+}
+
+.accessory-card.is-equipped {
+  outline: 3px solid rgba(124, 58, 237, 0.26);
+}
+
+.accessory-common {
+  border-color: #cbd5e1;
+}
+
+.accessory-rare {
+  border-color: #38bdf8;
+  box-shadow: 0 14px 32px rgba(56, 189, 248, 0.16);
+}
+
+.accessory-epic {
+  border-color: #a855f7;
+  box-shadow: 0 14px 32px rgba(168, 85, 247, 0.18);
+}
+
+.accessory-legendary {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.35), 0 14px 34px rgba(245, 158, 11, 0.26);
+  animation: accessoryLegendaryGlow 1.8s ease-in-out infinite alternate;
+}
+
+.accessory-rarity-badge,
+.accessory-chip,
+.accessory-result {
+  display: inline-block;
+  border: 1px solid currentColor;
+  border-radius: 12px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.accessory-result {
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  line-height: 1.7;
+}
+
+@keyframes accessoryLegendaryGlow {
+  from {
+    box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.28), 0 14px 34px rgba(245, 158, 11, 0.2);
+  }
+  to {
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.5), 0 18px 44px rgba(245, 158, 11, 0.34);
+  }
+}
+
+.tower-battle-table {
+  background:
+    radial-gradient(circle at 50% 22%, rgba(245, 158, 11, 0.18), transparent 34%),
+    radial-gradient(circle at 18% 40%, rgba(20, 184, 166, 0.14), transparent 28%),
+    linear-gradient(135deg, #090f1f 0%, #121827 44%, #07111f 100%);
+}
+
+.battle-actor-panel,
+.dice-duel-panel,
+.tower-dashboard-panel {
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.035)),
+    rgba(5, 10, 22, 0.74);
+  color: #f8fafc;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+}
+
+.dice-duel-panel {
+  position: relative;
+  overflow: hidden;
+  border-radius: 28px;
+  padding: 24px;
+}
+
+.dice-duel-panel::before {
+  content: "";
+  position: absolute;
+  inset: -35%;
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.18), transparent 45%);
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.dice-duel-panel.is-defense::before {
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.17), transparent 45%);
+}
+
+.dice-duel-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+.dice-roll-card {
+  min-height: 180px;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.dice-roll-card.is-rolling {
+  animation: diceCardShake 0.62s ease-in-out infinite;
+  box-shadow: 0 0 28px rgba(255, 255, 255, 0.12);
+}
+
+.dice-roll-card.is-double.player,
+.dice-roll-card.is-double.attack {
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.7), 0 0 34px rgba(245, 158, 11, 0.28);
+}
+
+.dice-roll-card.is-double.defense {
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.7), 0 0 34px rgba(34, 211, 238, 0.26);
+}
+
+.dice-face {
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.dice-face.is-shuffling {
+  animation: diceNumberPop 0.32s ease-in-out infinite;
+}
+
+.dice-face.is-double-face {
+  border-color: #f59e0b;
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.38);
+  transform: scale(1.05);
+}
+
+.dice-pop-label {
+  border-radius: 999px;
+  background: linear-gradient(135deg, #fbbf24, #fde68a);
+  color: #111827;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.68rem;
+  font-weight: 950;
+  animation: diceLabelPop 0.48s cubic-bezier(0.2, 1.25, 0.3, 1);
+}
+
+.duel-step {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0.75rem 0.85rem;
+  color: rgba(226, 232, 240, 0.62);
+  font-size: 0.8rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.duel-step.is-active {
+  border-color: rgba(251, 191, 36, 0.62);
+  background: rgba(251, 191, 36, 0.18);
+  color: #fef3c7;
+  box-shadow: 0 0 24px rgba(251, 191, 36, 0.18);
+}
+
+.duel-step.is-complete {
+  color: #a7f3d0;
+}
+
+.duel-result-tile {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.07);
+  padding: 1rem;
+  text-align: center;
+}
+
+.duel-result-tile span {
+  display: block;
+  color: rgba(226, 232, 240, 0.7);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.duel-result-tile strong {
+  display: block;
+  margin-top: 0.25rem;
+  color: #fff;
+  font-size: 2rem;
+  font-weight: 950;
+}
+
+.duel-result-tile.is-final {
+  border-color: rgba(34, 211, 238, 0.24);
+}
+
+.duel-result-tile.is-final.has-damage {
+  border-color: rgba(251, 191, 36, 0.55);
+  background: rgba(251, 191, 36, 0.14);
+}
+
+.battle-hp-fill {
+  transition: width 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.reward-tile {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.045)),
+    rgba(15, 23, 42, 0.9);
+  padding: 1rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.reward-tile span {
+  display: block;
+  color: rgba(226, 232, 240, 0.72);
+  font-size: 0.75rem;
+  font-weight: 950;
+}
+
+.reward-tile strong {
+  display: block;
+  margin-top: 0.3rem;
+  color: #fff;
+  font-size: 1.35rem;
+  font-weight: 950;
+}
+
+.reward-tile em {
+  display: block;
+  margin-top: 0.45rem;
+  color: rgba(226, 232, 240, 0.84);
+  font-size: 0.8rem;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.reward-tile.is-potion,
+.reward-tile.is-heal {
+  border-color: rgba(251, 113, 133, 0.34);
+  background: rgba(127, 29, 29, 0.34);
+}
+
+.reward-tile.is-accessory {
+  grid-column: span 2;
+}
+
+@media (max-width: 640px) {
+  .reward-tile.is-accessory {
+    grid-column: span 1;
+  }
+}
+
+@keyframes diceCardShake {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+  25% { transform: translate3d(-2px, 1px, 0) rotate(-0.5deg); }
+  50% { transform: translate3d(2px, -1px, 0) rotate(0.5deg); }
+  75% { transform: translate3d(-1px, -2px, 0) rotate(-0.35deg); }
+}
+
+@keyframes diceNumberPop {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-4px) scale(1.08); }
+}
+
+@keyframes diceLabelPop {
+  0% { transform: scale(0.78); opacity: 0; }
+  65% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}

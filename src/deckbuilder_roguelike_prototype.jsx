@@ -22,8 +22,19 @@ import {
 import {
   DEFAULT_DICE_SHARD_UPGRADES,
   DOUBLE_MULTIPLIER,
+  BOSS_ACCESSORY_DROP_CHANCE,
+  MAX_POTION_DROP_CHANCE,
+  NORMAL_ACCESSORY_DROP_CHANCE,
   POTION_DROP_CHANCE,
 } from "./config/gameConfig";
+import {
+  ACCESSORY_EFFECT_LABELS,
+  ACCESSORY_RARITY_LABELS,
+  getAccessoryById,
+  getAccessoryEffectValue,
+  getDuplicateAccessoryGold,
+  rollAccessoryDrop,
+} from "./data/accessories";
 import { diceShardShopItems } from "./data/diceShardShopItems";
 
 const imagePaths = {
@@ -2601,6 +2612,18 @@ const DEFAULT_PLAYER_DICE = { count: 2, sides: 6, min: 1 };
 const DICE_UPGRADE_LIMITS = { count: 4, sides: 8, min: 3 };
 const UPGRADE_MATERIAL_ID = "manaShard";
 const DICE_UPGRADE_MATERIAL_ID = "diceCore";
+const BOSS_FLOORS = [5, 10];
+const BATTLE_ACTION_LABELS = {
+  idle: "대기",
+  rollingPlayerAttack: "플레이어 공격 주사위",
+  waitingEnemyDefense: "적 방어 대기",
+  rollingEnemyDefense: "적 방어 주사위",
+  resolvingPlayerAttack: "공격 피해 계산",
+  rollingPlayerDefense: "플레이어 방어 주사위",
+  waitingEnemyAttack: "적 공격 대기",
+  rollingEnemyAttack: "적 공격 주사위",
+  resolvingEnemyAttack: "수비 피해 계산",
+};
 const DIFFICULTY_LABELS = {
   roguelike: "로그라이크",
   hardcore: "하드코어",
@@ -2622,42 +2645,17 @@ const DEFAULT_PLAYER_EQUIPMENT = {
   accessory: null,
 };
 
-const ACCESSORIES = [
-  {
-    id: "lucky_charm",
-    name: "행운의 부적",
-    slot: "accessory",
-    description: "공격과 방어 주사위 합계가 +2 증가합니다.",
-    diceTotalBonus: 2,
-  },
-  {
-    id: "steady_ring",
-    name: "안정의 반지",
-    slot: "accessory",
-    description: "주사위 최소값이 +1 증가합니다.",
-    diceMinBonus: 1,
-  },
-  {
-    id: "sharp_dice_stone",
-    name: "날카로운 주사위석",
-    slot: "accessory",
-    description: "공격력 +1, 주사위 합계 +1",
-    attackBonus: 1,
-    diceTotalBonus: 1,
-  },
-];
-
 const TOWER_FLOOR_ENEMIES = {
-  1: { id: "slime", monsterId: "slime", name: "슬라임", floor: 1, maxHp: 40, baseAttack: 2, diceCount: 2, diceSides: 6, goldReward: 20, materialReward: 0 },
-  2: { id: "mushroom", monsterId: "mushroom", name: "버섯", floor: 2, maxHp: 58, baseAttack: 3, diceCount: 2, diceSides: 6, goldReward: 28, materialReward: 0 },
-  3: { id: "goblin", monsterId: "goblin", name: "고블린", floor: 3, maxHp: 82, baseAttack: 4, diceCount: 2, diceSides: 6, goldReward: 38, materialReward: 1 },
-  4: { id: "orc", monsterId: "orc", name: "오크", floor: 4, maxHp: 115, baseAttack: 5, diceCount: 2, diceSides: 6, goldReward: 52, materialReward: 1 },
-  5: { id: "mid_boss", monsterId: "gatekeeper", name: "탑 수문장", floor: 5, maxHp: 180, baseAttack: 6, diceCount: 2, diceSides: 6, goldReward: 100, materialReward: 2 },
-  6: { id: "wolf", monsterId: "wolf", name: "늑대", floor: 6, maxHp: 155, baseAttack: 7, diceCount: 2, diceSides: 6, goldReward: 92, materialReward: 1 },
-  7: { id: "dark_knight", monsterId: "dark_knight", name: "암흑기사", floor: 7, maxHp: 205, baseAttack: 7, diceCount: 2, diceSides: 7, goldReward: 115, materialReward: 2 },
-  8: { id: "rift_mage", monsterId: "rift_mage", name: "균열 마도사", floor: 8, maxHp: 230, baseAttack: 8, diceCount: 2, diceSides: 7, goldReward: 135, materialReward: 2 },
-  9: { id: "black_iron_watcher", monsterId: "black_iron_watcher", name: "흑철감시자", floor: 9, maxHp: 285, baseAttack: 8, diceCount: 2, diceSides: 8, goldReward: 160, materialReward: 2 },
-  10: { id: "dragon_boss", monsterId: "dragon_boss", name: "드래곤 보스", floor: 10, maxHp: 350, baseAttack: 9, diceCount: 2, diceSides: 8, goldReward: 200, materialReward: 0 },
+  1: { id: "slime", monsterId: "slime", name: "슬라임", floor: 1, maxHp: 40, baseAttack: 2, baseDefense: 1, diceCount: 2, diceSides: 6, goldReward: 20, materialReward: 0 },
+  2: { id: "mushroom", monsterId: "mushroom", name: "버섯", floor: 2, maxHp: 58, baseAttack: 3, baseDefense: 1, diceCount: 2, diceSides: 6, goldReward: 28, materialReward: 0 },
+  3: { id: "goblin", monsterId: "goblin", name: "고블린", floor: 3, maxHp: 82, baseAttack: 4, baseDefense: 2, diceCount: 2, diceSides: 6, goldReward: 38, materialReward: 1 },
+  4: { id: "orc", monsterId: "orc", name: "오크", floor: 4, maxHp: 115, baseAttack: 5, baseDefense: 2, diceCount: 2, diceSides: 6, goldReward: 52, materialReward: 1 },
+  5: { id: "mid_boss", monsterId: "gatekeeper", name: "탑 수문장", floor: 5, maxHp: 180, baseAttack: 6, baseDefense: 3, diceCount: 2, diceSides: 6, goldReward: 100, materialReward: 2 },
+  6: { id: "wolf", monsterId: "wolf", name: "늑대", floor: 6, maxHp: 155, baseAttack: 7, baseDefense: 3, diceCount: 2, diceSides: 6, goldReward: 92, materialReward: 1 },
+  7: { id: "dark_knight", monsterId: "dark_knight", name: "암흑기사", floor: 7, maxHp: 205, baseAttack: 7, baseDefense: 3, diceCount: 2, diceSides: 7, goldReward: 115, materialReward: 2 },
+  8: { id: "rift_mage", monsterId: "rift_mage", name: "균열 마도사", floor: 8, maxHp: 230, baseAttack: 8, baseDefense: 4, diceCount: 2, diceSides: 7, goldReward: 135, materialReward: 2 },
+  9: { id: "black_iron_watcher", monsterId: "black_iron_watcher", name: "흑철감시자", floor: 9, maxHp: 285, baseAttack: 8, baseDefense: 4, diceCount: 2, diceSides: 8, goldReward: 160, materialReward: 2 },
+  10: { id: "dragon_boss", monsterId: "dragon_boss", name: "드래곤 보스", floor: 10, maxHp: 350, baseAttack: 9, baseDefense: 5, diceCount: 2, diceSides: 8, goldReward: 200, materialReward: 0 },
 };
 
 function createTowerEnemyForFloor(floor) {
@@ -2668,25 +2666,60 @@ function createTowerEnemyForFloor(floor) {
     floor,
     maxHp: template.maxHp + overflow * 45,
     baseAttack: template.baseAttack + overflow,
+    baseDefense: template.baseDefense + Math.floor(overflow / 2),
+    defenseDiceCount: template.defenseDiceCount || template.diceCount,
+    defenseDiceSides: template.defenseDiceSides || template.diceSides,
+    defenseDiceMin: template.defenseDiceMin || 1,
     imagePath: MONSTER_IMAGE_PATHS[template.monsterId],
   };
-  return { ...scaled, hp: scaled.maxHp };
+  return { ...scaled, hp: scaled.maxHp, isBoss: isBossFloor(floor), boss: isBossFloor(floor) };
 }
 
-function getAccessoryById(accessoryId) {
-  return ACCESSORIES.find((item) => item.id === accessoryId) || null;
+function delay(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-function getEquipmentBonuses(equipment = DEFAULT_PLAYER_EQUIPMENT) {
-  const items = Object.values(equipment || {}).filter(Boolean);
+function getNextBossProgress(currentFloor) {
+  const safeFloor = Math.max(1, Number(currentFloor || 1));
+  const nextBossFloor = BOSS_FLOORS.find((floor) => floor >= safeFloor);
+  if (!nextBossFloor) {
+    return {
+      nextBossFloor: null,
+      remainingFloors: 0,
+      label: "모든 보스 목표를 완료했습니다.",
+    };
+  }
+
+  const remainingFloors = Math.max(0, nextBossFloor - safeFloor);
+  if (remainingFloors === 0) {
+    return {
+      nextBossFloor,
+      remainingFloors,
+      label: `${nextBossFloor}층 ${getBossFloorLabel(nextBossFloor)} 도전 가능`,
+    };
+  }
+
+  return {
+    nextBossFloor,
+    remainingFloors,
+    label: `${nextBossFloor}층 ${getBossFloorLabel(nextBossFloor)}까지 ${remainingFloors}층 남음`,
+  };
+}
+
+function formatPercent(value) {
+  return `${Math.round(Number(value || 0) * 100)}%`;
+}
+
+function getEquipmentBonuses(equipment = DEFAULT_PLAYER_EQUIPMENT, equippedAccessory = equipment?.accessory || null) {
+  const items = [equipment?.weapon, equipment?.armor, equippedAccessory].filter(Boolean);
   return items.reduce(
     (total, item) => ({
-      attackBonus: total.attackBonus + (item.attackBonus || 0),
-      defenseBonus: total.defenseBonus + (item.defenseBonus || 0),
-      maxHpBonus: total.maxHpBonus + (item.maxHpBonus || 0),
-      diceTotalBonus: total.diceTotalBonus + (item.diceTotalBonus || 0),
-      diceMinBonus: total.diceMinBonus + (item.diceMinBonus || 0),
-      diceMaxBonus: total.diceMaxBonus + (item.diceMaxBonus || 0),
+      attackBonus: total.attackBonus + getAccessoryEffectValue(item, "attackBonus"),
+      defenseBonus: total.defenseBonus + getAccessoryEffectValue(item, "defenseBonus"),
+      maxHpBonus: total.maxHpBonus + getAccessoryEffectValue(item, "maxHpBonus"),
+      diceTotalBonus: total.diceTotalBonus + getAccessoryEffectValue(item, "diceTotalBonus"),
+      diceMinBonus: total.diceMinBonus + getAccessoryEffectValue(item, "diceMinBonus"),
+      diceMaxBonus: total.diceMaxBonus + getAccessoryEffectValue(item, "diceMaxBonus"),
     }),
     {
       attackBonus: 0,
@@ -2700,8 +2733,8 @@ function getEquipmentBonuses(equipment = DEFAULT_PLAYER_EQUIPMENT) {
 }
 
 function getBossReward(floor) {
-  if (floor === 5) return { diceUpgradeMaterial: 1, accessoryId: "lucky_charm" };
-  if (floor === 10) return { diceUpgradeMaterial: 2, accessoryId: "steady_ring" };
+  if (floor === 5) return { diceUpgradeMaterial: 1 };
+  if (floor === 10) return { diceUpgradeMaterial: 2 };
   return null;
 }
 
@@ -2717,14 +2750,21 @@ function getBossFloorLabel(floor) {
 
 function getAccessoryEffectText(item) {
   if (!item) return "효과 없음";
-  const parts = [];
-  if (item.attackBonus) parts.push(`공격력 +${item.attackBonus}`);
-  if (item.defenseBonus) parts.push(`방어력 +${item.defenseBonus}`);
-  if (item.maxHpBonus) parts.push(`최대 HP +${item.maxHpBonus}`);
-  if (item.diceTotalBonus) parts.push(`주사위 합계 +${item.diceTotalBonus}`);
-  if (item.diceMinBonus) parts.push(`주사위 최소값 +${item.diceMinBonus}`);
-  if (item.diceMaxBonus) parts.push(`주사위 최대 눈금 +${item.diceMaxBonus}`);
+  const percentEffects = new Set(["potionDropBonus", "bossDamageBonus", "goldBonus", "enemyAttackReduction"]);
+  const multiplierEffects = new Set(["doubleDamageBonus", "doubleDefenseBonus"]);
+  const parts = (item.effects || []).map((effect) => {
+    const label = ACCESSORY_EFFECT_LABELS[effect.type] || effect.type;
+    const value = Number(effect.value || 0);
+    const sign = value > 0 ? "+" : "";
+    if (percentEffects.has(effect.type)) return `${label} ${sign}${Math.round(value * 100)}%`;
+    if (multiplierEffects.has(effect.type)) return `${label} ${sign}${value}`;
+    return `${label} ${sign}${value}`;
+  });
   return parts.join(" / ") || item.description || "효과 없음";
+}
+
+function getAccessoryRarityLabel(accessory) {
+  return ACCESSORY_RARITY_LABELS[accessory?.rarity] || "일반";
 }
 
 function calculateDiceShardReward(reachedFloor) {
@@ -2767,16 +2807,16 @@ function createTowerBasePlayer({ difficultyMode, diceShardUpgrades } = {}) {
   };
 }
 
-function calculateAttackDamage(baseAttack, diceTotal, isDouble) {
-  return Math.floor(Number(baseAttack || 0) * Number(diceTotal || 0) * (isDouble ? DOUBLE_MULTIPLIER : 1));
+function calculateAttackDamage(baseAttack, diceTotal, isDouble, doubleMultiplier = DOUBLE_MULTIPLIER) {
+  return Math.floor(Number(baseAttack || 0) * Number(diceTotal || 0) * (isDouble ? doubleMultiplier : 1));
 }
 
-function calculateDefenseValue(baseDefense, diceTotal, isDouble) {
-  return Math.floor(Number(baseDefense || 0) * Number(diceTotal || 0) * (isDouble ? DOUBLE_MULTIPLIER : 1));
+function calculateDefenseValue(baseDefense, diceTotal, isDouble, doubleMultiplier = DOUBLE_MULTIPLIER) {
+  return Math.floor(Number(baseDefense || 0) * Number(diceTotal || 0) * (isDouble ? doubleMultiplier : 1));
 }
 
-function rollPotionDrop() {
-  return Math.random() < POTION_DROP_CHANCE;
+function rollPotionDrop(finalPotionDropChance = POTION_DROP_CHANCE) {
+  return Math.random() < finalPotionDropChance;
 }
 
 function rollDice(count, sides, min = 1) {
@@ -5046,42 +5086,150 @@ function DungeonProgressPanel({ currentDepth, maxDepth, currentRoomType, isRoomC
   );
 }
 
-function DiceRollDisplay({ title, roll, tone = "player" }) {
+function DiceRollDisplay({ title, roll, tone = "player", isRolling = false, compact = false }) {
+  const [rollingDice, setRollingDice] = useState([1, 6]);
   const toneClass =
     tone === "enemy"
-      ? "border-red-200 bg-red-50 text-red-950"
+      ? "border-red-300/30 bg-red-950/35 text-red-50"
       : tone === "defense"
-        ? "border-cyan-200 bg-cyan-50 text-cyan-950"
-        : "border-amber-200 bg-amber-50 text-amber-950";
+        ? "border-cyan-300/30 bg-cyan-950/35 text-cyan-50"
+        : "border-amber-300/30 bg-amber-950/35 text-amber-50";
+
+  useEffect(() => {
+    if (!isRolling) return undefined;
+    const intervalId = window.setInterval(() => {
+      setRollingDice([randomInt(1, 6), randomInt(1, 6)]);
+    }, 85);
+    return () => window.clearInterval(intervalId);
+  }, [isRolling]);
+
   const dice = roll?.dice || [];
   const double = isDoubleRoll(roll);
+  const placeholder = isRolling ? rollingDice : ["-", "-"];
 
   return (
-    <section className={`rounded-2xl border p-4 ${toneClass}`}>
+    <section className={`dice-roll-card rounded-2xl border p-4 ${toneClass} ${isRolling ? "is-rolling" : ""} ${double ? `is-double ${tone}` : ""}`}>
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-sm font-black">{title}</h3>
-        {double && <span className="rounded-full bg-slate-950 px-2 py-1 text-[11px] font-black text-white">더블!</span>}
+        {double && <span className="dice-pop-label">{tone === "defense" ? "강화 방어!" : tone === "enemy" ? "더블!" : "치명타!"}</span>}
       </div>
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className={`mt-3 flex flex-wrap gap-2 ${compact ? "justify-center" : ""}`}>
         {dice.length > 0 ? (
           dice.map((value, index) => (
             <div
               key={`${title}-${index}-${value}`}
-              className={`grid h-14 w-14 place-items-center rounded-2xl border-2 bg-white text-2xl font-black shadow-sm ${
-                double ? "border-slate-950" : "border-white"
+              className={`dice-face grid ${compact ? "h-16 w-16 text-3xl" : "h-14 w-14 text-2xl"} place-items-center rounded-2xl border-2 bg-white font-black text-slate-950 shadow-sm ${
+                double ? "is-double-face" : ""
               }`}
             >
               {value}
             </div>
           ))
         ) : (
-          <>
-            <div className="grid h-14 w-14 place-items-center rounded-2xl border-2 border-dashed border-slate-300 bg-white/70 text-2xl font-black text-slate-400">-</div>
-            <div className="grid h-14 w-14 place-items-center rounded-2xl border-2 border-dashed border-slate-300 bg-white/70 text-2xl font-black text-slate-400">-</div>
-          </>
+          placeholder.map((value, index) => (
+            <div key={`${title}-placeholder-${index}`} className={`dice-face ${isRolling ? "is-shuffling" : ""} grid ${compact ? "h-16 w-16 text-3xl" : "h-14 w-14 text-2xl"} place-items-center rounded-2xl border-2 border-dashed border-slate-500 bg-white/85 font-black text-slate-500`}>
+              {value}
+            </div>
+          ))
         )}
       </div>
       <div className="mt-3 text-sm font-black">합계 {roll?.total ?? "-"}</div>
+    </section>
+  );
+}
+
+function DiceDuelPanel({
+  battlePhase,
+  battleActionState,
+  lastDiceResults,
+  lastPlayerAttackRoll,
+  lastEnemyDefenseRoll,
+  lastPlayerDefenseRoll,
+  lastEnemyAttackRoll,
+  debugCombatFormulas,
+  battleHighlight,
+}) {
+  const isAttack = battlePhase === "playerAttack";
+  const steps = isAttack
+    ? [
+        { key: "rollingPlayerAttack", label: "공격 굴림" },
+        { key: "rollingEnemyDefense", label: "적 방어" },
+        { key: "resolvingPlayerAttack", label: "피해 계산" },
+      ]
+    : [
+        { key: "rollingPlayerDefense", label: "방어 굴림" },
+        { key: "rollingEnemyAttack", label: "적 공격" },
+        { key: "resolvingEnemyAttack", label: "피해 계산" },
+      ];
+  const activeIndex = Math.max(
+    0,
+    steps.findIndex((step) =>
+      battleActionState === step.key ||
+      (battleActionState === "waitingEnemyDefense" && step.key === "rollingEnemyDefense") ||
+      (battleActionState === "waitingEnemyAttack" && step.key === "rollingEnemyAttack")
+    )
+  );
+  const primaryRoll = isAttack ? lastPlayerAttackRoll : lastPlayerDefenseRoll;
+  const secondaryRoll = isAttack ? lastEnemyDefenseRoll : lastEnemyAttackRoll;
+  const primaryTone = isAttack ? "player" : "defense";
+  const secondaryTone = isAttack ? "enemy" : "enemy";
+  const primaryLabel = isAttack ? "플레이어 공격 주사위" : "플레이어 방어 주사위";
+  const secondaryLabel = isAttack ? "적 방어 주사위" : "적 공격 주사위";
+  const primaryValue = isAttack ? lastDiceResults.playerAttack?.attackValue : lastDiceResults.playerDefense?.defenseValue;
+  const secondaryValue = isAttack ? lastDiceResults.enemyDefense?.defenseValue : lastDiceResults.enemyAttack?.attackValue;
+  const finalValue = isAttack ? lastDiceResults.playerAttack?.finalDamage : lastDiceResults.playerDefense?.finalDamageTaken;
+  const formula = isAttack
+    ? debugCombatFormulas.playerDamageFormula || debugCombatFormulas.playerAttackFormula
+    : debugCombatFormulas.enemyDamageFormula || debugCombatFormulas.playerDefenseFormula;
+  const primaryRolling = ["rollingPlayerAttack", "rollingPlayerDefense"].includes(battleActionState);
+  const secondaryRolling = ["waitingEnemyDefense", "rollingEnemyDefense", "waitingEnemyAttack", "rollingEnemyAttack"].includes(battleActionState);
+
+  return (
+    <section className={`dice-duel-panel ${isAttack ? "is-attack" : "is-defense"}`}>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <div className="text-sm font-black uppercase tracking-[0.18em] text-slate-300">Board Dice Duel</div>
+          <h2 className="mt-1 text-3xl font-black">{isAttack ? "공격턴" : "수비턴"}</h2>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-black">
+          현재 진행: {BATTLE_ACTION_LABELS[battleActionState] || "대기"}
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-2 md:grid-cols-3">
+        {steps.map((step, index) => (
+          <div key={step.key} className={`duel-step ${index === activeIndex && battleActionState !== "idle" ? "is-active" : ""} ${index < activeIndex ? "is-complete" : ""}`}>
+            {step.label}
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-6 grid items-stretch gap-4 lg:grid-cols-[1fr_auto_1fr]">
+        <DiceRollDisplay title={primaryLabel} roll={primaryRoll} tone={primaryTone} isRolling={primaryRolling} compact />
+        <div className="grid place-items-center text-3xl font-black text-white/60">vs</div>
+        <DiceRollDisplay title={secondaryLabel} roll={secondaryRoll} tone={secondaryTone} isRolling={secondaryRolling} compact />
+      </div>
+
+      <div className="mt-5 grid gap-3 md:grid-cols-3">
+        <div className="duel-result-tile">
+          <span>{isAttack ? "공격값" : "방어값"}</span>
+          <strong>{primaryValue ?? "-"}</strong>
+        </div>
+        <div className="duel-result-tile">
+          <span>{isAttack ? "적 방어값" : "적 공격값"}</span>
+          <strong>{secondaryValue ?? "-"}</strong>
+        </div>
+        <div className={`duel-result-tile is-final ${finalValue > 0 ? "has-damage" : ""}`}>
+          <span>{isAttack ? "최종 피해" : "받은 피해"}</span>
+          <strong>{finalValue ?? "-"}</strong>
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4">
+        <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">현재 계산식</div>
+        <div className="mt-2 text-base font-black text-white">{formula || "주사위를 굴리면 계산식이 표시됩니다."}</div>
+        {battleHighlight?.message && <div className="mt-2 text-sm font-bold text-slate-300">{battleHighlight.message}</div>}
+      </div>
     </section>
   );
 }
@@ -5117,12 +5265,17 @@ function BattleHighlightPanel({ highlight }) {
 }
 
 function BattleLogPanel({ logs }) {
+  const [expanded, setExpanded] = useState(false);
+  const visibleLogs = expanded ? logs : logs.slice(0, 2);
   return (
-    <aside className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-xl">
-      <h2 className="text-xl font-black">전투 로그</h2>
-      <div className="mt-3 max-h-[520px] space-y-2 overflow-auto pr-1">
+    <aside className="rounded-3xl border border-white/10 bg-black/20 p-5 shadow-xl">
+      <button type="button" onClick={() => setExpanded((current) => !current)} className="flex w-full items-center justify-between gap-3 text-left">
+        <h2 className="text-xl font-black">전투 로그 {expanded ? "▲" : "▼"}</h2>
+        <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-black text-slate-200">{logs.length}개</span>
+      </button>
+      <div className={`${expanded ? "max-h-[520px]" : "max-h-44"} mt-3 space-y-2 overflow-auto pr-1`}>
         {logs.length > 0 ? (
-          logs.map((entry) => (
+          visibleLogs.map((entry) => (
             <article key={entry.id} className="rounded-2xl bg-white/10 p-3 text-sm text-slate-200">
               <div className="flex items-center justify-between gap-3">
                 <strong className="text-white">{entry.turn ? `[${entry.turn}턴] ${entry.title}` : `[전투 종료] ${entry.title}`}</strong>
@@ -6115,9 +6268,14 @@ export default function DeckbuilderRoguelikePrototype() {
   const [battleLogs, setBattleLogs] = useState([]);
   const [battleTurn, setBattleTurn] = useState(1);
   const [battleHighlight, setBattleHighlight] = useState(null);
+  const [battleActionState, setBattleActionState] = useState("idle");
+  const [isResolvingBattleAction, setIsResolvingBattleAction] = useState(false);
+  const [debugCombatFormulas, setDebugCombatFormulas] = useState({});
+  const [isDebugPanelOpen, setIsDebugPanelOpen] = useState(false);
   const [lastDiceResult, setLastDiceResult] = useState(null);
   const [lastDiceResults, setLastDiceResults] = useState({});
   const [lastPlayerAttackRoll, setLastPlayerAttackRoll] = useState(null);
+  const [lastEnemyDefenseRoll, setLastEnemyDefenseRoll] = useState(null);
   const [lastEnemyAttackRoll, setLastEnemyAttackRoll] = useState(null);
   const [lastPlayerDefenseRoll, setLastPlayerDefenseRoll] = useState(null);
   const [pendingEnemyAttack, setPendingEnemyAttack] = useState(null);
@@ -6129,6 +6287,9 @@ export default function DeckbuilderRoguelikePrototype() {
   const [diceUpgradeMaterial, setDiceUpgradeMaterial] = useState(0);
   const [playerEquipment, setPlayerEquipment] = useState(DEFAULT_PLAYER_EQUIPMENT);
   const [ownedAccessories, setOwnedAccessories] = useState([]);
+  const [equippedAccessoryId, setEquippedAccessoryId] = useState(null);
+  const [accessoryHistory, setAccessoryHistory] = useState([]);
+  const [temporaryAccessoryEffects, setTemporaryAccessoryEffects] = useState([]);
   const [difficultyMode, setDifficultyMode] = useState(null);
   const [diceShards, setDiceShards] = useState(0);
   const [diceShardUpgrades, setDiceShardUpgrades] = useState(DEFAULT_DICE_SHARD_UPGRADES);
@@ -6182,6 +6343,8 @@ export default function DeckbuilderRoguelikePrototype() {
   const enemyActorRefs = useRef([]);
   const saveReadyRef = useRef(false);
   const resolvingActionRef = useRef(false);
+  const mountedRef = useRef(false);
+  const battleActionSeqRef = useRef(0);
 
   const liveEnemyIndex = getFirstAliveEnemyIndex(enemies);
   const safeSelectedEnemyIndex =
@@ -6199,6 +6362,28 @@ export default function DeckbuilderRoguelikePrototype() {
   const currentClearedNodeIds = getClearedNodeIds(clearedNodesByFloor, currentFloor);
   const currentFloorUnlocked = isFloorUnlocked(unlockedFloors, currentFloor);
   const currentFloorCleared = clearedFloors.includes(currentFloor);
+  const isDev = import.meta.env.DEV;
+  const isBattleBusy = battleActionState !== "idle" || isResolvingBattleAction || isResolvingAction;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      battleActionSeqRef.current += 1;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isDev) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.shiftKey && event.key.toLowerCase() === "d") {
+        event.preventDefault();
+        setIsDebugPanelOpen((current) => !current);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isDev]);
 
   useEffect(() => {
     const savedPermanentData = loadPermanentData();
@@ -6247,9 +6432,13 @@ export default function DeckbuilderRoguelikePrototype() {
     battleLogs,
     battleTurn,
     battleHighlight,
+    battleActionState,
+    isResolvingBattleAction,
+    debugCombatFormulas,
     lastDiceResult,
     lastDiceResults,
     lastPlayerAttackRoll,
+    lastEnemyDefenseRoll,
     lastEnemyAttackRoll,
     lastPlayerDefenseRoll,
     pendingEnemyAttack,
@@ -6261,6 +6450,9 @@ export default function DeckbuilderRoguelikePrototype() {
     diceUpgradeMaterial,
     playerEquipment,
     ownedAccessories,
+    equippedAccessoryId,
+    accessoryHistory,
+    temporaryAccessoryEffects,
     difficultyMode,
     diceShards,
     diceShardUpgrades,
@@ -6334,8 +6526,29 @@ export default function DeckbuilderRoguelikePrototype() {
     return playerState.resources?.[UPGRADE_MATERIAL_ID] || 0;
   }
 
+  function getEquippedAccessory() {
+    if (!equippedAccessoryId) return null;
+    return ownedAccessories.find((item) => item.id === equippedAccessoryId) || getAccessoryById(equippedAccessoryId);
+  }
+
+  function getEquippedAccessoryEffectValue(effectType) {
+    return getAccessoryEffectValue(getEquippedAccessory(), effectType);
+  }
+
+  function getAttackDoubleMultiplier() {
+    return DOUBLE_MULTIPLIER + getEquippedAccessoryEffectValue("doubleDamageBonus");
+  }
+
+  function getDefenseDoubleMultiplier() {
+    return DOUBLE_MULTIPLIER + getEquippedAccessoryEffectValue("doubleDefenseBonus");
+  }
+
+  function getCurrentPotionDropChance() {
+    return Math.min(MAX_POTION_DROP_CHANCE, POTION_DROP_CHANCE + getEquippedAccessoryEffectValue("potionDropBonus"));
+  }
+
   function getCurrentEquipmentBonuses() {
-    return getEquipmentBonuses(playerEquipment);
+    return getEquipmentBonuses(playerEquipment, getEquippedAccessory());
   }
 
   function getFinalMaxHp() {
@@ -6409,9 +6622,13 @@ export default function DeckbuilderRoguelikePrototype() {
     setBattleLogs([]);
     setBattleTurn(1);
     setBattleHighlight(null);
+    setBattleActionState("idle");
+    setIsResolvingBattleAction(false);
+    setDebugCombatFormulas({});
     setLastDiceResult(null);
     setLastDiceResults({});
     setLastPlayerAttackRoll(null);
+    setLastEnemyDefenseRoll(null);
     setLastEnemyAttackRoll(null);
     setLastPlayerDefenseRoll(null);
     setPendingEnemyAttack(null);
@@ -6419,11 +6636,15 @@ export default function DeckbuilderRoguelikePrototype() {
     setNextBattleBuff({ attack: 0, defense: 0 });
     setIsResolvingAction(false);
     resolvingActionRef.current = false;
+    battleActionSeqRef.current += 1;
     setPlayer(basePlayer);
     setPlayerDice(DEFAULT_PLAYER_DICE);
     setDiceUpgradeMaterial(0);
     setPlayerEquipment(DEFAULT_PLAYER_EQUIPMENT);
     setOwnedAccessories([]);
+    setEquippedAccessoryId(null);
+    setAccessoryHistory([]);
+    setTemporaryAccessoryEffects([]);
     setPotions(0);
     setPhase("tower");
     setHasSavedRun(true);
@@ -6439,7 +6660,17 @@ export default function DeckbuilderRoguelikePrototype() {
     setBattleResult(null);
     setBattleRewardSummary(null);
     setLastDiceResult(null);
+    setLastDiceResults({});
+    setLastPlayerAttackRoll(null);
+    setLastEnemyDefenseRoll(null);
+    setLastEnemyAttackRoll(null);
+    setLastPlayerDefenseRoll(null);
     setBattlePhase("playerAttack");
+    setBattleActionState("idle");
+    setIsResolvingBattleAction(false);
+    setIsResolvingAction(false);
+    resolvingActionRef.current = false;
+    battleActionSeqRef.current += 1;
     setPlayer((current) => ({
       ...current,
       hp: Math.min(getFinalMaxHp(), Math.max(1, current.hp || 1)),
@@ -6467,16 +6698,19 @@ export default function DeckbuilderRoguelikePrototype() {
     const accessory = getAccessoryById(accessoryId);
     if (!accessory) return null;
     setOwnedAccessories((current) => (current.some((item) => item.id === accessory.id) ? current : [...current, accessory]));
+    setAccessoryHistory((current) => (current.includes(accessory.id) ? current : [...current, accessory.id]));
     return accessory;
   }
 
   function equipAccessory(accessoryId) {
     const accessory = ownedAccessories.find((item) => item.id === accessoryId);
     if (!accessory) return;
+    setEquippedAccessoryId(accessory.id);
     setPlayerEquipment((current) => ({ ...current, accessory }));
   }
 
   function unequipAccessory() {
+    setEquippedAccessoryId(null);
     setPlayerEquipment((current) => ({ ...current, accessory: null }));
   }
 
@@ -6552,7 +6786,9 @@ export default function DeckbuilderRoguelikePrototype() {
     if (!enemyState) return null;
     const enemyRoll = rollDice(enemyState.diceCount, enemyState.diceSides, enemyState.diceMin || 1);
     const isDouble = isDoubleRoll(enemyRoll);
-    const attackValue = enemyState.baseAttack * enemyRoll.total;
+    const enemyAttackReduction = getEquippedAccessoryEffectValue("enemyAttackReduction");
+    const rawAttackValue = enemyState.baseAttack * enemyRoll.total;
+    const attackValue = Math.max(0, Math.floor(rawAttackValue * (1 - enemyAttackReduction)));
     return {
       rolls: enemyRoll.dice,
       dice: enemyRoll.dice,
@@ -6561,6 +6797,33 @@ export default function DeckbuilderRoguelikePrototype() {
       attackValue,
       isDouble,
     };
+  }
+
+  function createEnemyDefenseRoll(enemyState = currentEnemy) {
+    if (!enemyState) return null;
+    const enemyRoll = rollDice(
+      enemyState.defenseDiceCount || enemyState.diceCount || 2,
+      enemyState.defenseDiceSides || enemyState.diceSides || 6,
+      enemyState.defenseDiceMin || enemyState.diceMin || 1
+    );
+    const isDouble = isDoubleRoll(enemyRoll);
+    const defenseValue = Math.floor(Number(enemyState.baseDefense || 0) * enemyRoll.total);
+    return {
+      rolls: enemyRoll.dice,
+      dice: enemyRoll.dice,
+      diceTotal: enemyRoll.total,
+      total: enemyRoll.total,
+      defenseValue,
+      isDouble,
+    };
+  }
+
+  function resetTowerBattleActionState() {
+    battleActionSeqRef.current += 1;
+    setBattleActionState("idle");
+    setIsResolvingBattleAction(false);
+    setIsResolvingAction(false);
+    resolvingActionRef.current = false;
   }
 
   function startBattleForFloor(floor) {
@@ -6578,18 +6841,23 @@ export default function DeckbuilderRoguelikePrototype() {
     setLastDiceResult(null);
     setLastDiceResults({});
     setLastPlayerAttackRoll(null);
+    setLastEnemyDefenseRoll(null);
     setLastEnemyAttackRoll(null);
     setLastPlayerDefenseRoll(null);
     setPendingEnemyAttack(null);
     setBattleLogs([]);
+    setBattleActionState("idle");
+    setIsResolvingBattleAction(false);
+    setDebugCombatFormulas({});
     setIsResolvingAction(false);
     resolvingActionRef.current = false;
+    battleActionSeqRef.current += 1;
     addBattleLog({
       turn: 1,
       type: "playerAttack",
       title: "전투 시작",
       message: `${floor}층 ${getBossFloorLabel(floor) ? `${getBossFloorLabel(floor)} ` : ""}${enemy.name} 전투 시작`,
-      formula: `${enemy.name}: HP ${enemy.maxHp}, 공격력 ${enemy.baseAttack}, 주사위 ${enemy.diceCount}D${enemy.diceSides}`,
+      formula: `${enemy.name}: HP ${enemy.maxHp}, 공격력 ${enemy.baseAttack}, 방어력 ${enemy.baseDefense}, 주사위 ${enemy.diceCount}D${enemy.diceSides}`,
       resultValue: enemy.maxHp,
     });
     setPhase("battle");
@@ -6601,12 +6869,24 @@ export default function DeckbuilderRoguelikePrototype() {
     const unlockedFloor = Math.min(MAX_TOWER_FLOOR, Math.max(highestUnlockedFloor, selectedFloor + 1));
     const newlyUnlocked = unlockedFloor > highestUnlockedFloor ? unlockedFloor : null;
     const bossReward = getBossReward(selectedFloor);
-    const bossAccessory = bossReward?.accessoryId ? getAccessoryById(bossReward.accessoryId) : null;
-    const alreadyOwnedAccessory = bossAccessory ? ownedAccessories.some((item) => item.id === bossAccessory.id) : false;
-    const potionDropped = rollPotionDrop();
+    const equippedAccessory = getEquippedAccessory();
+    const potionDropBonus = getAccessoryEffectValue(equippedAccessory, "potionDropBonus");
+    const finalPotionDropChance = Math.min(MAX_POTION_DROP_CHANCE, POTION_DROP_CHANCE + potionDropBonus);
+    const potionDropped = rollPotionDrop(finalPotionDropChance);
+    const accessoryDrop = rollAccessoryDrop(enemySnapshot, {
+      normal: NORMAL_ACCESSORY_DROP_CHANCE,
+      boss: BOSS_ACCESSORY_DROP_CHANCE,
+    });
+    const alreadyOwnedAccessory = accessoryDrop ? ownedAccessories.some((item) => item.id === accessoryDrop.id) : false;
+    const duplicateAccessoryGold = alreadyOwnedAccessory ? getDuplicateAccessoryGold(accessoryDrop) : 0;
+    const healAfterBattle = getAccessoryEffectValue(equippedAccessory, "healAfterBattle");
+    const goldBonus = getAccessoryEffectValue(equippedAccessory, "goldBonus");
+    const baseGoldReward = Math.floor(enemySnapshot.goldReward * (1 + goldBonus));
+    const totalGoldReward = baseGoldReward + duplicateAccessoryGold;
     setPlayer((current) => ({
       ...current,
-      gold: (current.gold || 0) + enemySnapshot.goldReward,
+      gold: (current.gold || 0) + totalGoldReward,
+      hp: healAfterBattle > 0 ? Math.min(getFinalMaxHp(), (current.hp || 0) + healAfterBattle) : current.hp,
       resources: {
         ...(current.resources || {}),
         [UPGRADE_MATERIAL_ID]: (current.resources?.[UPGRADE_MATERIAL_ID] || 0) + enemySnapshot.materialReward,
@@ -6615,8 +6895,9 @@ export default function DeckbuilderRoguelikePrototype() {
     if (bossReward?.diceUpgradeMaterial) {
       setDiceUpgradeMaterial((current) => current + bossReward.diceUpgradeMaterial);
     }
-    if (bossReward?.accessoryId) {
-      addAccessoryIfNotOwned(bossReward.accessoryId);
+    if (accessoryDrop && !alreadyOwnedAccessory) {
+      setOwnedAccessories((current) => (current.some((item) => item.id === accessoryDrop.id) ? current : [...current, accessoryDrop]));
+      setAccessoryHistory((current) => [...current, accessoryDrop.id]);
     }
     if (potionDropped) {
       setPotions((current) => current + 1);
@@ -6629,11 +6910,14 @@ export default function DeckbuilderRoguelikePrototype() {
     setBattleRewardSummary({
       result: "win",
       floor: selectedFloor,
-      gold: enemySnapshot.goldReward,
+      gold: totalGoldReward,
+      baseGold: baseGoldReward,
       material: enemySnapshot.materialReward,
       diceMaterial: bossReward?.diceUpgradeMaterial || 0,
-      accessory: bossAccessory,
+      accessory: accessoryDrop,
       accessoryAlreadyOwned: alreadyOwnedAccessory,
+      duplicateAccessoryGold,
+      healAfterBattle,
       potionDropped,
       isBoss: isBossFloor(selectedFloor),
       newlyUnlocked,
@@ -6642,19 +6926,25 @@ export default function DeckbuilderRoguelikePrototype() {
       type: "victory",
       title: selectedFloor === 10 ? "탑 정복!" : selectedFloor === 5 ? "중간보스 처치!" : "승리!",
       message: `${enemySnapshot.name}을(를) 처치했습니다. 보상을 획득했습니다.`,
-      formula: `보상: 골드 ${enemySnapshot.goldReward}, 장비 재료 ${enemySnapshot.materialReward}${
+      formula: `보상: 골드 ${totalGoldReward}, 장비 재료 ${enemySnapshot.materialReward}${
         bossReward?.diceUpgradeMaterial ? `, 주사위 재료 ${bossReward.diceUpgradeMaterial}` : ""
-      }${potionDropped ? ", 회복 물약 1" : ""}`,
+      }${potionDropped ? ", 회복 물약 1" : ""}${accessoryDrop ? `, 장신구 ${accessoryDrop.name}` : ""}`,
     });
     addBattleLog({
       turn: 0,
       type: "victory",
       title: selectedFloor === 10 ? "탑 정복" : selectedFloor === 5 ? "중간보스 처치" : "승리",
-      message: `${enemySnapshot.name} 처치 / 골드 ${enemySnapshot.goldReward} 획득 / 장비 재료 ${enemySnapshot.materialReward} 획득${
+      message: `${enemySnapshot.name} 처치 / 골드 ${totalGoldReward} 획득 / 장비 재료 ${enemySnapshot.materialReward} 획득${
         bossReward?.diceUpgradeMaterial ? ` / 주사위 재료 ${bossReward.diceUpgradeMaterial} 획득` : ""
-      }${potionDropped ? " / 몬스터 처치 보너스: 회복 물약을 발견했습니다!" : ""}`,
+      }${potionDropped ? " / 몬스터 처치 보너스: 회복 물약을 발견했습니다!" : ""}${
+        accessoryDrop
+          ? alreadyOwnedAccessory
+            ? ` / 중복 장신구 ${accessoryDrop.name}: 골드 ${duplicateAccessoryGold}로 변환`
+            : ` / 장신구 획득: [${getAccessoryRarityLabel(accessoryDrop)}] ${accessoryDrop.name}`
+          : ""
+      }${healAfterBattle > 0 ? ` / ${equippedAccessory.name} 효과: 전투 승리 후 체력 ${healAfterBattle} 회복` : ""}`,
       formula: newlyUnlocked ? `${newlyUnlocked}층 해금` : "추가 해금 없음",
-      resultValue: enemySnapshot.goldReward,
+      resultValue: totalGoldReward,
     });
     setPendingEnemyAttack(null);
     setBattleResult("win");
@@ -6702,156 +6992,293 @@ export default function DeckbuilderRoguelikePrototype() {
       setDiceUpgradeMaterial(0);
       setPlayerEquipment(DEFAULT_PLAYER_EQUIPMENT);
       setOwnedAccessories([]);
+      setEquippedAccessoryId(null);
+      setAccessoryHistory([]);
+      setTemporaryAccessoryEffects([]);
       setPotions(0);
       setHighestClearedFloor(0);
       setHighestUnlockedFloor(1);
       setUnlockedFloors([1]);
+      setSelectedFloor(1);
+      setCurrentFloor(1);
       setAttemptedFloors([]);
       setClearedFloors([]);
       setClearedNodesByFloor({});
       setCurrentEnemy(null);
+      setBattleLogs([]);
+      setLastDiceResult(null);
+      setLastDiceResults({});
+      setLastPlayerAttackRoll(null);
+      setLastEnemyDefenseRoll(null);
+      setLastEnemyAttackRoll(null);
+      setLastPlayerDefenseRoll(null);
+      setPendingEnemyAttack(null);
     }
+    setBattleActionState("idle");
+    setIsResolvingBattleAction(false);
+    setIsResolvingAction(false);
+    resolvingActionRef.current = false;
     setBattleResult("lose");
     setBattlePhase("finished");
     setPhase("battleResult");
   }
 
-  function rollPlayerAttackDice() {
-    if (phase !== "battle" || battlePhase !== "playerAttack" || !currentEnemy || resolvingActionRef.current) return;
+  async function rollPlayerAttackDice() {
+    if (phase !== "battle" || battlePhase !== "playerAttack" || !currentEnemy || isBattleBusy || resolvingActionRef.current) return;
+
+    const actionId = battleActionSeqRef.current + 1;
+    battleActionSeqRef.current = actionId;
     resolvingActionRef.current = true;
     setIsResolvingAction(true);
+    setIsResolvingBattleAction(true);
+    setBattleActionState("rollingPlayerAttack");
+
+    const enemySnapshot = currentEnemy;
     const effectiveDice = getEffectivePlayerDice();
     const playerRoll = rollDice(effectiveDice.count, effectiveDice.sides, effectiveDice.min);
     const adjustedTotal = getAdjustedDiceTotal(playerRoll);
-    const attackValue = getPlayerAttackValue();
-    const double = isDoubleRoll(playerRoll);
-    const damage = calculateAttackDamage(attackValue, adjustedTotal, double);
-    const nextEnemy = { ...currentEnemy, hp: Math.max(0, currentEnemy.hp - damage) };
-    setCurrentEnemy(nextEnemy);
+    const equippedAccessory = getEquippedAccessory();
+    const firstTurnAttackBonus = battleTurn === 1 ? getAccessoryEffectValue(equippedAccessory, "firstTurnAttackBonus") : 0;
+    const lowHpAttackBonus =
+      player.hp <= getFinalMaxHp() * 0.3 ? getAccessoryEffectValue(equippedAccessory, "lowHpAttackBonus") : 0;
+    const attackStat = getPlayerAttackValue() + firstTurnAttackBonus + lowHpAttackBonus;
+    const attackDoubleMultiplier = getAttackDoubleMultiplier();
+    const playerAttackDouble = isDoubleRoll(playerRoll);
+    const attackValue = calculateAttackDamage(attackStat, adjustedTotal, playerAttackDouble, attackDoubleMultiplier);
+    const playerAttackFormula = `플레이어 공격값 = 공격력 ${attackStat} x 주사위 합계 ${adjustedTotal}${
+      playerAttackDouble ? ` x 더블 배율 ${attackDoubleMultiplier}` : ""
+    } = ${attackValue}`;
+
     setLastPlayerAttackRoll(playerRoll);
+    setLastEnemyDefenseRoll(null);
     setLastPlayerDefenseRoll(null);
-    setLastDiceResult({
-      type: "attack",
-      playerRoll,
-      formula: `공격 피해 = 공격력 ${attackValue} x 주사위 합계 ${getDiceFormulaTotalText(playerRoll)}${double ? ` x ${DOUBLE_MULTIPLIER}` : ""} = ${damage}`,
-      damage,
-      isDouble: double,
-    });
-    addBattleLog({
-      turn: battleTurn,
-      type: double ? "critical" : "playerAttack",
-      title: double ? "더블 치명타!" : "플레이어 공격",
-      message: `${currentEnemy.name}에게 ${damage} 피해${nextEnemy.hp <= 0 ? " / 처치" : ""}`,
-      formula: `공격력 ${attackValue} x (${playerRoll.dice.join(" + ")}${
-        effectiveDice.totalBonus ? ` + 장신구 ${effectiveDice.totalBonus}` : ""
-      })${double ? ` x ${DOUBLE_MULTIPLIER}` : ""} = ${damage}`,
-      dice: playerRoll.dice,
-      diceTotal: adjustedTotal,
-      resultValue: damage,
-      isDouble: double,
-    });
-    if (nextEnemy.hp <= 0) {
-      setLastEnemyAttackRoll(null);
-      setLastDiceResults({
-        playerAttack: {
-          rolls: playerRoll.dice,
-          diceTotal: adjustedTotal,
-          isDouble: double,
-          finalDamage: damage,
-        },
-      });
-      handleBattleWin(nextEnemy);
-      finishResolvingAction();
-      return;
-    }
-    const enemyAttack = createPendingEnemyAttack(nextEnemy);
-    setPendingEnemyAttack(enemyAttack);
-    setLastEnemyAttackRoll(enemyAttack ? { dice: enemyAttack.rolls, total: enemyAttack.diceTotal } : null);
+    setLastEnemyAttackRoll(null);
+    setPendingEnemyAttack(null);
     setLastDiceResults({
       playerAttack: {
         rolls: playerRoll.dice,
         diceTotal: adjustedTotal,
-        isDouble: double,
-        finalDamage: damage,
+        isDouble: playerAttackDouble,
+        attackValue,
+        finalDamage: null,
       },
-      enemyAttack: enemyAttack
-        ? {
-            rolls: enemyAttack.rolls,
-            diceTotal: enemyAttack.diceTotal,
-            isDouble: enemyAttack.isDouble,
-            attackValue: enemyAttack.attackValue,
-          }
-        : null,
     });
-    if (enemyAttack) {
-      addBattleLog({
-        turn: battleTurn,
-        type: "enemyAttack",
-        title: enemyAttack.isDouble ? "적 더블!" : "적 공격 준비",
-        message: `${currentEnemy.name}이(가) 다음 공격을 준비합니다. 공격값 ${enemyAttack.attackValue}`,
-        formula: `적 공격력 ${currentEnemy.baseAttack} x (${enemyAttack.rolls.join(" + ")}) = ${enemyAttack.attackValue}`,
-        dice: enemyAttack.rolls,
-        diceTotal: enemyAttack.diceTotal,
-        resultValue: enemyAttack.attackValue,
-        isDouble: enemyAttack.isDouble,
-      });
-    }
+    setDebugCombatFormulas((current) => ({
+      ...current,
+      playerAttackFormula,
+      enemyDefenseFormula: "",
+      playerDamageFormula: "",
+    }));
     setBattleHighlight({
-      type: double ? "critical" : "attack",
-      title: double ? "더블 치명타!" : "플레이어 공격!",
-      message: `${currentEnemy.name}에게 ${damage} 피해를 입혔습니다.${enemyAttack ? ` 적 공격값 ${enemyAttack.attackValue}을(를) 수비턴에 막아야 합니다.` : ""}`,
-      formula: `공격력 ${attackValue} x 주사위 합계 ${getDiceFormulaTotalText(playerRoll)}${double ? ` x ${DOUBLE_MULTIPLIER}` : ""} = ${damage}`,
+      type: playerAttackDouble ? "critical" : "attack",
+      title: playerAttackDouble ? "플레이어 공격 주사위 - 더블!" : "플레이어 공격 주사위",
+      message: `주사위 ${playerRoll.dice.join(" + ")} = ${playerRoll.total}. 1초 후 적 방어 주사위가 자동으로 굴러갑니다.`,
+      formula: playerAttackFormula,
     });
-    setBattlePhase("playerDefense");
-    finishResolvingAction();
-  }
 
-  function rollPlayerDefenseDice() {
-    if (phase !== "battle" || battlePhase !== "playerDefense" || !currentEnemy || resolvingActionRef.current) return;
-    resolvingActionRef.current = true;
-    setIsResolvingAction(true);
-    let enemyAttack = pendingEnemyAttack;
-    if (!enemyAttack) {
-      enemyAttack = createPendingEnemyAttack(currentEnemy);
-      addBattleLog({
-        turn: battleTurn,
-        type: "enemyAttack",
-        title: "적 공격 재계산",
-        message: "적 공격 준비값이 없어 새로 계산합니다.",
-        formula: enemyAttack ? `적 공격력 ${currentEnemy.baseAttack} x (${enemyAttack.rolls.join(" + ")}) = ${enemyAttack.attackValue}` : "",
-        dice: enemyAttack?.rolls || [],
-        diceTotal: enemyAttack?.diceTotal || 0,
-        resultValue: enemyAttack?.attackValue || 0,
-      });
-    }
-    if (!enemyAttack) {
-      resolvingActionRef.current = false;
-      setIsResolvingAction(false);
+    setBattleActionState("waitingEnemyDefense");
+    await delay(1000);
+    if (!mountedRef.current || battleActionSeqRef.current !== actionId) return;
+
+    setBattleActionState("rollingEnemyDefense");
+    const enemyDefenseRoll = createEnemyDefenseRoll(enemySnapshot);
+    if (!enemyDefenseRoll) {
+      resetTowerBattleActionState();
       return;
     }
+    setLastEnemyDefenseRoll({ dice: enemyDefenseRoll.rolls, total: enemyDefenseRoll.diceTotal });
+    setLastDiceResults((current) => ({
+      ...current,
+      enemyDefense: {
+        rolls: enemyDefenseRoll.rolls,
+        diceTotal: enemyDefenseRoll.diceTotal,
+        isDouble: enemyDefenseRoll.isDouble,
+        defenseValue: enemyDefenseRoll.defenseValue,
+      },
+    }));
+
+    setBattleActionState("resolvingPlayerAttack");
+    const mitigatedDamage = Math.max(0, attackValue - enemyDefenseRoll.defenseValue);
+    const bossDamageBonus = enemySnapshot.isBoss ? getAccessoryEffectValue(equippedAccessory, "bossDamageBonus") : 0;
+    const finalDamage = Math.floor(mitigatedDamage * (1 + bossDamageBonus));
+    const enemyDefenseFormula = `적 방어값 = 방어력 ${enemySnapshot.baseDefense || 0} x 주사위 합계 ${enemyDefenseRoll.diceTotal} = ${enemyDefenseRoll.defenseValue}`;
+    const playerDamageFormula = `최종 피해 = max(0, ${attackValue} - ${enemyDefenseRoll.defenseValue})${
+      bossDamageBonus > 0 ? ` x 보스 피해 ${1 + bossDamageBonus}` : ""
+    } = ${finalDamage}`;
+    const nextEnemy = { ...enemySnapshot, hp: Math.max(0, enemySnapshot.hp - finalDamage) };
+    const activeAccessoryMessages = [
+      firstTurnAttackBonus > 0 ? `${equippedAccessory.name} 효과: 첫 공격턴 공격력 +${firstTurnAttackBonus}` : null,
+      lowHpAttackBonus > 0 ? `${equippedAccessory.name} 발동 중: 공격력 +${lowHpAttackBonus}` : null,
+      bossDamageBonus > 0 ? `${equippedAccessory.name} 효과: 보스 대상 피해 ${Math.round(bossDamageBonus * 100)}% 증가` : null,
+    ].filter(Boolean);
+
+    setCurrentEnemy(nextEnemy);
+    setLastDiceResult({
+      type: "attack",
+      playerRoll,
+      enemyDefenseRoll,
+      formula: playerDamageFormula,
+      damage: finalDamage,
+      isDouble: playerAttackDouble || enemyDefenseRoll.isDouble,
+    });
+    setLastDiceResults((current) => ({
+      ...current,
+      playerAttack: {
+        ...(current.playerAttack || {}),
+        rolls: playerRoll.dice,
+        diceTotal: adjustedTotal,
+        isDouble: playerAttackDouble,
+        attackValue,
+        finalDamage,
+      },
+      enemyDefense: {
+        rolls: enemyDefenseRoll.rolls,
+        diceTotal: enemyDefenseRoll.diceTotal,
+        isDouble: enemyDefenseRoll.isDouble,
+        defenseValue: enemyDefenseRoll.defenseValue,
+      },
+    }));
+    setDebugCombatFormulas((current) => ({
+      ...current,
+      playerAttackFormula,
+      enemyDefenseFormula,
+      playerDamageFormula,
+    }));
+    addBattleLog({
+      turn: battleTurn,
+      type: playerAttackDouble ? "critical" : "playerAttack",
+      title: `${battleTurn}턴 - 공격`,
+      message: [
+        `플레이어 공격 주사위: ${playerRoll.dice.join(" + ")} = ${playerRoll.total}`,
+        playerAttackDouble ? "더블 치명타 발동!" : null,
+        playerAttackFormula,
+        "1초 후 적 방어 주사위 자동 굴림",
+        `적 방어 주사위: ${enemyDefenseRoll.rolls.join(" + ")} = ${enemyDefenseRoll.diceTotal}`,
+        enemyDefenseRoll.isDouble ? "적 더블 방어!" : null,
+        enemyDefenseFormula,
+        playerDamageFormula,
+        `${enemySnapshot.name}에게 ${finalDamage} 피해${nextEnemy.hp <= 0 ? " / 처치" : ""}`,
+        activeAccessoryMessages.length ? activeAccessoryMessages.join(" / ") : null,
+      ].filter(Boolean).join(" / "),
+      formula: `${playerAttackFormula} / ${enemyDefenseFormula} / ${playerDamageFormula}`,
+      dice: playerRoll.dice,
+      diceTotal: adjustedTotal,
+      enemyDice: enemyDefenseRoll.rolls,
+      enemyDiceTotal: enemyDefenseRoll.diceTotal,
+      resultValue: finalDamage,
+      isDouble: playerAttackDouble || enemyDefenseRoll.isDouble,
+    });
+    setBattleHighlight({
+      type: finalDamage > 0 ? (playerAttackDouble ? "critical" : "attack") : "block",
+      title: enemyDefenseRoll.isDouble ? "적 더블 방어!" : finalDamage > 0 ? "공격 적중!" : "공격이 막혔습니다",
+      message: `${enemySnapshot.name}에게 ${finalDamage} 피해를 입혔습니다.${activeAccessoryMessages.length ? ` ${activeAccessoryMessages.join(" / ")}` : ""}`,
+      formula: playerDamageFormula,
+    });
+
+    if (nextEnemy.hp <= 0) {
+      resetTowerBattleActionState();
+      handleBattleWin(nextEnemy);
+      return;
+    }
+
+    setBattlePhase("playerDefense");
+    resetTowerBattleActionState();
+  }
+
+  async function rollPlayerDefenseDice() {
+    if (phase !== "battle" || battlePhase !== "playerDefense" || !currentEnemy || isBattleBusy || resolvingActionRef.current) return;
+
+    const actionId = battleActionSeqRef.current + 1;
+    battleActionSeqRef.current = actionId;
+    resolvingActionRef.current = true;
+    setIsResolvingAction(true);
+    setIsResolvingBattleAction(true);
+    setBattleActionState("rollingPlayerDefense");
+
+    const enemySnapshot = currentEnemy;
     const effectiveDice = getEffectivePlayerDice();
     const playerRoll = rollDice(effectiveDice.count, effectiveDice.sides, effectiveDice.min);
-    const playerDefense = getPlayerDefenseValue();
     const adjustedDefenseTotal = getAdjustedDiceTotal(playerRoll);
+    const playerDefense = getPlayerDefenseValue();
+    const equippedAccessory = getEquippedAccessory();
+    const defenseDoubleMultiplier = getDefenseDoubleMultiplier();
     const playerDefenseDouble = isDoubleRoll(playerRoll);
-    const block = calculateDefenseValue(playerDefense, adjustedDefenseTotal, playerDefenseDouble);
-    const damage = Math.max(0, enemyAttack.attackValue - block);
-    const nextHp = Math.max(0, player.hp - damage);
-    const double = enemyAttack.isDouble || playerDefenseDouble;
-    setPlayer((current) => ({ ...current, hp: Math.max(0, current.hp - damage) }));
-    setLastEnemyAttackRoll({ dice: enemyAttack.rolls, total: enemyAttack.diceTotal });
+    const defenseValue = calculateDefenseValue(playerDefense, adjustedDefenseTotal, playerDefenseDouble, defenseDoubleMultiplier);
+    const playerDefenseFormula = `플레이어 방어값 = 방어력 ${playerDefense} x 주사위 합계 ${adjustedDefenseTotal}${
+      playerDefenseDouble ? ` x 더블 배율 ${defenseDoubleMultiplier}` : ""
+    } = ${defenseValue}`;
+
     setLastPlayerDefenseRoll(playerRoll);
+    setLastEnemyAttackRoll(null);
+    setLastDiceResults((current) => ({
+      ...current,
+      playerDefense: {
+        rolls: playerRoll.dice,
+        diceTotal: adjustedDefenseTotal,
+        isDouble: playerDefenseDouble,
+        defenseValue,
+        finalDamageTaken: null,
+      },
+      enemyAttack: null,
+    }));
+    setDebugCombatFormulas((current) => ({
+      ...current,
+      playerDefenseFormula,
+      enemyAttackFormula: "",
+      enemyDamageFormula: "",
+    }));
+    setBattleHighlight({
+      type: playerDefenseDouble ? "block" : "defense",
+      title: playerDefenseDouble ? "플레이어 방어 주사위 - 더블!" : "플레이어 방어 주사위",
+      message: `주사위 ${playerRoll.dice.join(" + ")} = ${playerRoll.total}. 1초 후 적 공격 주사위가 자동으로 굴러갑니다.`,
+      formula: playerDefenseFormula,
+    });
+
+    setBattleActionState("waitingEnemyAttack");
+    await delay(1000);
+    if (!mountedRef.current || battleActionSeqRef.current !== actionId) return;
+
+    setBattleActionState("rollingEnemyAttack");
+    const enemyAttack = createPendingEnemyAttack(enemySnapshot);
+    if (!enemyAttack) {
+      resetTowerBattleActionState();
+      return;
+    }
+    setLastEnemyAttackRoll({ dice: enemyAttack.rolls, total: enemyAttack.diceTotal });
+    setLastDiceResults((current) => ({
+      ...current,
+      enemyAttack: {
+        rolls: enemyAttack.rolls,
+        diceTotal: enemyAttack.diceTotal,
+        isDouble: enemyAttack.isDouble,
+        attackValue: enemyAttack.attackValue,
+      },
+    }));
+
+    setBattleActionState("resolvingEnemyAttack");
+    const finalDamageTaken = Math.max(0, enemyAttack.attackValue - defenseValue);
+    const perfectDefenseHeal = finalDamageTaken === 0 ? getAccessoryEffectValue(equippedAccessory, "perfectDefenseHeal") : 0;
+    const nextHp = Math.min(getFinalMaxHp(), Math.max(0, player.hp - finalDamageTaken) + perfectDefenseHeal);
+    const enemyAttackFormula = `적 공격값 = 공격력 ${enemySnapshot.baseAttack} x 주사위 합계 ${enemyAttack.diceTotal} = ${enemyAttack.attackValue}`;
+    const enemyDamageFormula = `최종 피해 = max(0, ${enemyAttack.attackValue} - ${defenseValue}) = ${finalDamageTaken}`;
+
+    setPlayer((current) => ({
+      ...current,
+      hp: Math.min(getFinalMaxHp(), Math.max(0, current.hp - finalDamageTaken) + perfectDefenseHeal),
+    }));
+    setPendingEnemyAttack(null);
     setLastDiceResult({
       type: "defense",
       enemyRoll: { dice: enemyAttack.rolls, total: enemyAttack.diceTotal },
       playerRoll,
-      formula: `최종 피해 = max(0, 적 공격 ${enemyAttack.attackValue} - 방어 ${block}) = ${damage}`,
-      damage,
+      formula: enemyDamageFormula,
+      damage: finalDamageTaken,
       enemyAttack: enemyAttack.attackValue,
-      block,
-      isDouble: double,
+      block: defenseValue,
+      isDouble: playerDefenseDouble || enemyAttack.isDouble,
     });
-    setLastDiceResults({
+    setLastDiceResults((current) => ({
+      ...current,
       enemyAttack: {
         rolls: enemyAttack.rolls,
         diceTotal: enemyAttack.diceTotal,
@@ -6859,52 +7286,75 @@ export default function DeckbuilderRoguelikePrototype() {
         attackValue: enemyAttack.attackValue,
       },
       playerDefense: {
+        ...(current.playerDefense || {}),
         rolls: playerRoll.dice,
         diceTotal: adjustedDefenseTotal,
         isDouble: playerDefenseDouble,
-        defenseValue: block,
-        finalDamageTaken: damage,
+        defenseValue,
+        finalDamageTaken,
       },
+    }));
+    setDebugCombatFormulas((current) => ({
+      ...current,
+      playerDefenseFormula,
+      enemyAttackFormula,
+      enemyDamageFormula,
+    }));
+
+    const perfectDefenseMessage =
+      finalDamageTaken === 0 && perfectDefenseHeal > 0
+        ? `${equippedAccessory.name} 효과: 완전 방어 성공으로 체력 ${perfectDefenseHeal} 회복`
+        : null;
+    addBattleLog({
+      turn: battleTurn,
+      type: playerDefenseDouble ? "block" : finalDamageTaken <= 0 ? "block" : "damage",
+      title: `${battleTurn}턴 - 수비`,
+      message: [
+        `플레이어 방어 주사위: ${playerRoll.dice.join(" + ")} = ${playerRoll.total}`,
+        playerDefenseDouble ? "더블 강화 방어 발동!" : null,
+        playerDefenseFormula,
+        "1초 후 적 공격 주사위 자동 굴림",
+        `적 공격 주사위: ${enemyAttack.rolls.join(" + ")} = ${enemyAttack.diceTotal}`,
+        enemyAttack.isDouble ? "적 더블 공격!" : null,
+        enemyAttackFormula,
+        enemyDamageFormula,
+        finalDamageTaken <= 0 ? "완전 방어!" : `플레이어가 ${finalDamageTaken} 피해를 받음`,
+        perfectDefenseMessage,
+      ].filter(Boolean).join(" / "),
+      formula: `${playerDefenseFormula} / ${enemyAttackFormula} / ${enemyDamageFormula}`,
+      enemyDice: enemyAttack.rolls,
+      enemyDiceTotal: enemyAttack.diceTotal,
+      defenseDice: playerRoll.dice,
+      defenseDiceTotal: adjustedDefenseTotal,
+      resultValue: finalDamageTaken,
+      isDouble: playerDefenseDouble || enemyAttack.isDouble,
     });
-    if (damage <= 0) {
+
+    if (finalDamageTaken <= 0) {
       setBattleHighlight({
         type: "block",
         title: playerDefenseDouble ? "더블 강화 방어!" : "완전 방어!",
-        message: "피해를 받지 않았습니다.",
-        formula: `적 공격 ${enemyAttack.attackValue} - 방어 ${block} = 0`,
+        message: `피해를 받지 않았습니다.${perfectDefenseMessage ? ` ${perfectDefenseMessage}` : ""}`,
+        formula: enemyDamageFormula,
       });
     } else {
       setBattleHighlight({
         type: "damage",
         title: playerDefenseDouble ? "강화 방어 후 피해 발생" : "방어 실패",
-        message: `플레이어가 ${damage} 피해를 받았습니다.`,
-        formula: `적 공격 ${enemyAttack.attackValue} - 방어 ${block} = ${damage}`,
+        message: `플레이어가 ${finalDamageTaken} 피해를 받았습니다.${enemyAttack.isDouble ? " 적 더블 공격!" : ""}`,
+        formula: enemyDamageFormula,
       });
     }
-    addBattleLog({
-      turn: battleTurn,
-      type: playerDefenseDouble ? "block" : damage <= 0 ? "block" : "damage",
-      title: playerDefenseDouble ? "더블 강화 방어!" : damage <= 0 ? "완전 방어" : "피해 발생",
-      message: damage <= 0 ? "피해를 받지 않음" : `플레이어가 ${damage} 피해를 받음`,
-      formula: `적 공격값: ${enemyAttack.attackValue} / 방어: ${playerDefense} x (${playerRoll.dice.join(" + ")}${
-        effectiveDice.totalBonus ? ` + 장신구 ${effectiveDice.totalBonus}` : ""
-      })${playerDefenseDouble ? ` x ${DOUBLE_MULTIPLIER}` : ""} = ${block} / 최종 피해: max(0, ${enemyAttack.attackValue} - ${block}) = ${damage}`,
-      enemyDice: enemyAttack.rolls,
-      enemyDiceTotal: enemyAttack.diceTotal,
-      defenseDice: playerRoll.dice,
-      defenseDiceTotal: adjustedDefenseTotal,
-      resultValue: damage,
-      isDouble: double,
-    });
-    setPendingEnemyAttack(null);
+
     if (nextHp <= 0) {
+      resetTowerBattleActionState();
       handleBattleLose();
-      finishResolvingAction();
       return;
     }
+
     setBattleTurn((current) => current + 1);
     setBattlePhase("playerAttack");
-    finishResolvingAction();
+    resetTowerBattleActionState();
   }
 
   function upgradeEquipment(kind) {
@@ -6944,6 +7394,24 @@ export default function DeckbuilderRoguelikePrototype() {
   }
 
   function buyTowerShopItem(itemId) {
+    if (itemId === "randomAccessory") {
+      const cost = 120;
+      if ((player.gold || 0) < cost) return;
+      const accessory = rollAccessoryDrop({ isBoss: true, floor: selectedFloor }, { normal: 1, boss: 1 });
+      if (!accessory) return;
+      const alreadyOwned = ownedAccessories.some((item) => item.id === accessory.id);
+      const duplicateGold = alreadyOwned ? getDuplicateAccessoryGold(accessory) : 0;
+      setPlayer((current) => ({ ...current, gold: Math.max(0, current.gold - cost + duplicateGold) }));
+      if (alreadyOwned) {
+        pushLog(`상점 장신구가 중복되어 골드 ${duplicateGold}으로 변환되었습니다.`);
+      } else {
+        setOwnedAccessories((current) => [...current, accessory]);
+        setAccessoryHistory((current) => [...current, accessory.id]);
+        pushLog(`상점에서 [${getAccessoryRarityLabel(accessory)}] ${accessory.name}을(를) 획득했습니다.`);
+      }
+      return;
+    }
+
     const items = {
       heal30: { cost: 25, apply: (current) => ({ ...current, hp: Math.min(getFinalMaxHp(), current.hp + 30) }) },
       healHalf: { cost: 55, apply: (current) => ({ ...current, hp: Math.min(getFinalMaxHp(), current.hp + Math.ceil(getFinalMaxHp() * 0.5)) }) },
@@ -7055,13 +7523,17 @@ export default function DeckbuilderRoguelikePrototype() {
       battleLogs,
       battleTurn,
       battleHighlight,
+      battleActionState: "idle",
+      isResolvingBattleAction: false,
+      debugCombatFormulas,
       lastDiceResult,
       lastDiceResults,
       lastPlayerAttackRoll,
+      lastEnemyDefenseRoll,
       lastEnemyAttackRoll,
       lastPlayerDefenseRoll,
       pendingEnemyAttack,
-      isResolvingAction,
+      isResolvingAction: false,
       battleRewardSummary,
       playerDice,
       nextBattleBuff,
@@ -7069,6 +7541,9 @@ export default function DeckbuilderRoguelikePrototype() {
       diceUpgradeMaterial,
       playerEquipment,
       ownedAccessories,
+      equippedAccessoryId,
+      accessoryHistory,
+      temporaryAccessoryEffects,
       difficultyMode,
       diceShards,
       diceShardUpgrades,
@@ -7142,21 +7617,35 @@ export default function DeckbuilderRoguelikePrototype() {
     setBattleLogs(runData?.battleLogs || []);
     setBattleTurn(runData?.battleTurn || 1);
     setBattleHighlight(runData?.battleHighlight || null);
+    setBattleActionState("idle");
+    setIsResolvingBattleAction(false);
+    setDebugCombatFormulas(runData?.debugCombatFormulas || {});
     setLastDiceResult(runData?.lastDiceResult || null);
     setLastDiceResults(runData?.lastDiceResults || {});
     setLastPlayerAttackRoll(runData?.lastPlayerAttackRoll || null);
+    setLastEnemyDefenseRoll(runData?.lastEnemyDefenseRoll || null);
     setLastEnemyAttackRoll(runData?.lastEnemyAttackRoll || null);
     setLastPlayerDefenseRoll(runData?.lastPlayerDefenseRoll || null);
     setPendingEnemyAttack(runData?.pendingEnemyAttack || null);
     setIsResolvingAction(false);
     resolvingActionRef.current = false;
+    battleActionSeqRef.current += 1;
     setBattleRewardSummary(runData?.battleRewardSummary || null);
     setPlayerDice(runData?.playerDice || DEFAULT_PLAYER_DICE);
     setNextBattleBuff(runData?.nextBattleBuff || { attack: 0, defense: 0 });
     setAttemptedFloors(runData?.attemptedFloors || []);
     setDiceUpgradeMaterial(Number(runData?.diceUpgradeMaterial || 0));
-    setPlayerEquipment({ ...DEFAULT_PLAYER_EQUIPMENT, ...(runData?.playerEquipment || {}) });
-    setOwnedAccessories(runData?.ownedAccessories || []);
+    const restoredOwnedAccessories = (runData?.ownedAccessories || [])
+      .map((accessory) => getAccessoryById(accessory?.id || accessory))
+      .filter(Boolean);
+    const restoredEquippedAccessoryId =
+      runData?.equippedAccessoryId ?? runData?.playerEquipment?.accessory?.id ?? null;
+    const restoredEquippedAccessory = restoredEquippedAccessoryId ? getAccessoryById(restoredEquippedAccessoryId) : null;
+    setPlayerEquipment({ ...DEFAULT_PLAYER_EQUIPMENT, ...(runData?.playerEquipment || {}), accessory: restoredEquippedAccessory });
+    setOwnedAccessories(restoredOwnedAccessories);
+    setEquippedAccessoryId(restoredEquippedAccessory ? restoredEquippedAccessory.id : null);
+    setAccessoryHistory(runData?.accessoryHistory || []);
+    setTemporaryAccessoryEffects(runData?.temporaryAccessoryEffects || []);
     setDifficultyMode(runData?.difficultyMode || null);
     setDiceShards(Number(runData?.diceShards || 0));
     setDiceShardUpgrades(createDefaultDiceShardUpgrades(runData?.diceShardUpgrades));
@@ -7258,14 +7747,19 @@ export default function DeckbuilderRoguelikePrototype() {
     setBattleLogs([]);
     setBattleTurn(1);
     setBattleHighlight(null);
+    setBattleActionState("idle");
+    setIsResolvingBattleAction(false);
+    setDebugCombatFormulas({});
     setLastDiceResult(null);
     setLastDiceResults({});
     setLastPlayerAttackRoll(null);
+    setLastEnemyDefenseRoll(null);
     setLastEnemyAttackRoll(null);
     setLastPlayerDefenseRoll(null);
     setPendingEnemyAttack(null);
     setIsResolvingAction(false);
     resolvingActionRef.current = false;
+    battleActionSeqRef.current += 1;
     setBattleRewardSummary(null);
     setPlayerDice(DEFAULT_PLAYER_DICE);
     setNextBattleBuff({ attack: 0, defense: 0 });
@@ -7273,6 +7767,9 @@ export default function DeckbuilderRoguelikePrototype() {
     setDiceUpgradeMaterial(0);
     setPlayerEquipment(DEFAULT_PLAYER_EQUIPMENT);
     setOwnedAccessories([]);
+    setEquippedAccessoryId(null);
+    setAccessoryHistory([]);
+    setTemporaryAccessoryEffects([]);
     setDifficultyMode(null);
     setDiceShards(0);
     setDiceShardUpgrades(DEFAULT_DICE_SHARD_UPGRADES);
@@ -7448,6 +7945,118 @@ export default function DeckbuilderRoguelikePrototype() {
       setUpgradeCelebration((current) => (current?.cardId === option.resultCardId ? null : current));
     }, 2100);
     pushLog(`${card.name} → ${upgradedCard.name} 강화 완료`);
+  }
+
+  function renderDebugPanel() {
+    if (!isDev) return null;
+
+    const equippedAccessory = getEquippedAccessory();
+    const effectiveDice = getEffectivePlayerDice();
+    const finalMaxHp = getFinalMaxHp();
+    const formatRoll = (entry) => entry?.rolls?.length ? `${entry.rolls.join(" + ")} = ${entry.diceTotal}` : "-";
+    const rarityText = currentEnemy?.isBoss
+      ? currentEnemy?.floor >= 10
+        ? "희귀 40% / 영웅 40% / 전설 20%"
+        : "일반 40% / 희귀 35% / 영웅 20% / 전설 5%"
+      : "일반 75% / 희귀 20% / 영웅 5% / 전설 0%";
+    const debugSection = (title, rows) => (
+      <section className="border-t border-white/10 pt-3">
+        <h4 className="mb-2 font-black text-cyan-200">{title}</h4>
+        <div className="grid gap-1">
+          {rows.map(([label, value]) => (
+            <div key={label} className="grid grid-cols-[130px_1fr] gap-2">
+              <span className="text-slate-400">{label}</span>
+              <span className="break-words text-white">{value ?? "-"}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setIsDebugPanelOpen((current) => !current)}
+          className="fixed bottom-4 right-4 z-50 rounded-xl bg-black/80 px-3 py-2 text-xs font-black text-white shadow-xl hover:bg-black"
+        >
+          DEBUG
+        </button>
+        {isDebugPanelOpen && (
+          <div className="fixed bottom-16 right-4 z-50 max-h-[70vh] w-[min(420px,calc(100vw-2rem))] overflow-y-auto rounded-xl bg-black/85 p-4 text-xs text-white shadow-2xl backdrop-blur">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="font-black">Balance Debug Panel</h3>
+              <button type="button" onClick={() => setIsDebugPanelOpen(false)} className="rounded-lg bg-white/10 px-2 py-1 font-black hover:bg-white/20">닫기</button>
+            </div>
+            <div className="grid gap-3">
+              {debugSection("기본", [
+                ["현재 난이도", DIFFICULTY_LABELS[difficultyMode] || "-"],
+                ["현재 화면 상태", phase],
+                ["현재 층", currentFloor],
+                ["전투 턴", battleTurn],
+                ["전투 페이즈", battlePhase],
+                ["전투 액션 상태", `${battleActionState} (${BATTLE_ACTION_LABELS[battleActionState] || "-"})`],
+              ])}
+              {debugSection("플레이어", [
+                ["HP", `${player.hp || 0} / ${finalMaxHp}`],
+                ["최종 공격력", getPlayerAttackValue()],
+                ["최종 방어력", getPlayerDefenseValue()],
+                ["주사위", `${formatDice(effectiveDice)} / 최소 ${effectiveDice.min} / 합계 +${effectiveDice.totalBonus}`],
+                ["골드", player.gold || 0],
+                ["장비 재료", upgradeMaterial],
+                ["주사위 재료", diceUpgradeMaterial],
+                ["주사위 조각", diceShards],
+                ["회복 물약", potions],
+              ])}
+              {debugSection("장신구", [
+                ["장착 장신구", equippedAccessory?.name || "없음"],
+                ["등급", equippedAccessory ? getAccessoryRarityLabel(equippedAccessory) : "-"],
+                ["효과", equippedAccessory ? getAccessoryEffectText(equippedAccessory) : "-"],
+                ["보유 수", ownedAccessories.length],
+              ])}
+              {debugSection("확률", [
+                ["물약 드랍", formatPercent(getCurrentPotionDropChance())],
+                ["일반 장신구", formatPercent(NORMAL_ACCESSORY_DROP_CHANCE)],
+                ["보스 장신구", formatPercent(BOSS_ACCESSORY_DROP_CHANCE)],
+                ["등급 확률", rarityText],
+              ])}
+              {debugSection("더블", [
+                ["기본 배율", DOUBLE_MULTIPLIER],
+                ["공격 더블", getAttackDoubleMultiplier()],
+                ["방어 더블", getDefenseDoubleMultiplier()],
+                ["플레이어 공격", lastDiceResults.playerAttack?.isDouble ? "true" : "false"],
+                ["플레이어 방어", lastDiceResults.playerDefense?.isDouble ? "true" : "false"],
+                ["적 공격", lastDiceResults.enemyAttack?.isDouble ? "true" : "false"],
+                ["적 방어", lastDiceResults.enemyDefense?.isDouble ? "true" : "false"],
+              ])}
+              {debugSection("전투 계산", [
+                ["플레이어 공격", debugCombatFormulas.playerAttackFormula],
+                ["적 방어", debugCombatFormulas.enemyDefenseFormula],
+                ["공격 최종", debugCombatFormulas.playerDamageFormula],
+                ["플레이어 방어", debugCombatFormulas.playerDefenseFormula],
+                ["적 공격", debugCombatFormulas.enemyAttackFormula],
+                ["수비 최종", debugCombatFormulas.enemyDamageFormula],
+              ])}
+              {debugSection("최근 주사위", [
+                ["플레이어 공격", formatRoll(lastDiceResults.playerAttack)],
+                ["적 방어", formatRoll(lastDiceResults.enemyDefense)],
+                ["플레이어 방어", formatRoll(lastDiceResults.playerDefense)],
+                ["적 공격", formatRoll(lastDiceResults.enemyAttack)],
+              ])}
+              <section className="border-t border-white/10 pt-3">
+                <h4 className="mb-2 font-black text-cyan-200">테스트 버튼</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setDiceShards((current) => current + 10)} className="rounded-lg bg-white/10 px-2 py-2 font-black hover:bg-white/20">주사위 조각 +10</button>
+                  <button type="button" onClick={() => setPlayer((current) => ({ ...current, gold: (current.gold || 0) + 100 }))} className="rounded-lg bg-white/10 px-2 py-2 font-black hover:bg-white/20">골드 +100</button>
+                  <button type="button" onClick={() => setPotions((current) => current + 1)} className="rounded-lg bg-white/10 px-2 py-2 font-black hover:bg-white/20">회복 물약 +1</button>
+                  <button type="button" onClick={() => setCurrentEnemy((enemyState) => enemyState ? { ...enemyState, hp: 1 } : enemyState)} className="rounded-lg bg-white/10 px-2 py-2 font-black hover:bg-white/20">현재 적 HP 1</button>
+                </div>
+              </section>
+            </div>
+          </div>
+        )}
+      </>
+    );
   }
 
   function drawFromPiles(count, currentDrawPile, currentDiscardPile) {
@@ -8600,6 +9209,7 @@ export default function DeckbuilderRoguelikePrototype() {
   if (phase === "title") {
     return (
       <div className="grid min-h-screen place-items-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
+        {renderDebugPanel()}
         <section className="w-full max-w-3xl text-center">
           <div className="mx-auto mb-5 grid h-20 w-20 place-items-center rounded-3xl border border-amber-200/40 bg-amber-200/10 text-4xl shadow-[0_0_50px_rgba(251,191,36,0.2)]">
             <TowerControl size={42} />
@@ -8660,6 +9270,7 @@ export default function DeckbuilderRoguelikePrototype() {
     ];
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
+        {renderDebugPanel()}
         <section className="mx-auto max-w-6xl">
           <header className="mb-5 rounded-3xl border border-white/10 bg-white/5 p-6 text-center shadow-2xl">
             <div className="text-sm font-black uppercase tracking-[0.22em] text-cyan-200">Climb Rule</div>
@@ -8699,16 +9310,38 @@ export default function DeckbuilderRoguelikePrototype() {
     const effectiveDice = getEffectivePlayerDice();
     const equipmentBonuses = getCurrentEquipmentBonuses();
     const finalMaxHp = getFinalMaxHp();
+    const equippedAccessory = getEquippedAccessory();
+    const nextBossProgress = getNextBossProgress(Math.max(currentFloor, highestUnlockedFloor));
+    const potionDropChance = getCurrentPotionDropChance();
+    const attackDoubleMultiplier = getAttackDoubleMultiplier();
+    const defenseDoubleMultiplier = getDefenseDoubleMultiplier();
+    const bossDamageBonus = getEquippedAccessoryEffectValue("bossDamageBonus");
+    const healAfterBattle = getEquippedAccessoryEffectValue("healAfterBattle");
     const shardBonuses = getDiceShardUpgradeBonuses(diceShardUpgrades);
     const shardBonusLabels = [
       `기본 공격력 +${shardBonuses.attack}`,
       `기본 방어력 +${shardBonuses.defense}`,
       `최대 체력 +${shardBonuses.maxHp}`,
     ];
+    const buildBonusRows = [
+      equipmentBonuses.attackBonus ? `장신구 공격력 보너스 +${equipmentBonuses.attackBonus}` : null,
+      equipmentBonuses.defenseBonus ? `장신구 방어력 보너스 +${equipmentBonuses.defenseBonus}` : null,
+      equipmentBonuses.maxHpBonus ? `장신구 최대 체력 보너스 +${equipmentBonuses.maxHpBonus}` : null,
+      equipmentBonuses.diceTotalBonus ? `주사위 합계 보너스 +${equipmentBonuses.diceTotalBonus}` : null,
+      equipmentBonuses.diceMinBonus ? `주사위 최소값 보너스 +${equipmentBonuses.diceMinBonus}` : null,
+      `공격 더블 배율 ${attackDoubleMultiplier}`,
+      `방어 더블 배율 ${defenseDoubleMultiplier}`,
+      `물약 드랍 확률 ${formatPercent(potionDropChance)}`,
+      bossDamageBonus ? `보스 피해 증가율 ${formatPercent(bossDamageBonus)}` : null,
+      healAfterBattle ? `전투 승리 후 회복량 ${healAfterBattle}` : null,
+    ].filter(Boolean);
+    const recommendedFloor = floorList.find((floor) => canChallengeFloor(floor)) || highestUnlockedFloor;
+    const recommendedEnemy = createTowerEnemyForFloor(recommendedFloor);
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
-        <div className="mx-auto max-w-6xl">
-          <header className="mb-5 rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl">
+      <div className="tower-battle-table min-h-screen p-4 text-slate-100">
+        {renderDebugPanel()}
+        <div className="mx-auto max-w-7xl">
+          <header className="mb-5 rounded-3xl border border-white/10 bg-black/25 p-5 shadow-2xl backdrop-blur">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <div className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.18em] text-cyan-200">
@@ -8731,38 +9364,100 @@ export default function DeckbuilderRoguelikePrototype() {
             </div>
           </header>
 
-          <main className="grid gap-4 lg:grid-cols-[1fr_320px]">
-            <section className="rounded-3xl border border-white/10 bg-white p-5 text-slate-950 shadow-xl">
+          <section className="tower-dashboard-panel mb-4 rounded-3xl p-5">
+            <div className="grid gap-4 lg:grid-cols-[1fr_300px]">
+              <div>
+                <div className="text-sm font-black uppercase tracking-[0.18em] text-amber-200">다음 목표</div>
+                <h2 className="mt-2 text-4xl font-black">{nextBossProgress.label}</h2>
+                <p className="mt-2 text-sm font-bold text-slate-300">
+                  현재 진행: {highestClearedFloor}층까지 클리어 / 도전 가능 최고 층 {highestUnlockedFloor}층
+                </p>
+                <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/10">
+                  <div className="h-full rounded-full bg-gradient-to-r from-cyan-300 to-amber-300" style={{ width: `${Math.min(100, (highestUnlockedFloor / MAX_TOWER_FLOOR) * 100)}%` }} />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => startBattleForFloor(recommendedFloor)}
+                disabled={!canChallengeFloor(recommendedFloor)}
+                className="rounded-3xl bg-amber-300 p-5 text-left text-slate-950 shadow-xl hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                <div className="text-sm font-black uppercase tracking-[0.15em]">추천 도전</div>
+                <div className="mt-2 text-3xl font-black">{recommendedFloor}층</div>
+                <div className="mt-1 font-bold">{recommendedEnemy.name}</div>
+                <div className="mt-3 text-sm font-black">HP {recommendedEnemy.maxHp} / 공격 {recommendedEnemy.baseAttack} / 방어 {recommendedEnemy.baseDefense}</div>
+              </button>
+            </div>
+          </section>
+
+          <main className="grid gap-4 lg:grid-cols-[1fr_280px]">
+            <section className="tower-dashboard-panel rounded-3xl p-5">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <div className="rounded-2xl bg-slate-100 p-4"><div className="text-sm font-bold text-slate-500">최고 클리어 층</div><strong className="text-3xl">{highestClearedFloor}</strong></div>
-                <div className="rounded-2xl bg-slate-100 p-4"><div className="text-sm font-bold text-slate-500">도전 가능 최고 층</div><strong className="text-3xl">{highestUnlockedFloor}</strong></div>
-                <div className="rounded-2xl bg-amber-100 p-4"><div className="text-sm font-bold text-amber-700">골드</div><strong className="text-3xl">{player.gold || 0}</strong></div>
-                <div className="rounded-2xl bg-cyan-100 p-4"><div className="text-sm font-bold text-cyan-700">장비 강화 재료</div><strong className="text-3xl">{upgradeMaterial}</strong></div>
-                <div className="rounded-2xl bg-indigo-100 p-4"><div className="text-sm font-bold text-indigo-700">주사위 강화 재료</div><strong className="text-3xl">{diceUpgradeMaterial}</strong></div>
-                <div className="rounded-2xl bg-rose-100 p-4"><div className="text-sm font-bold text-rose-700">HP</div><strong className="text-3xl">{player.hp || 0}/{finalMaxHp}</strong></div>
-                <div className="rounded-2xl bg-emerald-100 p-4"><div className="text-sm font-bold text-emerald-700">주사위</div><strong className="text-3xl">{formatDice(effectiveDice)}</strong><div className="text-sm font-bold">최소 {effectiveDice.min} / 합계 +{effectiveDice.totalBonus}</div></div>
-                <div className="rounded-2xl bg-violet-100 p-4"><div className="text-sm font-bold text-violet-700">회복 물약</div><strong className="text-3xl">{potions}</strong><div className="text-sm font-bold">사용 시 HP 30 회복</div></div>
+                <div className="rounded-2xl bg-white/10 p-4"><div className="text-sm font-bold text-slate-400">최고 클리어</div><strong className="text-3xl">{highestClearedFloor}</strong></div>
+                <div className="rounded-2xl bg-white/10 p-4"><div className="text-sm font-bold text-slate-400">최고 해금</div><strong className="text-3xl">{highestUnlockedFloor}</strong></div>
+                <div className="rounded-2xl bg-amber-300/15 p-4"><div className="text-sm font-bold text-amber-200">골드</div><strong className="text-3xl">{player.gold || 0}</strong></div>
+                <div className="rounded-2xl bg-cyan-300/15 p-4"><div className="text-sm font-bold text-cyan-200">장비 재료</div><strong className="text-3xl">{upgradeMaterial}</strong></div>
+                <div className="rounded-2xl bg-indigo-300/15 p-4"><div className="text-sm font-bold text-indigo-200">주사위 재료</div><strong className="text-3xl">{diceUpgradeMaterial}</strong></div>
+                <div className="rounded-2xl bg-rose-300/15 p-4"><div className="text-sm font-bold text-rose-200">HP</div><strong className="text-3xl">{player.hp || 0}/{finalMaxHp}</strong></div>
               </div>
 
               <div className="mt-5 grid gap-3 md:grid-cols-3">
-                <div className="rounded-2xl border border-slate-200 p-4">
-                  <div className="flex items-center gap-2 text-sm font-black text-slate-500"><Sword size={16} /> 기본 공격력</div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="flex items-center gap-2 text-sm font-black text-slate-400"><Sword size={16} /> 공격력</div>
                   <div className="mt-2 text-3xl font-black">{getPlayerAttackValue()}</div>
-                  <div className="mt-1 text-xs font-bold text-slate-500">장신구 +{equipmentBonuses.attackBonus} / 버프 +{nextBattleBuff.attack}</div>
+                  <div className="mt-1 text-xs font-bold text-slate-400">장신구 +{equipmentBonuses.attackBonus} / 버프 +{nextBattleBuff.attack}</div>
                 </div>
-                <div className="rounded-2xl border border-slate-200 p-4">
-                  <div className="flex items-center gap-2 text-sm font-black text-slate-500"><Shield size={16} /> 기본 방어력</div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="flex items-center gap-2 text-sm font-black text-slate-400"><Shield size={16} /> 방어력</div>
                   <div className="mt-2 text-3xl font-black">{getPlayerDefenseValue()}</div>
-                  <div className="mt-1 text-xs font-bold text-slate-500">장신구 +{equipmentBonuses.defenseBonus} / 버프 +{nextBattleBuff.defense}</div>
+                  <div className="mt-1 text-xs font-bold text-slate-400">장신구 +{equipmentBonuses.defenseBonus} / 버프 +{nextBattleBuff.defense}</div>
                 </div>
-                <div className="rounded-2xl border border-slate-200 p-4">
-                  <div className="flex items-center gap-2 text-sm font-black text-slate-500"><Zap size={16} /> 다음 전투 버프</div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="flex items-center gap-2 text-sm font-black text-slate-400"><Zap size={16} /> 다음 버프</div>
                   <div className="mt-2 text-lg font-black">공격 +{nextBattleBuff.attack} / 방어 +{nextBattleBuff.defense}</div>
                 </div>
               </div>
 
-              <div className="mt-5 rounded-2xl border border-slate-200 p-4">
-                <div className="text-sm font-black text-slate-500">주사위 조각 영구 강화</div>
+              <section className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4">
+                <h2 className="text-xl font-black">이번 등반 빌드</h2>
+                <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-2xl bg-white/10 p-4 shadow-sm">
+                    <div className="text-sm font-black text-slate-400">현재 장신구</div>
+                    {equippedAccessory ? (
+                      <>
+                        <div className={`accessory-chip accessory-${equippedAccessory.rarity} mt-2`}>
+                          [{getAccessoryRarityLabel(equippedAccessory)}] {equippedAccessory.name}
+                        </div>
+                        <div className="mt-2 text-sm font-bold text-slate-300">효과: {getAccessoryEffectText(equippedAccessory)}</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="mt-2 text-lg font-black">없음</div>
+                        <p className="mt-2 text-sm font-bold text-slate-400">보스 처치 또는 전투 보상으로 장신구를 획득할 수 있습니다.</p>
+                      </>
+                    )}
+                  </div>
+                  <div className="rounded-2xl bg-white/10 p-4 shadow-sm">
+                    <div className="text-sm font-black text-slate-400">주사위 상태</div>
+                    <div className="mt-2 text-lg font-black">{formatDice(effectiveDice)} / 최소값 {effectiveDice.min} / 합계 보너스 +{effectiveDice.totalBonus}</div>
+                    <div className="mt-3 text-sm font-black text-slate-400">보유 회복 물약</div>
+                    <div className="mt-1 text-lg font-black">{potions}개</div>
+                  </div>
+                  <div className="rounded-2xl bg-white/10 p-4 shadow-sm">
+                    <div className="text-sm font-black text-slate-400">주요 보너스</div>
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs font-black">
+                      {buildBonusRows.map((row) => <span key={row} className="rounded-xl bg-white/10 px-3 py-2">{row}</span>)}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl bg-white/10 p-4 shadow-sm">
+                    <div className="text-sm font-black text-slate-400">다음 보스까지</div>
+                    <div className="mt-2 text-lg font-black">{nextBossProgress.label}</div>
+                  </div>
+                </div>
+              </section>
+
+              <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4">
+                <div className="text-sm font-black text-slate-400">주사위 조각 영구 강화</div>
                 {difficultyMode === "roguelike" ? (
                   <div className="mt-3 flex flex-wrap gap-2 text-sm font-black">
                     {shardBonusLabels.map((label) => <span key={label} className="rounded-xl bg-cyan-100 px-3 py-2 text-cyan-900">{label}</span>)}
@@ -8773,21 +9468,21 @@ export default function DeckbuilderRoguelikePrototype() {
               </div>
             </section>
 
-            <aside className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-xl">
+            <aside className="tower-dashboard-panel rounded-3xl p-5">
               <h2 className="text-xl font-black">메뉴</h2>
               <div className="mt-4 grid gap-3">
-                <button onClick={() => setPhase("equipmentUpgrade")} className="rounded-2xl bg-amber-300 px-4 py-4 font-black text-slate-950 hover:bg-amber-200">장비 강화</button>
-                <button onClick={() => setPhase("equipmentManage")} className="rounded-2xl bg-violet-300 px-4 py-4 font-black text-violet-950 hover:bg-violet-200">장비 관리</button>
-                <button onClick={() => setPhase("diceUpgrade")} className="rounded-2xl bg-cyan-300 px-4 py-4 font-black text-slate-950 hover:bg-cyan-200">주사위 강화</button>
-                <button onClick={() => setPhase("shop")} className="rounded-2xl bg-emerald-300 px-4 py-4 font-black text-emerald-950 hover:bg-emerald-200">상점</button>
+                <button onClick={() => setPhase("shop")} className="rounded-2xl bg-emerald-300 px-4 py-3 font-black text-emerald-950 hover:bg-emerald-200">상점</button>
+                <button onClick={() => setPhase("equipmentUpgrade")} className="rounded-2xl bg-amber-300 px-4 py-3 font-black text-slate-950 hover:bg-amber-200">강화</button>
+                <button onClick={() => setPhase("equipmentManage")} className="rounded-2xl bg-violet-300 px-4 py-3 font-black text-violet-950 hover:bg-violet-200">장신구</button>
+                <button onClick={() => setPhase("diceUpgrade")} className="rounded-2xl bg-cyan-300 px-4 py-3 font-black text-slate-950 hover:bg-cyan-200">주사위</button>
                 {difficultyMode === "roguelike" ? (
-                  <button onClick={() => setPhase("diceShardShop")} className="rounded-2xl bg-indigo-300 px-4 py-4 font-black text-indigo-950 hover:bg-indigo-200">주사위 조각 상점</button>
+                  <button onClick={() => setPhase("diceShardShop")} className="rounded-2xl bg-indigo-300 px-4 py-3 font-black text-indigo-950 hover:bg-indigo-200">조각상점</button>
                 ) : (
                   <div className="rounded-2xl border border-white/15 px-4 py-4 text-sm font-black text-slate-300">하드코어 난이도에서는 사용할 수 없습니다.</div>
                 )}
-                <button onClick={usePotion} disabled={potions <= 0 || player.hp >= finalMaxHp} className="rounded-2xl bg-rose-300 px-4 py-4 font-black text-rose-950 hover:bg-rose-200 disabled:cursor-not-allowed disabled:opacity-45">회복 물약 사용</button>
-                <button onClick={() => setPhase("floorSelect")} className="rounded-2xl bg-white px-4 py-4 font-black text-slate-950 hover:bg-cyan-100">층 선택</button>
-                <button onClick={restartClimb} className="rounded-2xl border border-white/20 px-4 py-4 font-black text-white hover:bg-white/10">새 등반 시작</button>
+                <button onClick={usePotion} disabled={potions <= 0 || player.hp >= finalMaxHp} className="rounded-2xl bg-rose-300 px-4 py-3 font-black text-rose-950 hover:bg-rose-200 disabled:cursor-not-allowed disabled:opacity-45">회복</button>
+                <button onClick={() => setPhase("floorSelect")} className="rounded-2xl bg-white px-4 py-3 font-black text-slate-950 hover:bg-cyan-100">전체 층</button>
+                <button onClick={restartClimb} className="rounded-2xl border border-white/20 px-4 py-3 font-black text-white hover:bg-white/10">새 등반</button>
               </div>
             </aside>
           </main>
@@ -8800,75 +9495,114 @@ export default function DeckbuilderRoguelikePrototype() {
     const effectiveDice = getEffectivePlayerDice();
     const equipmentBonuses = getCurrentEquipmentBonuses();
     const finalMaxHp = getFinalMaxHp();
-    const equippedAccessory = playerEquipment.accessory;
+    const equippedAccessory = getEquippedAccessory();
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
-        <section className="mx-auto max-w-6xl rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
+      <div className="tower-battle-table min-h-screen p-4 text-slate-100">
+        {renderDebugPanel()}
+        <section className="mx-auto max-w-7xl rounded-3xl border border-white/10 bg-black/25 p-6 shadow-2xl backdrop-blur">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-4xl font-black">장비 관리</h1>
-              <p className="mt-2 text-slate-300">무기, 방어구, 장신구 슬롯과 최종 전투 능력치를 확인합니다.</p>
+              <p className="mt-2 text-slate-300">이번 등반의 장신구를 고르고, 장착 후 전투 능력치 변화를 확인합니다.</p>
             </div>
             <button onClick={goToTower} className="rounded-2xl bg-white px-5 py-3 font-black text-slate-950 hover:bg-cyan-100">탑으로 돌아가기</button>
           </div>
 
           <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_360px]">
-            <div className="grid gap-4 md:grid-cols-3">
-              {[
-                { slot: "weapon", label: "무기", item: playerEquipment.weapon, effect: "무기 강화로 기본 공격력 증가" },
-                { slot: "armor", label: "방어구", item: playerEquipment.armor, effect: "방어구 강화로 기본 방어력 증가" },
-                { slot: "accessory", label: "장신구", item: equippedAccessory, effect: getAccessoryEffectText(equippedAccessory) },
-              ].map((entry) => (
-                <article key={entry.slot} className="rounded-3xl bg-white p-5 text-slate-950 shadow-xl">
-                  <div className="text-sm font-black text-slate-500">{entry.label}</div>
-                  <h2 className="mt-2 text-2xl font-black">{entry.item?.name || "비어 있음"}</h2>
-                  <p className="mt-2 text-sm font-bold text-slate-600">{entry.item?.description || "장신구를 획득하면 이 슬롯에 장착할 수 있습니다."}</p>
-                  <div className="mt-4 rounded-xl bg-slate-100 px-3 py-2 text-sm font-black">{entry.effect}</div>
-                  {entry.slot === "accessory" && equippedAccessory && (
-                    <button onClick={unequipAccessory} className="mt-4 w-full rounded-2xl bg-slate-950 px-4 py-3 font-black text-white hover:bg-slate-700">장신구 해제</button>
-                  )}
-                </article>
-              ))}
-            </div>
-
-            <aside className="rounded-3xl bg-white p-5 text-slate-950 shadow-xl">
-              <h2 className="text-2xl font-black">최종 능력치</h2>
-              <div className="mt-4 grid gap-2 text-sm font-black">
-                <div className="rounded-xl bg-slate-100 p-3">공격력: {getPlayerAttackValue()}</div>
-                <div className="rounded-xl bg-slate-100 p-3">방어력: {getPlayerDefenseValue()}</div>
-                <div className="rounded-xl bg-slate-100 p-3">최대 HP: {finalMaxHp}</div>
-                <div className="rounded-xl bg-slate-100 p-3">주사위: {formatDice(effectiveDice)}</div>
-                <div className="rounded-xl bg-slate-100 p-3">주사위 최소값: {effectiveDice.min}</div>
-                <div className="rounded-xl bg-slate-100 p-3">주사위 합계 보정: +{equipmentBonuses.diceTotalBonus}</div>
+            <section className="tower-dashboard-panel rounded-3xl p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-black uppercase tracking-[0.18em] text-violet-200">Accessory Inventory</div>
+                  <h2 className="text-3xl font-black">보유 장신구</h2>
+                </div>
+                <span className="rounded-full bg-white/10 px-3 py-1 text-sm font-black">{ownedAccessories.length}개</span>
               </div>
-            </aside>
-          </div>
 
-          <div className="mt-5 rounded-3xl bg-white p-5 text-slate-950 shadow-xl">
-            <h2 className="text-2xl font-black">보유 장신구</h2>
-            {ownedAccessories.length === 0 ? (
-              <p className="mt-3 font-bold text-slate-500">아직 획득한 장신구가 없습니다. 5층과 10층 보스를 처치해 보상을 얻으세요.</p>
-            ) : (
-              <div className="mt-4 grid gap-3 md:grid-cols-3">
-                {ownedAccessories.map((accessory) => {
-                  const equipped = equippedAccessory?.id === accessory.id;
-                  return (
-                    <article key={accessory.id} className={`rounded-2xl border p-4 ${equipped ? "border-violet-400 bg-violet-50" : "border-slate-200 bg-white"}`}>
-                      <h3 className="text-xl font-black">{accessory.name}</h3>
-                      <p className="mt-2 text-sm font-bold text-slate-600">{accessory.description}</p>
-                      <div className="mt-3 rounded-xl bg-slate-100 px-3 py-2 text-sm font-black">{getAccessoryEffectText(accessory)}</div>
-                      <button
-                        onClick={() => equipAccessory(accessory.id)}
-                        disabled={equipped}
-                        className="mt-4 w-full rounded-2xl bg-violet-500 px-4 py-3 font-black text-white hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-50"
+              {ownedAccessories.length === 0 ? (
+                <div className="mt-5 rounded-3xl border border-dashed border-white/20 bg-white/5 p-8 text-center font-bold text-slate-300">
+                  <div className="text-2xl font-black text-white">보유한 장신구가 없습니다.</div>
+                  <div className="mt-2">보스 처치 또는 전투 보상으로 장신구를 획득할 수 있습니다.</div>
+                </div>
+              ) : (
+                <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {ownedAccessories.map((accessory) => {
+                    const equipped = equippedAccessory?.id === accessory.id;
+                    const attackChange = getAccessoryEffectValue(accessory, "attackBonus");
+                    const defenseChange = getAccessoryEffectValue(accessory, "defenseBonus");
+                    const maxHpChange = getAccessoryEffectValue(accessory, "maxHpBonus");
+                    return (
+                      <article
+                        key={accessory.id}
+                        className={`accessory-card accessory-${accessory.rarity} rounded-2xl border p-4 ${equipped ? "is-equipped" : ""}`}
                       >
-                        {equipped ? "장착 중" : "장착"}
-                      </button>
-                    </article>
-                  );
-                })}
-              </div>
-            )}
+                        <div className="flex items-center justify-between gap-2">
+                          <h3 className="text-xl font-black">{accessory.name}</h3>
+                          <span className="accessory-rarity-badge">{getAccessoryRarityLabel(accessory)}</span>
+                        </div>
+                        <p className="mt-2 min-h-10 text-sm font-bold text-slate-600">{accessory.description}</p>
+                        <div className="mt-3 rounded-xl bg-slate-100 px-3 py-2 text-sm font-black">{getAccessoryEffectText(accessory)}</div>
+                        <div className="mt-2 rounded-xl bg-slate-950/90 px-3 py-2 text-xs font-black text-slate-100">
+                          예상 변화: 공격 {attackChange >= 0 ? "+" : ""}{attackChange} / 방어 {defenseChange >= 0 ? "+" : ""}{defenseChange} / HP {maxHpChange >= 0 ? "+" : ""}{maxHpChange}
+                        </div>
+                        {equipped ? (
+                          <button
+                            onClick={unequipAccessory}
+                            className="mt-4 w-full rounded-2xl bg-slate-950 px-4 py-3 font-black text-white hover:bg-slate-700"
+                          >
+                            해제
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => equipAccessory(accessory.id)}
+                            className="mt-4 w-full rounded-2xl bg-violet-500 px-4 py-3 font-black text-white hover:bg-violet-400"
+                          >
+                            장착
+                          </button>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            <aside className="grid gap-4">
+              <section className="tower-dashboard-panel rounded-3xl p-5">
+                <div className="text-sm font-black uppercase tracking-[0.18em] text-amber-200">Equipped</div>
+                <h2 className="mt-1 text-2xl font-black">현재 장착</h2>
+                {equippedAccessory ? (
+                  <div className={`accessory-card accessory-${equippedAccessory.rarity} is-equipped mt-4 rounded-2xl border p-4`}>
+                    <span className="accessory-rarity-badge">{getAccessoryRarityLabel(equippedAccessory)}</span>
+                    <h3 className="mt-2 text-2xl font-black">{equippedAccessory.name}</h3>
+                    <p className="mt-2 text-sm font-bold text-slate-600">{equippedAccessory.description}</p>
+                    <div className="mt-3 rounded-xl bg-slate-100 px-3 py-2 text-sm font-black">{getAccessoryEffectText(equippedAccessory)}</div>
+                    <button onClick={unequipAccessory} className="mt-4 w-full rounded-2xl bg-slate-950 px-4 py-3 font-black text-white hover:bg-slate-700">해제</button>
+                  </div>
+                ) : (
+                  <div className="mt-4 rounded-2xl border border-dashed border-white/20 bg-white/5 p-5 text-sm font-bold text-slate-300">장착 중인 장신구가 없습니다.</div>
+                )}
+              </section>
+
+              <section className="tower-dashboard-panel rounded-3xl p-5">
+                <h2 className="text-2xl font-black">최종 능력치</h2>
+                <div className="mt-4 grid gap-2 text-sm font-black">
+                  <div className="rounded-xl bg-white/10 p-3">공격력: {getPlayerAttackValue()}</div>
+                  <div className="rounded-xl bg-white/10 p-3">방어력: {getPlayerDefenseValue()}</div>
+                  <div className="rounded-xl bg-white/10 p-3">최대 HP: {finalMaxHp}</div>
+                  <div className="rounded-xl bg-white/10 p-3">주사위: {formatDice(effectiveDice)}</div>
+                  <div className="rounded-xl bg-white/10 p-3">주사위 최소값: {effectiveDice.min}</div>
+                  <div className="rounded-xl bg-white/10 p-3">주사위 합계 보정: +{equipmentBonuses.diceTotalBonus}</div>
+                </div>
+              </section>
+
+              <section className="tower-dashboard-panel rounded-3xl p-5">
+                <h2 className="text-xl font-black">장비 요약</h2>
+                <div className="mt-3 grid gap-2 text-sm font-bold text-slate-300">
+                  <div className="rounded-xl bg-white/10 p-3">무기: {playerEquipment.weapon?.name || "기본 무기"}</div>
+                  <div className="rounded-xl bg-white/10 p-3">방어구: {playerEquipment.armor?.name || "기본 방어구"}</div>
+                </div>
+              </section>
+            </aside>
           </div>
         </section>
       </div>
@@ -8941,6 +9675,7 @@ export default function DeckbuilderRoguelikePrototype() {
     ];
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
+        {renderDebugPanel()}
         <section className="mx-auto max-w-5xl rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
           <h1 className="text-4xl font-black">장비 강화</h1>
           <p className="mt-2 text-slate-300">골드 {player.gold || 0} / 강화 재료 {upgradeMaterial}</p>
@@ -8963,6 +9698,7 @@ export default function DeckbuilderRoguelikePrototype() {
   if (phase === "diceUpgrade") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
+        {renderDebugPanel()}
         <section className="mx-auto max-w-5xl rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
           <h1 className="text-4xl font-black">주사위 강화</h1>
           <p className="mt-2 text-slate-300">현재 주사위: {formatDice(playerDice)} / 최소 눈금 {playerDice.min} / 골드 {player.gold || 0} / 주사위 강화 재료 {diceUpgradeMaterial}</p>
@@ -8992,13 +9728,15 @@ export default function DeckbuilderRoguelikePrototype() {
       { id: "healHalf", title: "최대 체력의 50% 회복", cost: "55G" },
       { id: "attackBuff", title: "다음 전투 공격력 +2", cost: "45G" },
       { id: "defenseBuff", title: "다음 전투 방어력 +2", cost: "45G" },
+      { id: "randomAccessory", title: "랜덤 장신구", cost: "120G" },
     ];
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
+        {renderDebugPanel()}
         <section className="mx-auto max-w-5xl rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
           <h1 className="text-4xl font-black">상점</h1>
           <p className="mt-2 text-slate-300">카드 상점 대신 회복과 다음 전투 버프를 구매합니다. 골드 {player.gold || 0}</p>
-          <div className="mt-5 grid gap-4 md:grid-cols-4">
+          <div className="mt-5 grid gap-4 md:grid-cols-5">
             {items.map((item) => (
               <article key={item.id} className="rounded-3xl bg-white p-5 text-slate-950 shadow-xl">
                 <h2 className="text-xl font-black">{item.title}</h2>
@@ -9016,6 +9754,7 @@ export default function DeckbuilderRoguelikePrototype() {
   if (phase === "floorSelect") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
+        {renderDebugPanel()}
         <section className="mx-auto max-w-6xl rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
@@ -9053,7 +9792,7 @@ export default function DeckbuilderRoguelikePrototype() {
                   </div>
                   <div className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-black ${challengeable ? "bg-slate-950 text-white" : "bg-white/10 text-slate-300"}`}>{statusLabel}</div>
                   <div className="mt-3 font-black">{enemy.name}</div>
-                  <div className="mt-2 text-sm">HP {enemy.maxHp} / 공격 {enemy.baseAttack}</div>
+                  <div className="mt-2 text-sm">HP {enemy.maxHp} / 공격 {enemy.baseAttack} / 방어 {enemy.baseDefense}</div>
                   <div className="mt-1 text-sm">{enemy.diceCount}D{enemy.diceSides}</div>
                   {boss && (
                     <div className="mt-3 rounded-xl bg-amber-200/70 px-3 py-2 text-xs font-black text-amber-950">
@@ -9077,10 +9816,16 @@ export default function DeckbuilderRoguelikePrototype() {
     const isAttackTurn = battlePhase === "playerAttack";
     const isDefenseTurn = battlePhase === "playerDefense";
     const bossLabel = getBossFloorLabel(selectedFloor);
+    const equippedAccessory = getEquippedAccessory();
+    const lowHpAttackBonus =
+      player.hp <= finalMaxHp * 0.3 ? getAccessoryEffectValue(equippedAccessory, "lowHpAttackBonus") : 0;
+    const attackDoubleMultiplier = DOUBLE_MULTIPLIER + getAccessoryEffectValue(equippedAccessory, "doubleDamageBonus");
+    const defenseDoubleMultiplier = DOUBLE_MULTIPLIER + getAccessoryEffectValue(equippedAccessory, "doubleDefenseBonus");
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
-        <section className="mx-auto max-w-6xl">
-          <header className="mb-4 rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl">
+      <div className="tower-battle-table min-h-screen p-4 text-slate-100">
+        {renderDebugPanel()}
+        <section className="mx-auto max-w-7xl">
+          <header className="mb-4 rounded-3xl border border-white/10 bg-black/25 p-5 shadow-2xl backdrop-blur">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <div className="text-sm font-black uppercase tracking-[0.18em] text-cyan-200">Dice Battle</div>
@@ -9097,98 +9842,111 @@ export default function DeckbuilderRoguelikePrototype() {
             </div>
           </header>
 
-          <main className="grid gap-4 lg:grid-cols-2">
-            <article className="rounded-3xl bg-white p-5 text-slate-950 shadow-xl">
-              <div className="text-sm font-black text-slate-500">플레이어</div>
-              <h2 className="mt-1 text-3xl font-black">등반자</h2>
-              <div className="mt-4 h-4 overflow-hidden rounded-full bg-slate-200"><div className="h-full bg-rose-500" style={{ width: `${playerHpPercent}%` }} /></div>
-              <div className="mt-2 font-black">HP {player.hp}/{finalMaxHp}</div>
-              <div className="mt-4 grid grid-cols-3 gap-2 text-sm font-bold">
-                <div className="rounded-xl bg-slate-100 p-3">공격 {getPlayerAttackValue()}</div>
-                <div className="rounded-xl bg-slate-100 p-3">방어 {getPlayerDefenseValue()}</div>
-                <div className="rounded-xl bg-slate-100 p-3">{formatDice(effectiveDice)} / 최소 {effectiveDice.min} / 합계 +{effectiveDice.totalBonus}</div>
+          <main className="grid gap-4 xl:grid-cols-[300px_1fr_300px]">
+            <article className="battle-actor-panel rounded-3xl p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-black uppercase tracking-[0.16em] text-cyan-200">Player</div>
+                  <h2 className="mt-1 text-3xl font-black">등반자</h2>
+                </div>
+                <div className="grid h-14 w-14 place-items-center rounded-2xl bg-cyan-300/15 text-cyan-100"><Shield size={28} /></div>
               </div>
-              <button
-                onClick={usePotion}
-                disabled={potions <= 0 || player.hp >= finalMaxHp || isResolvingAction}
-                className="mt-4 rounded-2xl bg-rose-300 px-4 py-3 font-black text-rose-950 hover:bg-rose-200 disabled:cursor-not-allowed disabled:opacity-45"
-              >
-                회복 물약 사용 · 보유 {potions}개 · HP 30 회복
-              </button>
+              <div className="mt-5 h-4 overflow-hidden rounded-full bg-white/10">
+                <div className="battle-hp-fill h-full bg-gradient-to-r from-rose-500 to-amber-300" style={{ width: `${playerHpPercent}%` }} />
+              </div>
+              <div className="mt-2 font-black">HP {player.hp}/{finalMaxHp}</div>
+              <div className="mt-4 grid grid-cols-2 gap-2 text-sm font-bold">
+                <div className="rounded-xl bg-white/10 p-3">공격 <strong className="block text-xl">{getPlayerAttackValue()}</strong></div>
+                <div className="rounded-xl bg-white/10 p-3">방어 <strong className="block text-xl">{getPlayerDefenseValue()}</strong></div>
+                <div className="col-span-2 rounded-xl bg-white/10 p-3">주사위 <strong className="block text-lg">{formatDice(effectiveDice)} / 최소 {effectiveDice.min} / 합계 +{effectiveDice.totalBonus}</strong></div>
+              </div>
+              {lowHpAttackBonus > 0 && (
+                <div className="mt-3 rounded-xl bg-rose-400/15 px-3 py-2 text-sm font-black text-rose-100">
+                  {equippedAccessory.name} 발동 중: 공격력 +{lowHpAttackBonus}
+                </div>
+              )}
+              {equippedAccessory && (
+                <div className={`accessory-chip accessory-${equippedAccessory.rarity} mt-3`}>
+                  [{getAccessoryRarityLabel(equippedAccessory)}] {equippedAccessory.name}: {getAccessoryEffectText(equippedAccessory)}
+                </div>
+              )}
+              <div className="mt-3 rounded-xl bg-white/10 p-3 text-sm font-black">물약 {potions}개</div>
             </article>
 
-            <article className="rounded-3xl bg-white p-5 text-slate-950 shadow-xl">
-              <div className="text-sm font-black text-slate-500">적</div>
-              <div className="mt-2 flex items-center gap-4">
-                <span className="grid h-20 w-20 place-items-center rounded-2xl bg-slate-100">
+            <div className="order-first xl:order-none">
+              <DiceDuelPanel
+                battlePhase={battlePhase}
+                battleActionState={battleActionState}
+                lastDiceResults={lastDiceResults}
+                lastPlayerAttackRoll={lastPlayerAttackRoll}
+                lastEnemyDefenseRoll={lastEnemyDefenseRoll}
+                lastPlayerDefenseRoll={lastPlayerDefenseRoll}
+                lastEnemyAttackRoll={lastEnemyAttackRoll}
+                debugCombatFormulas={debugCombatFormulas}
+                battleHighlight={battleHighlight}
+              />
+            </div>
+
+            <article className={`battle-actor-panel rounded-3xl p-5 ${currentEnemy?.isBoss ? "border-amber-300/30" : ""}`}>
+              <div className="flex items-center gap-4">
+                <span className="grid h-20 w-20 place-items-center rounded-2xl bg-white/10">
                   <MonsterImage monster={currentEnemy} className="h-16 w-16 object-contain" fallbackClassName="text-4xl" />
                 </span>
-                <h2 className="text-3xl font-black">{currentEnemy?.name}</h2>
+                <div>
+                  <div className="text-xs font-black uppercase tracking-[0.16em] text-red-200">Enemy</div>
+                  <h2 className="text-3xl font-black">{currentEnemy?.name}</h2>
+                  {currentEnemy?.isBoss && <span className="mt-2 inline-flex rounded-full bg-amber-300 px-2 py-1 text-[11px] font-black text-slate-950">BOSS</span>}
+                </div>
               </div>
-              <div className="mt-4 h-4 overflow-hidden rounded-full bg-slate-200"><div className="h-full bg-slate-950" style={{ width: `${enemyHpPercent}%` }} /></div>
+              <div className="mt-5 h-4 overflow-hidden rounded-full bg-white/10">
+                <div className="battle-hp-fill h-full bg-gradient-to-r from-red-500 to-slate-100" style={{ width: `${enemyHpPercent}%` }} />
+              </div>
               <div className="mt-2 font-black">HP {currentEnemy?.hp}/{currentEnemy?.maxHp}</div>
-              <div className="mt-4 grid grid-cols-3 gap-2 text-sm font-bold">
-                <div className="rounded-xl bg-slate-100 p-3">공격 {currentEnemy?.baseAttack}</div>
-                <div className="rounded-xl bg-slate-100 p-3">{currentEnemy?.diceCount}D{currentEnemy?.diceSides}</div>
-                <div className="rounded-xl bg-slate-100 p-3">보상 {currentEnemy?.goldReward}G / 장비 재료 {currentEnemy?.materialReward}</div>
+              <div className="mt-4 grid grid-cols-2 gap-2 text-sm font-bold">
+                <div className="rounded-xl bg-white/10 p-3">공격 <strong className="block text-xl">{currentEnemy?.baseAttack}</strong></div>
+                <div className="rounded-xl bg-white/10 p-3">방어 <strong className="block text-xl">{currentEnemy?.baseDefense}</strong></div>
+                <div className="col-span-2 rounded-xl bg-white/10 p-3">주사위 <strong className="block text-lg">{currentEnemy?.diceCount}D{currentEnemy?.diceSides}</strong></div>
+                <div className="col-span-2 rounded-xl bg-white/10 p-3">보상 <strong className="block text-base">{currentEnemy?.goldReward}G / 재료 {currentEnemy?.materialReward}</strong></div>
               </div>
             </article>
           </main>
 
-          <section className="mt-4 grid gap-4 lg:grid-cols-[1fr_360px]">
-            <div className="space-y-4">
-              <BattleHighlightPanel highlight={battleHighlight} />
-
-              <section className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-xl">
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <h2 className="text-xl font-black">최근 주사위 결과</h2>
-                    <p className="mt-1 text-sm text-slate-400">플레이어 공격, 적 공격, 플레이어 방어 주사위를 구분해서 표시합니다.</p>
-                  </div>
-                  {lastDiceResult?.isDouble && <span className="rounded-2xl bg-amber-300 px-3 py-2 text-sm font-black text-slate-950">더블!</span>}
-                </div>
-                <div className="mt-4 grid gap-3 md:grid-cols-3">
-                  <DiceRollDisplay title="플레이어 공격 주사위" roll={lastPlayerAttackRoll} tone="player" />
-                  <DiceRollDisplay title="적 공격 주사위" roll={lastEnemyAttackRoll} tone="enemy" />
-                  <DiceRollDisplay title="플레이어 방어 주사위" roll={lastPlayerDefenseRoll} tone="defense" />
-                </div>
-                <div className="mt-4 grid gap-2 text-sm font-black md:grid-cols-3">
-                  <div className="rounded-2xl bg-white/10 p-3">
-                    공격 결과: {lastDiceResults.playerAttack ? `${lastDiceResults.playerAttack.finalDamage} 피해${lastDiceResults.playerAttack.isDouble ? " / 더블 치명타" : ""}` : "-"}
-                  </div>
-                  <div className="rounded-2xl bg-white/10 p-3">
-                    적 공격값: {lastDiceResults.enemyAttack ? `${lastDiceResults.enemyAttack.attackValue}${lastDiceResults.enemyAttack.isDouble ? " / 적 더블" : ""}` : "-"}
-                  </div>
-                  <div className="rounded-2xl bg-white/10 p-3">
-                    방어 결과: {lastDiceResults.playerDefense ? `${lastDiceResults.playerDefense.defenseValue} 방어 / 피해 ${lastDiceResults.playerDefense.finalDamageTaken}${lastDiceResults.playerDefense.isDouble ? " / 더블 강화 방어" : ""}` : "-"}
-                  </div>
-                </div>
-              </section>
-
-              <section className={`rounded-3xl border p-5 shadow-xl ${isAttackTurn ? "border-amber-200/40 bg-amber-300/15" : "border-cyan-200/40 bg-cyan-300/15"}`}>
-                <div className="text-sm font-black uppercase tracking-[0.18em] text-slate-200">
-                  {isAttackTurn ? "공격턴" : "수비턴"}
-                </div>
-                <h2 className="mt-2 text-2xl font-black">
-                  {isAttackTurn ? "공격 주사위를 굴려 적에게 피해를 줍니다." : "방어 주사위를 굴려 적 공격을 막습니다."}
-                </h2>
-                <p className="mt-2 text-sm font-semibold text-slate-300">
-                  {isAttackTurn
-                    ? `공격 피해 = 기본공격력 ${getPlayerAttackValue()} x 주사위 합계${" / 더블 시 x 1.5"}`
-                    : `적 공격값 ${pendingEnemyAttack?.attackValue ?? "-"}을(를) 방어합니다. 더블 방어 시 x 1.5`}
-                </p>
+          <section className="mt-4 rounded-3xl border border-white/10 bg-black/25 p-4 shadow-2xl backdrop-blur">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Action</div>
+                <div className="mt-1 text-xl font-black">{isAttackTurn ? "공격 주사위를 굴릴 차례" : "방어 주사위를 굴릴 차례"}</div>
+              </div>
+              <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={isAttackTurn ? rollPlayerAttackDice : rollPlayerDefenseDice}
-                  disabled={(isAttackTurn && battlePhase !== "playerAttack") || (isDefenseTurn && battlePhase !== "playerDefense") || isResolvingAction}
-                  className={`mt-4 rounded-2xl px-5 py-4 text-lg font-black shadow-lg disabled:cursor-not-allowed disabled:opacity-45 ${
-                    isAttackTurn ? "bg-amber-300 text-slate-950 hover:bg-amber-200" : "bg-cyan-300 text-cyan-950 hover:bg-cyan-200"
-                  }`}
+                  onClick={rollPlayerAttackDice}
+                  disabled={!isAttackTurn || isBattleBusy}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-amber-300 px-5 py-3 font-black text-slate-950 shadow-lg hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-35"
                 >
-                  {isResolvingAction ? "처리 중..." : isAttackTurn ? "공격 주사위 굴리기" : "방어 주사위 굴리기"}
+                  <Sword size={18} /> 공격 굴림
                 </button>
-              </section>
+                <button
+                  onClick={rollPlayerDefenseDice}
+                  disabled={!isDefenseTurn || isBattleBusy}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-cyan-300 px-5 py-3 font-black text-cyan-950 shadow-lg hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-35"
+                >
+                  <Shield size={18} /> 방어 굴림
+                </button>
+                <button
+                  onClick={usePotion}
+                  disabled={potions <= 0 || player.hp >= finalMaxHp || isBattleBusy}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-rose-300 px-5 py-3 font-black text-rose-950 shadow-lg hover:bg-rose-200 disabled:cursor-not-allowed disabled:opacity-35"
+                >
+                  <Heart size={18} /> 회복
+                </button>
+              </div>
             </div>
+            <div className="mt-3 text-sm font-bold text-slate-300">
+              {isBattleBusy ? `진행 중: ${BATTLE_ACTION_LABELS[battleActionState] || "처리 중"}` : "주사위를 굴리면 중앙 대결판에서 순서대로 결과가 확정됩니다."}
+            </div>
+          </section>
 
+          <section className="mt-4">
             <BattleLogPanel logs={battleLogs} />
           </section>
         </section>
@@ -9206,42 +9964,107 @@ export default function DeckbuilderRoguelikePrototype() {
           ? "중간보스 처치!"
           : "승리!"
       : "등반 실패";
+    const deathShardBonuses = getDiceShardUpgradeBonuses(diceShardUpgrades);
+    const resetOnDeathItems = [
+      "골드",
+      "장비 강화 상태",
+      "주사위 강화 상태",
+      "장비 강화 재료",
+      "주사위 강화 재료",
+      "장신구",
+      "회복 물약",
+      "현재 등반 진행도",
+      "도전한 층 기록",
+      "클리어한 층 기록",
+      "전투 로그",
+    ];
     return (
       <div className="grid min-h-screen place-items-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
+        {renderDebugPanel()}
         <section className="w-full max-w-5xl">
           <div className="rounded-3xl bg-white p-8 text-center text-slate-950 shadow-2xl">
             {won ? <Trophy className="mx-auto mb-3 h-12 w-12 text-yellow-600" /> : <Skull className="mx-auto mb-3 h-12 w-12" />}
             <h1 className="text-4xl font-black">{resultTitle}</h1>
-            <p className="mt-2 text-slate-600">{resultFloor}층 전투 결과</p>
+            <p className="mt-2 text-slate-600">
+              {won
+                ? `${resultFloor}층 전투 결과`
+                : battleRewardSummary?.difficultyMode === "roguelike"
+                  ? "이번 등반은 끝났지만, 주사위 조각을 통해 다음 도전을 준비할 수 있습니다."
+                  : "하드코어 난이도에서는 패배 보상이 없습니다."}
+            </p>
             {won && (
-              <div className="mt-5 grid gap-2 rounded-2xl bg-slate-100 p-4 text-left text-sm font-bold">
-                <div>{resultFloor}층을 클리어했습니다.</div>
-                <div>획득 골드: {battleRewardSummary?.gold || 0}</div>
-                <div>획득 장비 강화 재료: {battleRewardSummary?.material || 0}</div>
-                {(battleRewardSummary?.diceMaterial || 0) > 0 && <div>획득 주사위 강화 재료: {battleRewardSummary.diceMaterial}</div>}
-                {battleRewardSummary?.potionDropped && <div>추가 보상: 회복 물약 1개 획득!</div>}
-                {battleRewardSummary?.accessory && (
-                  <div>
-                    장신구 {battleRewardSummary.accessoryAlreadyOwned ? "이미 보유" : "획득"}: {battleRewardSummary.accessory.name}
-                  </div>
-                )}
-                <div>새로 해금된 층: {battleRewardSummary?.newlyUnlocked ? `${battleRewardSummary.newlyUnlocked}층` : "없음"}</div>
+              <div className="mt-5 rounded-3xl bg-slate-950 p-5 text-left text-slate-100">
+                <div className="text-sm font-black text-slate-400">{resultFloor}층 클리어 보상</div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <article className="reward-tile">
+                    <span>골드</span>
+                    <strong>+{battleRewardSummary?.gold || 0}</strong>
+                  </article>
+                  <article className="reward-tile">
+                    <span>장비 재료</span>
+                    <strong>+{battleRewardSummary?.material || 0}</strong>
+                  </article>
+                  {(battleRewardSummary?.diceMaterial || 0) > 0 && (
+                    <article className="reward-tile">
+                      <span>주사위 재료</span>
+                      <strong>+{battleRewardSummary.diceMaterial}</strong>
+                    </article>
+                  )}
+                  {battleRewardSummary?.potionDropped && (
+                    <article className="reward-tile is-potion">
+                      <span>회복 물약</span>
+                      <strong>+1</strong>
+                    </article>
+                  )}
+                  {battleRewardSummary?.accessory && (
+                    <article className={`reward-tile is-accessory accessory-${battleRewardSummary.accessory.rarity}`}>
+                      <span>{battleRewardSummary.accessoryAlreadyOwned ? "중복 변환" : `${getAccessoryRarityLabel(battleRewardSummary.accessory)} 장신구`}</span>
+                      <strong>{battleRewardSummary.accessory.name}</strong>
+                      <em>
+                        {battleRewardSummary.accessoryAlreadyOwned
+                          ? `골드 +${battleRewardSummary.duplicateAccessoryGold}`
+                          : getAccessoryEffectText(battleRewardSummary.accessory)}
+                      </em>
+                    </article>
+                  )}
+                  {(battleRewardSummary?.healAfterBattle || 0) > 0 && (
+                    <article className="reward-tile is-heal">
+                      <span>장신구 회복</span>
+                      <strong>HP +{battleRewardSummary.healAfterBattle}</strong>
+                    </article>
+                  )}
+                  <article className="reward-tile">
+                    <span>새 해금 층</span>
+                    <strong>{battleRewardSummary?.newlyUnlocked ? `${battleRewardSummary.newlyUnlocked}층` : "없음"}</strong>
+                  </article>
+                </div>
               </div>
             )}
             {!won && (
-              <div className="mt-5 grid gap-2 rounded-2xl bg-slate-100 p-4 text-left text-sm font-bold">
+              <div className="mt-5 grid gap-4 rounded-2xl bg-slate-100 p-4 text-left text-sm font-bold">
                 {battleRewardSummary?.difficultyMode === "roguelike" ? (
                   <>
-                    <div>하지만 경험은 남았습니다.</div>
-                    <div>획득한 주사위 조각: {battleRewardSummary?.diceShards || 0}개</div>
-                    <div>주사위 조각 상점에서 다음 등반을 준비할 수 있습니다.</div>
+                    <div className="rounded-xl bg-cyan-100 p-3 text-cyan-950">획득한 주사위 조각: {battleRewardSummary?.diceShards || 0}개</div>
+                    <div>
+                      <div className="text-base font-black">유지되는 것</div>
+                      <ul className="mt-2 grid gap-1">
+                        <li>주사위 조각</li>
+                        <li>주사위 조각 상점 강화</li>
+                        <li>기본 공격력 강화 +{deathShardBonuses.attack}</li>
+                        <li>기본 방어력 강화 +{deathShardBonuses.defense}</li>
+                        <li>기본 체력 강화 +{deathShardBonuses.maxHp}</li>
+                      </ul>
+                    </div>
                   </>
                 ) : (
-                  <>
-                    <div>하드코어 난이도에서는 패배 보상이 없습니다.</div>
-                    <div>모든 진행은 처음부터 다시 시작됩니다.</div>
-                  </>
+                  <div className="rounded-xl bg-rose-100 p-3 text-rose-950">패배 보상 없음</div>
                 )}
+                <div>
+                  <div className="text-base font-black">초기화되는 것</div>
+                  <ul className="mt-2 grid gap-1 sm:grid-cols-2">
+                    {resetOnDeathItems.map((item) => <li key={item}>{item}</li>)}
+                  </ul>
+                </div>
               </div>
             )}
             <div className="mt-6 flex flex-wrap justify-center gap-3">
@@ -9249,9 +10072,9 @@ export default function DeckbuilderRoguelikePrototype() {
                 <button onClick={goToTower} className="rounded-2xl bg-slate-950 px-5 py-3 font-bold text-white hover:bg-slate-700">탑으로 돌아가기</button>
               ) : battleRewardSummary?.difficultyMode === "roguelike" ? (
                 <>
-                  <button onClick={() => startNewClimb(difficultyMode || "roguelike", { applyPendingBonuses: false })} className="rounded-2xl bg-slate-950 px-5 py-3 font-bold text-white hover:bg-slate-700">탑으로 돌아가기</button>
-                  <button onClick={restartClimb} className="rounded-2xl border border-slate-200 px-5 py-3 font-bold text-slate-950 hover:bg-slate-100">새 등반 시작</button>
+                  <button onClick={restartClimb} className="rounded-2xl bg-slate-950 px-5 py-3 font-bold text-white hover:bg-slate-700">새 등반 시작</button>
                   <button onClick={() => setPhase("diceShardShop")} className="rounded-2xl bg-indigo-500 px-5 py-3 font-bold text-white hover:bg-indigo-400">주사위 조각 상점으로 이동</button>
+                  <button onClick={returnToTitle} className="rounded-2xl border border-slate-200 px-5 py-3 font-bold text-slate-950 hover:bg-slate-100">처음 화면으로</button>
                 </>
               ) : (
                 <>
@@ -9278,10 +10101,10 @@ export default function DeckbuilderRoguelikePrototype() {
           <div className="mx-auto mb-5 grid h-20 w-20 place-items-center rounded-3xl border border-amber-200/40 bg-amber-200/10 text-4xl shadow-[0_0_50px_rgba(251,191,36,0.2)]">
             ✦
           </div>
-          <div className="text-sm font-black uppercase tracking-[0.22em] text-cyan-200">test1 merged build</div>
-          <h1 className="mt-3 text-5xl font-black tracking-tight md:text-7xl">Deck Spire Prototype</h1>
+          <div className="text-sm font-black uppercase tracking-[0.22em] text-cyan-200">Tower Dice Battle</div>
+          <h1 className="mt-3 text-5xl font-black tracking-tight md:text-7xl">Dice Tower</h1>
           <p className="mx-auto mt-4 max-w-2xl text-slate-300">
-            직업을 선택하고 10깊이 던전을 최종 보스까지 공략하는 카드 전투 로그라이크입니다.
+            주사위를 굴려 공격과 방어를 겨루고, 장신구와 강화로 10층 탑을 등반하는 전투 게임입니다.
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-2 text-sm font-bold text-slate-200">
             <span className="rounded-xl bg-white/10 px-3 py-2">특성 포인트 {normalizePlayerData(playerData).traitPoint}</span>
@@ -9329,10 +10152,10 @@ export default function DeckbuilderRoguelikePrototype() {
               "게임 시작을 누르면 바로 탑 화면으로 이동합니다.",
               "탑 화면에서 장비 강화, 주사위 강화, 상점, 층 선택을 고릅니다.",
               "해금된 층을 선택하면 해당 층의 적과 주사위 전투를 시작합니다.",
-              "공격턴에는 기본공격력에 주사위 합계를 곱해 피해를 줍니다.",
-              "수비턴에는 기본방어력에 주사위 합계를 곱해 적 공격을 막습니다.",
-              "승리하면 골드와 재료를 얻고 다음 층이 해금됩니다.",
-              "패배하면 해금은 늘어나지 않지만 탑으로 돌아가 다시 준비할 수 있습니다.",
+              "공격턴에는 플레이어 공격 주사위와 적 방어 주사위가 순서대로 굴러갑니다.",
+              "수비턴에는 플레이어 방어 주사위와 적 공격 주사위가 순서대로 굴러갑니다.",
+              "승리하면 골드, 재료, 물약, 장신구 보상을 얻고 다음 층이 해금됩니다.",
+              "로그라이크에서 패배하면 장신구와 등반 재화가 초기화되고 주사위 조각만 남습니다.",
             ].map((line, index) => (
               <div key={line} className="flex items-center gap-3 rounded-2xl bg-white/8 p-4">
                 <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-amber-300 font-black text-slate-950">{index + 1}</span>

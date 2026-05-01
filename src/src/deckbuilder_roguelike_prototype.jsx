@@ -2589,15 +2589,17 @@ const ENEMY_DICE_RULES = [
   { minFloor: 10, maxFloor: Infinity, maxFace: 4 },
 ];
 const BATTLE_STEP_DELAY_MS = 1000;
-const BATTLE_STRIKE_MID_FRAME_MS = 180;
-const BATTLE_STRIKE_HIT_MS = 460;
-const BATTLE_STRIKE_END_MS = 950;
+const BATTLE_STRIKE_HIT_MS = 300;
+const BATTLE_STRIKE_END_MS = 620;
 const PLAYER_BATTLE_IMAGE_SRC = "/images/warrior/warrior.png";
-const PLAYER_ATTACK_IMAGE_FRAMES = {
-  idle: PLAYER_BATTLE_IMAGE_SRC,
-  attackStart: "/images/warrior/attack-start.png",
-  attackMid: "/images/warrior/attack-mid.png",
-  attackEnd: "/images/warrior/attack-end.png",
+const PLAYER_BATTLE_FRAME_BASE = "/images/warrior";
+const MONSTER_BATTLE_FRAME_BASE = "/images/monster";
+const BATTLE_VISUAL_FRAME_FILE = {
+  idle: "idle.png",
+  attackStart: "attack-start.png",
+  attackMid: "attack-mid.png",
+  attackEnd: "attack-end.png",
+  hit: "hit.png",
 };
 const BATTLE_ACTION_LABELS = {
   idle: "대기",
@@ -4139,6 +4141,53 @@ function MonsterImage({ monster, className = "monster-image", fallbackClassName 
       draggable="false"
       onError={() => {
         setMode((current) => (current === "primary" && primarySrc !== DEFAULT_MONSTER_IMAGE ? "default" : "fallback"));
+      }}
+    />
+  );
+}
+
+function getBattleSpriteFrameCandidates({ kind, monster, visualState = "idle" }) {
+  const stateKey = BATTLE_VISUAL_FRAME_FILE[visualState] ? visualState : "idle";
+  const frameFile = BATTLE_VISUAL_FRAME_FILE[stateKey] || BATTLE_VISUAL_FRAME_FILE.idle;
+
+  if (kind === "player") {
+    return [
+      `${PLAYER_BATTLE_FRAME_BASE}/${frameFile}`,
+      `${PLAYER_BATTLE_FRAME_BASE}/${BATTLE_VISUAL_FRAME_FILE.idle}`,
+      PLAYER_BATTLE_IMAGE_SRC,
+    ];
+  }
+
+  const monsterId = monster?.monsterId || monster?.id || "unknown";
+  return [
+    `${MONSTER_BATTLE_FRAME_BASE}/${monsterId}/${frameFile}`,
+    `${MONSTER_BATTLE_FRAME_BASE}/${monsterId}/${BATTLE_VISUAL_FRAME_FILE.idle}`,
+    getMonsterImagePath(monster),
+    DEFAULT_MONSTER_IMAGE,
+  ].filter(Boolean);
+}
+
+function BattleSpriteImage({ kind, monster, visualState = "idle", className = "character-sprite", fallbackClassName = "monster-image-fallback", alt }) {
+  const candidates = getBattleSpriteFrameCandidates({ kind, monster, visualState });
+  const [candidateIndex, setCandidateIndex] = useState(0);
+
+  useEffect(() => {
+    setCandidateIndex(0);
+  }, [kind, monster?.monsterId, monster?.id, monster?.imagePath, visualState]);
+
+  const src = candidates[candidateIndex];
+  if (!src) {
+    return <span className={fallbackClassName}>{monster?.image || "?"}</span>;
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt || monster?.name || (kind === "player" ? "플레이어" : "몬스터")}
+      className={`${className} visual-${visualState}`}
+      draggable="false"
+      onError={() => {
+        setCandidateIndex((current) => Math.min(current + 1, candidates.length));
       }}
     />
   );
@@ -6443,7 +6492,8 @@ export default function DeckbuilderRoguelikePrototype() {
   const [pendingPlayerAttackResolution, setPendingPlayerAttackResolution] = useState(null);
   const [selectedBattleTarget, setSelectedBattleTarget] = useState(null);
   const [battleAnimation, setBattleAnimation] = useState({ attacker: null, hitTarget: null });
-  const [playerBattleImageSrc, setPlayerBattleImageSrc] = useState(PLAYER_BATTLE_IMAGE_SRC);
+  const [playerVisualState, setPlayerVisualState] = useState("idle");
+  const [enemyVisualState, setEnemyVisualState] = useState("idle");
   const [damagePopup, setDamagePopup] = useState(null);
   const [isResolvingAction, setIsResolvingAction] = useState(false);
   const [battleRewardSummary, setBattleRewardSummary] = useState(null);
@@ -6556,7 +6606,8 @@ export default function DeckbuilderRoguelikePrototype() {
     setPendingPlayerAttackResolution(null);
     setSelectedBattleTarget(null);
     setBattleAnimation({ attacker: null, hitTarget: null });
-    setPlayerBattleImageSrc(PLAYER_BATTLE_IMAGE_SRC);
+    setPlayerVisualState("idle");
+    setEnemyVisualState("idle");
     setDamagePopup(null);
   }, [phase]);
 
@@ -6804,7 +6855,8 @@ export default function DeckbuilderRoguelikePrototype() {
     setPendingPlayerAttackResolution(null);
     setSelectedBattleTarget(null);
     setBattleAnimation({ attacker: null, hitTarget: null });
-    setPlayerBattleImageSrc(PLAYER_BATTLE_IMAGE_SRC);
+    setPlayerVisualState("idle");
+    setEnemyVisualState("idle");
     setDamagePopup(null);
     setBattleRewardSummary(null);
     setNextBattleBuff({ attack: 0, defense: 0 });
@@ -6849,7 +6901,8 @@ export default function DeckbuilderRoguelikePrototype() {
     setPendingPlayerAttackResolution(null);
     setSelectedBattleTarget(null);
     setBattleAnimation({ attacker: null, hitTarget: null });
-    setPlayerBattleImageSrc(PLAYER_BATTLE_IMAGE_SRC);
+    setPlayerVisualState("idle");
+    setEnemyVisualState("idle");
     setDamagePopup(null);
     resolvingActionRef.current = false;
     battleActionSeqRef.current += 1;
@@ -7028,7 +7081,8 @@ export default function DeckbuilderRoguelikePrototype() {
     setPendingPlayerAttackResolution(null);
     setSelectedBattleTarget(null);
     setBattleAnimation({ attacker: null, hitTarget: null });
-    setPlayerBattleImageSrc(PLAYER_BATTLE_IMAGE_SRC);
+    setPlayerVisualState("idle");
+    setEnemyVisualState("idle");
     setDamagePopup(null);
     resolvingActionRef.current = false;
   }
@@ -7044,7 +7098,8 @@ export default function DeckbuilderRoguelikePrototype() {
     setPendingPlayerAttackResolution(null);
     setSelectedBattleTarget(null);
     setBattleAnimation({ attacker: null, hitTarget: null });
-    setPlayerBattleImageSrc(PLAYER_BATTLE_IMAGE_SRC);
+    setPlayerVisualState("idle");
+    setEnemyVisualState("idle");
     setDamagePopup(null);
     resolvingActionRef.current = false;
     if (nextPhase) setBattlePhase(nextPhase);
@@ -7093,7 +7148,8 @@ export default function DeckbuilderRoguelikePrototype() {
     setPendingPlayerAttackResolution(null);
     setSelectedBattleTarget(null);
     setBattleAnimation({ attacker: null, hitTarget: null });
-    setPlayerBattleImageSrc(PLAYER_BATTLE_IMAGE_SRC);
+    setPlayerVisualState("idle");
+    setEnemyVisualState("idle");
     setDamagePopup(null);
     setBattleLogs([]);
     setBattleActionState("idle");
@@ -7478,7 +7534,8 @@ export default function DeckbuilderRoguelikePrototype() {
     setBattleStep("playerAttacking");
     setBattleActionState("playerAttacking");
     setBattleAnimation({ attacker: "player", hitTarget: null });
-    setPlayerBattleImageSrc(PLAYER_ATTACK_IMAGE_FRAMES.attackStart);
+    setPlayerVisualState("attackStart");
+    setEnemyVisualState("idle");
     setDamagePopup(null);
     setBattleHighlight({
       type: "attack",
@@ -7487,16 +7544,16 @@ export default function DeckbuilderRoguelikePrototype() {
       formula: resolution.playerDamageFormula,
     });
 
-    await delay(BATTLE_STRIKE_MID_FRAME_MS);
+    await delay(120);
     if (!mountedRef.current || battleActionSeqRef.current !== actionId) return;
-    setPlayerBattleImageSrc(PLAYER_ATTACK_IMAGE_FRAMES.attackMid);
-
-    await delay(Math.max(0, BATTLE_STRIKE_HIT_MS - BATTLE_STRIKE_MID_FRAME_MS));
+    setPlayerVisualState("attackMid");
+    await delay(Math.max(0, BATTLE_STRIKE_HIT_MS - 120));
     if (!mountedRef.current || battleActionSeqRef.current !== actionId) return;
 
     const nextEnemy = { ...resolution.enemySnapshot, hp: Math.max(0, resolution.enemySnapshot.hp - resolution.finalDamage) };
     setBattleAnimation({ attacker: "player", hitTarget: "enemy" });
-    setPlayerBattleImageSrc(PLAYER_ATTACK_IMAGE_FRAMES.attackEnd);
+    setPlayerVisualState("attackEnd");
+    setEnemyVisualState("hit");
     setDamagePopup({ target: "enemy", amount: resolution.finalDamage, id: `${Date.now()}-enemy` });
     setCurrentEnemy(nextEnemy);
     setLastDiceResult({
@@ -7550,7 +7607,8 @@ export default function DeckbuilderRoguelikePrototype() {
     if (!mountedRef.current || battleActionSeqRef.current !== actionId) return;
 
     setBattleAnimation({ attacker: null, hitTarget: null });
-    setPlayerBattleImageSrc(PLAYER_BATTLE_IMAGE_SRC);
+    setPlayerVisualState("idle");
+    setEnemyVisualState("idle");
     setSelectedBattleTarget(null);
     setPendingPlayerAttackResolution(null);
 
@@ -7744,13 +7802,18 @@ export default function DeckbuilderRoguelikePrototype() {
     setBattleStep("enemyAttacking");
     setBattleActionState("enemyAttacking");
     setBattleAnimation({ attacker: "enemy", hitTarget: null });
+    setEnemyVisualState("attackStart");
+    setPlayerVisualState("idle");
     setBattleHighlight({
       type: "damage",
       title: "몬스터의 공격!",
       message: `${enemySnapshot.name}이(가) 플레이어를 공격합니다.`,
       formula: `${enemyAttackFormula} / ${playerDefenseFormula}`,
     });
-    await delay(BATTLE_STRIKE_HIT_MS);
+    await delay(120);
+    if (!mountedRef.current || battleActionSeqRef.current !== actionId) return;
+    setEnemyVisualState("attackMid");
+    await delay(Math.max(0, BATTLE_STRIKE_HIT_MS - 120));
     if (!mountedRef.current || battleActionSeqRef.current !== actionId) return;
 
     const finalDamageTaken = Math.max(0, enemyAttack.attackValue - defenseValue);
@@ -7761,6 +7824,8 @@ export default function DeckbuilderRoguelikePrototype() {
     setBattleStep("resolvingDamage");
     setBattleActionState("resolvingEnemyAttack");
     setBattleAnimation({ attacker: "enemy", hitTarget: "player" });
+    setEnemyVisualState("attackEnd");
+    setPlayerVisualState("hit");
     setDamagePopup({ target: "player", amount: finalDamageTaken, id: `${Date.now()}-player` });
     setPlayer((current) => ({
       ...current,
@@ -7856,6 +7921,8 @@ export default function DeckbuilderRoguelikePrototype() {
     await delay(Math.max(0, BATTLE_STRIKE_END_MS - BATTLE_STRIKE_HIT_MS));
     if (!mountedRef.current || battleActionSeqRef.current !== actionId) return;
     setBattleAnimation({ attacker: null, hitTarget: null });
+    setPlayerVisualState("idle");
+    setEnemyVisualState("idle");
 
     if (nextHp <= 0) {
       resetTowerBattleActionState();
@@ -8125,6 +8192,8 @@ export default function DeckbuilderRoguelikePrototype() {
     setPendingPlayerAttackResolution(null);
     setSelectedBattleTarget(null);
     setBattleAnimation({ attacker: null, hitTarget: null });
+    setPlayerVisualState("idle");
+    setEnemyVisualState("idle");
     setDamagePopup(null);
     setIsResolvingAction(false);
     resolvingActionRef.current = false;
@@ -10427,12 +10496,11 @@ export default function DeckbuilderRoguelikePrototype() {
                 <div className="battle-character-frame">
                   {damagePopup?.target === "player" && <span key={damagePopup.id} className="damage-popup">-{damagePopup.amount}</span>}
                   <div className={`sprite-idle-wrapper ${battleAnimation.attacker === "player" || battleAnimation.hitTarget === "player" ? "is-paused" : ""}`}>
-                    <img
+                    <BattleSpriteImage
+                      kind="player"
+                      visualState={playerVisualState}
                       className={`character-sprite player-character-image player-sprite ${battleAnimation.attacker === "player" ? "attacking" : ""} ${battleAnimation.hitTarget === "player" ? "hit" : ""}`}
-                      src={playerBattleImageSrc}
                       alt="플레이어"
-                      draggable="false"
-                      onError={() => setPlayerBattleImageSrc(PLAYER_BATTLE_IMAGE_SRC)}
                     />
                   </div>
                 </div>
@@ -10486,8 +10554,10 @@ export default function DeckbuilderRoguelikePrototype() {
                   {isSelectingTarget && <span className="target-select-label">공격 대상 선택</span>}
                   {damagePopup?.target === "enemy" && <span key={damagePopup.id} className="damage-popup">-{damagePopup.amount}</span>}
                   <div className={`sprite-idle-wrapper ${battleAnimation.attacker === "enemy" || battleAnimation.hitTarget === "enemy" ? "is-paused" : ""}`}>
-                    <MonsterImage
+                    <BattleSpriteImage
+                      kind="monster"
                       monster={currentEnemy}
+                      visualState={enemyVisualState}
                       className={`character-sprite enemy-character-image enemy-sprite ${battleAnimation.attacker === "enemy" ? "attacking" : ""} ${battleAnimation.hitTarget === "enemy" ? "hit" : ""}`}
                       fallbackClassName="enemy-character-fallback"
                     />

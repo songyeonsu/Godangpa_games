@@ -5088,6 +5088,53 @@ function DungeonProgressPanel({ currentDepth, maxDepth, currentRoomType, isRoomC
   );
 }
 
+function GamePanel({ children, className = "", as: Component = "section" }) {
+  return <Component className={`game-panel ${className}`}>{children}</Component>;
+}
+
+function GameButton({ children, className = "", variant = "primary", ...props }) {
+  return (
+    <button type="button" className={`game-button game-button-${variant} ${className}`} {...props}>
+      {children}
+    </button>
+  );
+}
+
+function StatCard({ label, value, detail, icon = null, className = "" }) {
+  return (
+    <article className={`stat-card ${className}`}>
+      <div className="stat-card-label">
+        {icon}
+        <span>{label}</span>
+      </div>
+      <strong>{value}</strong>
+      {detail && <p>{detail}</p>}
+    </article>
+  );
+}
+
+function ResourceBadge({ children, className = "" }) {
+  return <span className={`resource-badge ${className}`}>{children}</span>;
+}
+
+function SectionTitle({ eyebrow, title, children, className = "" }) {
+  return (
+    <div className={`section-title ${className}`}>
+      {eyebrow && <div>{eyebrow}</div>}
+      <h2>{title}</h2>
+      {children && <p>{children}</p>}
+    </div>
+  );
+}
+
+function DiceBox({ value = "-", rolling = false, tone = "player", double = false, className = "" }) {
+  return (
+    <div className={`dice-face dice-box ${rolling ? "is-shuffling" : ""} ${double ? "is-double-face" : ""} dice-box-${tone} ${className}`}>
+      {value}
+    </div>
+  );
+}
+
 function DiceRollDisplay({ title, roll, tone = "player", isRolling = false, displayDiceValues = [], compact = false }) {
   const [rollingDice, setRollingDice] = useState([1, 6]);
   const toneClass =
@@ -5121,20 +5168,23 @@ function DiceRollDisplay({ title, roll, tone = "player", isRolling = false, disp
       <div className={`mt-3 flex flex-wrap gap-2 ${compact ? "justify-center" : ""}`}>
         {dice.length > 0 ? (
           dice.map((value, index) => (
-            <div
+            <DiceBox
               key={`${title}-${index}-${value}`}
-              className={`dice-face grid ${compact ? "h-16 w-16 text-3xl" : "h-14 w-14 text-2xl"} place-items-center rounded-2xl border-2 bg-white font-black text-slate-950 shadow-sm ${
-                double ? "is-double-face" : ""
-              }`}
-            >
-              {value}
-            </div>
+              value={value}
+              tone={tone}
+              double={double}
+              className={`${compact ? "h-16 w-16 text-3xl" : "h-14 w-14 text-2xl"}`}
+            />
           ))
         ) : (
           placeholder.map((value, index) => (
-            <div key={`${title}-placeholder-${index}`} className={`dice-face ${isRolling ? "is-shuffling" : ""} grid ${compact ? "h-16 w-16 text-3xl" : "h-14 w-14 text-2xl"} place-items-center rounded-2xl border-2 border-dashed border-slate-500 bg-white/85 font-black text-slate-500`}>
-              {value}
-            </div>
+            <DiceBox
+              key={`${title}-placeholder-${index}`}
+              value={value}
+              tone={tone}
+              rolling={isRolling}
+              className={`${compact ? "h-16 w-16 text-3xl" : "h-14 w-14 text-2xl"}`}
+            />
           ))
         )}
       </div>
@@ -9538,7 +9588,7 @@ export default function DeckbuilderRoguelikePrototype() {
     const recommendedFloor = floorList.find((floor) => canChallengeFloor(floor)) || highestUnlockedFloor;
     const recommendedEnemy = createTowerEnemyForFloor(recommendedFloor);
     return (
-      <div className="tower-battle-table min-h-screen p-4 text-slate-100">
+      <div className="tower-battle-table cute-game-screen min-h-screen p-4 text-slate-100">
         {renderDebugPanel()}
         <div className="mx-auto max-w-7xl">
           <header className="mb-5 rounded-3xl border border-white/10 bg-black/25 p-5 shadow-2xl backdrop-blur">
@@ -9697,7 +9747,7 @@ export default function DeckbuilderRoguelikePrototype() {
     const finalMaxHp = getFinalMaxHp();
     const equippedAccessory = getEquippedAccessory();
     return (
-      <div className="tower-battle-table min-h-screen p-4 text-slate-100">
+      <div className="tower-battle-table cute-game-screen min-h-screen p-4 text-slate-100">
         {renderDebugPanel()}
         <section className="mx-auto max-w-7xl rounded-3xl border border-white/10 bg-black/25 p-6 shadow-2xl backdrop-blur">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -9953,18 +10003,18 @@ export default function DeckbuilderRoguelikePrototype() {
 
   if (phase === "floorSelect") {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
+      <div className="cute-game-screen min-h-screen p-4 text-slate-100">
         {renderDebugPanel()}
-        <section className="mx-auto max-w-6xl rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
+        <GamePanel className="mx-auto max-w-5xl p-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h1 className="text-4xl font-black">층 선택</h1>
-              <p className="mt-2 text-slate-300">이번 등반에서 각 층은 한 번만 도전할 수 있습니다. 패배하면 새 등반은 1층부터 시작합니다.</p>
-            </div>
-            <button onClick={goToTower} className="rounded-2xl bg-white px-5 py-3 font-black text-slate-950 hover:bg-cyan-100">탑으로 돌아가기</button>
+            <SectionTitle eyebrow="Tower Map" title="층 선택">
+              탑의 발판을 하나씩 밟아 올라갑니다. 이번 등반에서 각 층은 한 번만 도전할 수 있습니다.
+            </SectionTitle>
+            <GameButton onClick={goToTower} variant="secondary">탑으로 돌아가기</GameButton>
           </div>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            {floorList.map((floor) => {
+
+          <div className="tower-map-list mt-7">
+            {[...floorList].reverse().map((floor) => {
               const enemy = createTowerEnemyForFloor(floor);
               const unlocked = isTowerFloorUnlocked(floor);
               const cleared = clearedFloors.includes(floor);
@@ -9978,32 +10028,33 @@ export default function DeckbuilderRoguelikePrototype() {
                   type="button"
                   onClick={() => startBattleForFloor(floor)}
                   disabled={!challengeable}
-                  className={`rounded-3xl p-5 text-left shadow-xl transition ${
-                    challengeable
-                      ? boss
-                        ? "bg-amber-100 text-slate-950 hover:-translate-y-1"
-                        : "bg-white text-slate-950 hover:-translate-y-1"
-                      : "bg-white/10 text-slate-400"
-                  } disabled:cursor-not-allowed`}
+                  className={`tower-floor-node ${cleared ? "is-cleared" : ""} ${challengeable ? "is-challengeable" : ""} ${boss ? "is-boss" : ""} ${attempted ? "is-attempted" : ""} ${!unlocked ? "is-locked" : ""}`}
                 >
-                  <div className="flex items-center justify-between">
-                    <strong className="text-2xl">{floor}층</strong>
+                  <div className="tower-floor-marker">
                     {cleared ? <CheckCircle2 size={22} /> : !unlocked ? <Lock size={22} /> : boss ? <Crown size={22} /> : <Sword size={22} />}
                   </div>
-                  <div className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-black ${challengeable ? "bg-slate-950 text-white" : "bg-white/10 text-slate-300"}`}>{statusLabel}</div>
-                  <div className="mt-3 font-black">{enemy.name}</div>
-                  <div className="mt-2 text-sm">HP {enemy.maxHp} / 공격 {enemy.baseAttack} / 방어 {enemy.baseDefense}</div>
-                  <div className="mt-1 text-sm">{enemy.diceCount}D{enemy.diceSides}</div>
-                  {boss && (
-                    <div className="mt-3 rounded-xl bg-amber-200/70 px-3 py-2 text-xs font-black text-amber-950">
-                      보상: 주사위 강화 재료 + 장신구
+                  <div className="tower-floor-content">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <div className="tower-floor-kicker">{boss ? "Boss Floor" : "Monster Floor"}</div>
+                        <strong>{floor}층 · {enemy.name}</strong>
+                      </div>
+                      <span className="tower-floor-status">{statusLabel}</span>
                     </div>
-                  )}
+                    <div className="mt-3 grid gap-2 text-sm font-bold sm:grid-cols-3">
+                      <span>HP {enemy.maxHp}</span>
+                      <span>공격 {enemy.baseAttack} / 방어 {enemy.baseDefense}</span>
+                      <span>{enemy.diceCount}D{enemy.diceSides}</span>
+                    </div>
+                    <div className="mt-3 text-xs font-black text-slate-300">
+                      보상: {boss ? "주사위 강화 재료 + 장신구" : `${enemy.goldReward}G / 장비 재료 ${enemy.materialReward}`}
+                    </div>
+                  </div>
                 </button>
               );
             })}
           </div>
-        </section>
+        </GamePanel>
       </div>
     );
   }
@@ -10042,7 +10093,7 @@ export default function DeckbuilderRoguelikePrototype() {
               ? "계산 중..."
               : "방어 굴림";
     return (
-      <div className="tower-battle-table min-h-screen p-4 text-slate-100">
+      <div className="tower-battle-table cute-game-screen battle-board-screen min-h-screen p-4 text-slate-100">
         {renderDebugPanel()}
         <section className="mx-auto max-w-7xl">
           <header className="mb-4 rounded-3xl border border-white/10 bg-black/25 p-5 shadow-2xl backdrop-blur">
@@ -10318,47 +10369,44 @@ export default function DeckbuilderRoguelikePrototype() {
 
   if (phase === "start") {
     return (
-      <div className="grid min-h-screen place-items-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
-        <section className="w-full max-w-3xl text-center">
-          <div className="mx-auto mb-5 grid h-20 w-20 place-items-center rounded-3xl border border-amber-200/40 bg-amber-200/10 text-4xl shadow-[0_0_50px_rgba(251,191,36,0.2)]">
-            ✦
+      <div className="game-title-screen cute-game-screen grid min-h-screen place-items-center p-4 text-slate-100">
+        <GamePanel className="title-panel w-full max-w-4xl text-center">
+          <div className="magic-particles" aria-hidden="true" />
+          <div className="tower-silhouette" aria-hidden="true">
+            <span />
+            <span />
+            <span />
           </div>
-          <div className="text-sm font-black uppercase tracking-[0.22em] text-cyan-200">Tower Dice Battle</div>
-          <h1 className="mt-3 text-5xl font-black tracking-tight md:text-7xl">Dice Tower</h1>
-          <p className="mx-auto mt-4 max-w-2xl text-slate-300">
-            주사위를 굴려 공격과 방어를 겨루고, 장신구와 강화로 10층 탑을 등반하는 전투 게임입니다.
+          <div className="mx-auto mb-5 grid h-24 w-24 place-items-center rounded-[28px] border border-amber-200/50 bg-amber-200/10 text-5xl shadow-[0_0_70px_rgba(242,198,109,0.24)]">
+            ⚂
+          </div>
+          <div className="title-eyebrow">Cute Dark Fantasy Boardgame</div>
+          <h1 className="game-logo mt-3">Dice Tower</h1>
+          <p className="mx-auto mt-4 max-w-2xl text-lg font-bold text-slate-300">
+            탑을 오르는 주사위 전투
           </p>
-          <div className="mt-5 flex flex-wrap justify-center gap-2 text-sm font-bold text-slate-200">
-            <span className="rounded-xl bg-white/10 px-3 py-2">특성 포인트 {normalizePlayerData(playerData).traitPoint}</span>
-            <span className="rounded-xl bg-white/10 px-3 py-2">보스 클리어 {normalizePlayerData(playerData).clearedBossFloors.length}층</span>
-            {hasSavedRun && <span className="rounded-xl bg-emerald-300/15 px-3 py-2 text-emerald-100">저장된 진행상황 있음</span>}
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
+            <ResourceBadge>특성 포인트 {normalizePlayerData(playerData).traitPoint}</ResourceBadge>
+            <ResourceBadge>보스 클리어 {normalizePlayerData(playerData).clearedBossFloors.length}층</ResourceBadge>
+            {hasSavedRun && <ResourceBadge className="is-success">저장된 진행상황 있음</ResourceBadge>}
           </div>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-            <button
-              type="button"
-              onClick={handleGameStart}
-              className="rounded-2xl bg-amber-300 px-8 py-4 text-lg font-black text-slate-950 shadow-lg hover:bg-amber-200"
-            >
+            <GameButton onClick={handleGameStart} className="px-9 py-4 text-lg">
               {hasSavedRun ? "이어하기" : "게임 시작"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setPhase("how-to-play")}
-              className="rounded-2xl border border-white/15 bg-white/10 px-8 py-4 text-lg font-black text-white hover:bg-white/15"
-            >
+            </GameButton>
+            <GameButton onClick={() => setPhase("how-to-play")} variant="secondary" className="px-9 py-4 text-lg">
               게임 방법
-            </button>
+            </GameButton>
             {hasSavedRun && (
-              <button
-                type="button"
-                onClick={handleClearRunProgress}
-                className="rounded-2xl border border-white/15 bg-white/10 px-8 py-4 text-lg font-black text-white hover:bg-white/15"
-              >
+              <GameButton onClick={handleClearRunProgress} variant="ghost" className="px-9 py-4 text-lg">
                 진행 초기화
-              </button>
+              </GameButton>
             )}
           </div>
-        </section>
+          <div className="title-dice-row" aria-hidden="true">
+            <span>⚀</span><span>⚁</span><span>⚂</span><span>⚃</span><span>⚄</span><span>⚅</span>
+          </div>
+        </GamePanel>
       </div>
     );
   }

@@ -19,6 +19,12 @@ import {
   Trash2,
   Zap,
 } from "lucide-react";
+import {
+  DEFAULT_DICE_SHARD_UPGRADES,
+  DOUBLE_MULTIPLIER,
+  POTION_DROP_CHANCE,
+} from "./config/gameConfig";
+import { diceShardShopItems } from "./data/diceShardShopItems";
 
 const imagePaths = {
   warrior: {
@@ -2378,7 +2384,7 @@ function savePermanentData(permanentData) {
 
 function shouldPersistRunData(runData) {
   if (!runData?.player?.classId) return false;
-  return !["start", "character-select", "how-to-play", "defeat", "victory"].includes(runData.phase);
+  return !["start", "character-select", "how-to-play", "defeat", "gameOver", "victory"].includes(runData.phase);
 }
 
 function loadRunData() {
@@ -2588,6 +2594,244 @@ const ENEMIES = [
 
 const TOTAL_FLOORS = 100;
 const TOWER_PREVIEW_FLOORS = 5;
+const DEFAULT_MAX_DUNGEON_DEPTH = 10;
+const TOWER_DICE_GAME_VERSION = 3;
+const MAX_TOWER_FLOOR = 10;
+const DEFAULT_PLAYER_DICE = { count: 2, sides: 6, min: 1 };
+const DICE_UPGRADE_LIMITS = { count: 4, sides: 8, min: 3 };
+const UPGRADE_MATERIAL_ID = "manaShard";
+const DICE_UPGRADE_MATERIAL_ID = "diceCore";
+const DIFFICULTY_LABELS = {
+  roguelike: "로그라이크",
+  hardcore: "하드코어",
+};
+
+const DEFAULT_PLAYER_EQUIPMENT = {
+  weapon: {
+    id: "basic_sword",
+    name: "기본 검",
+    slot: "weapon",
+    description: "등반자가 처음부터 들고 있는 검입니다. 무기 강화로 기본 공격력이 오릅니다.",
+  },
+  armor: {
+    id: "basic_armor",
+    name: "기본 갑옷",
+    slot: "armor",
+    description: "등반자가 처음부터 입고 있는 갑옷입니다. 방어구 강화로 기본 방어력이 오릅니다.",
+  },
+  accessory: null,
+};
+
+const ACCESSORIES = [
+  {
+    id: "lucky_charm",
+    name: "행운의 부적",
+    slot: "accessory",
+    description: "공격과 방어 주사위 합계가 +2 증가합니다.",
+    diceTotalBonus: 2,
+  },
+  {
+    id: "steady_ring",
+    name: "안정의 반지",
+    slot: "accessory",
+    description: "주사위 최소값이 +1 증가합니다.",
+    diceMinBonus: 1,
+  },
+  {
+    id: "sharp_dice_stone",
+    name: "날카로운 주사위석",
+    slot: "accessory",
+    description: "공격력 +1, 주사위 합계 +1",
+    attackBonus: 1,
+    diceTotalBonus: 1,
+  },
+];
+
+const TOWER_FLOOR_ENEMIES = {
+  1: { id: "slime", monsterId: "slime", name: "슬라임", floor: 1, maxHp: 40, baseAttack: 2, diceCount: 2, diceSides: 6, goldReward: 20, materialReward: 0 },
+  2: { id: "mushroom", monsterId: "mushroom", name: "버섯", floor: 2, maxHp: 58, baseAttack: 3, diceCount: 2, diceSides: 6, goldReward: 28, materialReward: 0 },
+  3: { id: "goblin", monsterId: "goblin", name: "고블린", floor: 3, maxHp: 82, baseAttack: 4, diceCount: 2, diceSides: 6, goldReward: 38, materialReward: 1 },
+  4: { id: "orc", monsterId: "orc", name: "오크", floor: 4, maxHp: 115, baseAttack: 5, diceCount: 2, diceSides: 6, goldReward: 52, materialReward: 1 },
+  5: { id: "mid_boss", monsterId: "gatekeeper", name: "탑 수문장", floor: 5, maxHp: 180, baseAttack: 6, diceCount: 2, diceSides: 6, goldReward: 100, materialReward: 2 },
+  6: { id: "wolf", monsterId: "wolf", name: "늑대", floor: 6, maxHp: 155, baseAttack: 7, diceCount: 2, diceSides: 6, goldReward: 92, materialReward: 1 },
+  7: { id: "dark_knight", monsterId: "dark_knight", name: "암흑기사", floor: 7, maxHp: 205, baseAttack: 7, diceCount: 2, diceSides: 7, goldReward: 115, materialReward: 2 },
+  8: { id: "rift_mage", monsterId: "rift_mage", name: "균열 마도사", floor: 8, maxHp: 230, baseAttack: 8, diceCount: 2, diceSides: 7, goldReward: 135, materialReward: 2 },
+  9: { id: "black_iron_watcher", monsterId: "black_iron_watcher", name: "흑철감시자", floor: 9, maxHp: 285, baseAttack: 8, diceCount: 2, diceSides: 8, goldReward: 160, materialReward: 2 },
+  10: { id: "dragon_boss", monsterId: "dragon_boss", name: "드래곤 보스", floor: 10, maxHp: 350, baseAttack: 9, diceCount: 2, diceSides: 8, goldReward: 200, materialReward: 0 },
+};
+
+function createTowerEnemyForFloor(floor) {
+  const template = TOWER_FLOOR_ENEMIES[floor] || TOWER_FLOOR_ENEMIES[MAX_TOWER_FLOOR];
+  const overflow = Math.max(0, floor - MAX_TOWER_FLOOR);
+  const scaled = {
+    ...template,
+    floor,
+    maxHp: template.maxHp + overflow * 45,
+    baseAttack: template.baseAttack + overflow,
+    imagePath: MONSTER_IMAGE_PATHS[template.monsterId],
+  };
+  return { ...scaled, hp: scaled.maxHp };
+}
+
+function getAccessoryById(accessoryId) {
+  return ACCESSORIES.find((item) => item.id === accessoryId) || null;
+}
+
+function getEquipmentBonuses(equipment = DEFAULT_PLAYER_EQUIPMENT) {
+  const items = Object.values(equipment || {}).filter(Boolean);
+  return items.reduce(
+    (total, item) => ({
+      attackBonus: total.attackBonus + (item.attackBonus || 0),
+      defenseBonus: total.defenseBonus + (item.defenseBonus || 0),
+      maxHpBonus: total.maxHpBonus + (item.maxHpBonus || 0),
+      diceTotalBonus: total.diceTotalBonus + (item.diceTotalBonus || 0),
+      diceMinBonus: total.diceMinBonus + (item.diceMinBonus || 0),
+      diceMaxBonus: total.diceMaxBonus + (item.diceMaxBonus || 0),
+    }),
+    {
+      attackBonus: 0,
+      defenseBonus: 0,
+      maxHpBonus: 0,
+      diceTotalBonus: 0,
+      diceMinBonus: 0,
+      diceMaxBonus: 0,
+    }
+  );
+}
+
+function getBossReward(floor) {
+  if (floor === 5) return { diceUpgradeMaterial: 1, accessoryId: "lucky_charm" };
+  if (floor === 10) return { diceUpgradeMaterial: 2, accessoryId: "steady_ring" };
+  return null;
+}
+
+function isBossFloor(floor) {
+  return floor === 5 || floor === 10;
+}
+
+function getBossFloorLabel(floor) {
+  if (floor === 5) return "중간보스";
+  if (floor === 10) return "최종 보스";
+  return "";
+}
+
+function getAccessoryEffectText(item) {
+  if (!item) return "효과 없음";
+  const parts = [];
+  if (item.attackBonus) parts.push(`공격력 +${item.attackBonus}`);
+  if (item.defenseBonus) parts.push(`방어력 +${item.defenseBonus}`);
+  if (item.maxHpBonus) parts.push(`최대 HP +${item.maxHpBonus}`);
+  if (item.diceTotalBonus) parts.push(`주사위 합계 +${item.diceTotalBonus}`);
+  if (item.diceMinBonus) parts.push(`주사위 최소값 +${item.diceMinBonus}`);
+  if (item.diceMaxBonus) parts.push(`주사위 최대 눈금 +${item.diceMaxBonus}`);
+  return parts.join(" / ") || item.description || "효과 없음";
+}
+
+function calculateDiceShardReward(reachedFloor) {
+  return Math.min(5, Math.max(1, Math.floor(Number(reachedFloor || 0) / 2) + 1));
+}
+
+function createDefaultDiceShardUpgrades(overrides = {}) {
+  return { ...DEFAULT_DICE_SHARD_UPGRADES, ...(overrides || {}) };
+}
+
+function getDiceShardUpgradeBonuses(upgrades = DEFAULT_DICE_SHARD_UPGRADES) {
+  const safeUpgrades = createDefaultDiceShardUpgrades(upgrades);
+  return {
+    attack: safeUpgrades.baseAttackLevel,
+    defense: safeUpgrades.baseDefenseLevel,
+    maxHp: safeUpgrades.maxHpLevel * 10,
+  };
+}
+
+function createTowerBasePlayer({ difficultyMode, diceShardUpgrades } = {}) {
+  const shardBonuses = difficultyMode === "roguelike" ? getDiceShardUpgradeBonuses(diceShardUpgrades) : { attack: 0, defense: 0, maxHp: 0 };
+  const maxHp = 100 + shardBonuses.maxHp;
+  const baseAttack = 3 + shardBonuses.attack;
+  const baseDefense = 2 + shardBonuses.defense;
+  return {
+    ...INITIAL_PLAYER,
+    hp: maxHp,
+    maxHp,
+    baseMaxHp: maxHp,
+    gold: difficultyMode === "roguelike" ? 0 : 80,
+    resources: { [UPGRADE_MATERIAL_ID]: difficultyMode === "roguelike" ? 0 : 1 },
+    energy: 0,
+    maxEnergy: 0,
+    classId: "warrior",
+    attack: baseAttack,
+    baseAttack,
+    defense: baseDefense,
+    baseDefense,
+    speed: 0,
+  };
+}
+
+function calculateAttackDamage(baseAttack, diceTotal, isDouble) {
+  return Math.floor(Number(baseAttack || 0) * Number(diceTotal || 0) * (isDouble ? DOUBLE_MULTIPLIER : 1));
+}
+
+function calculateDefenseValue(baseDefense, diceTotal, isDouble) {
+  return Math.floor(Number(baseDefense || 0) * Number(diceTotal || 0) * (isDouble ? DOUBLE_MULTIPLIER : 1));
+}
+
+function rollPotionDrop() {
+  return Math.random() < POTION_DROP_CHANCE;
+}
+
+function rollDice(count, sides, min = 1) {
+  const safeCount = Math.max(1, Number(count || 1));
+  const safeSides = Math.max(min, Number(sides || 6));
+  const safeMin = Math.max(1, Number(min || 1));
+  const dice = Array.from({ length: safeCount }, () => Math.floor(Math.random() * (safeSides - safeMin + 1)) + safeMin);
+  return {
+    dice,
+    total: dice.reduce((sum, value) => sum + value, 0),
+  };
+}
+
+function formatDice(dice) {
+  if (!dice) return "2D6";
+  return `${dice.count}D${dice.sides}`;
+}
+
+function createBattleLogId() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return `battle-log-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function isDoubleRoll(roll) {
+  const dice = Array.isArray(roll) ? roll : roll?.dice;
+  return Array.isArray(dice) && dice.length >= 2 && dice.every((value) => value === dice[0]);
+}
+
+const ROOM_TYPE_LABELS = {
+  normalBattle: "일반 전투방",
+  eliteBattle: "중간보스방",
+  bossBattle: "보스방",
+  rest: "휴식방",
+  shop: "상점방",
+};
+
+const ROOM_TYPE_TO_STAGE_TYPE = {
+  normalBattle: "normal",
+  eliteBattle: "elite",
+  bossBattle: "boss",
+  rest: "rest",
+  shop: "shop",
+};
+
+function getRoomTypeByDepth(depth, maxDepth = DEFAULT_MAX_DUNGEON_DEPTH) {
+  if (depth === maxDepth) return "bossBattle";
+  if (depth === 4 || depth === 7) return "eliteBattle";
+  if (depth === 3 || depth === 6) return "rest";
+  if (depth === 5 || depth === 8) return "shop";
+  return "normalBattle";
+}
+
+function getRoomTypeLabel(roomType) {
+  return ROOM_TYPE_LABELS[roomType] || ROOM_TYPE_LABELS.normalBattle;
+}
 
 const ROOM_TYPE_META = {
   normal: { label: "일반 전투 방", shortLabel: "일반", icon: Sword },
@@ -2777,10 +3021,13 @@ function getFloorNodes(floor) {
 function buildStageEnemy(stage) {
   const isBoss = stage.type === "boss";
   const imagePath = getMonsterImagePath(stage);
-  const attack = isBoss ? Math.round(stage.attack * BOSS_STAT_MULTIPLIERS.attack) : stage.attack;
-  const maxHp = isBoss ? Math.round(stage.maxHp * BOSS_STAT_MULTIPLIERS.hp) : stage.maxHp;
+  const bossHpMultiplier = stage.dungeonRun ? 1.35 : BOSS_STAT_MULTIPLIERS.hp;
+  const bossAttackMultiplier = stage.dungeonRun ? 1.15 : BOSS_STAT_MULTIPLIERS.attack;
+  const bossDefenseMultiplier = stage.dungeonRun ? 0.75 : BOSS_STAT_MULTIPLIERS.defense;
+  const attack = isBoss ? Math.round(stage.attack * bossAttackMultiplier) : stage.attack;
+  const maxHp = isBoss ? Math.round(stage.maxHp * bossHpMultiplier) : stage.maxHp;
   const defense = isBoss
-    ? Math.max(1, Math.round((stage.defense || stage.attack * 0.45) * BOSS_STAT_MULTIPLIERS.defense))
+    ? Math.max(1, Math.round((stage.defense || stage.attack * 0.45) * bossDefenseMultiplier))
     : Math.max(0, stage.defense || 0);
   return {
     monsterId: stage.monsterId,
@@ -2793,8 +3040,8 @@ function buildStageEnemy(stage) {
     boss: isBoss,
     attack,
     defense,
-    damageResistance: isBoss ? 0.18 : 0,
-    statusResistance: isBoss ? 0.5 : 0,
+    damageResistance: isBoss ? (stage.dungeonRun ? 0.08 : 0.18) : 0,
+    statusResistance: isBoss ? (stage.dungeonRun ? 0.3 : 0.5) : 0,
     actions: isBoss
       ? [
           { type: "attack", value: attack, text: `공격 ${attack}` },
@@ -3128,7 +3375,7 @@ function createEnemy(indexOrStage = 0) {
 }
 
 function createStageEnemies(stage) {
-  const monsterCount = stage.type === "boss" ? 1 : stage.type === "elite" ? 2 : 1;
+  const monsterCount = stage.monsterCount || (stage.type === "boss" ? 1 : stage.type === "elite" ? 1 : 1);
 
   return Array.from({ length: monsterCount }, (_, index) => {
     const isMainBoss = stage.type === "boss" && index === 0;
@@ -3154,6 +3401,53 @@ function createStageEnemies(stage) {
       finalBoss: isMainBoss && Boolean(stage.finalBoss),
     };
   });
+}
+
+function buildDungeonStage(depth, maxDepth = DEFAULT_MAX_DUNGEON_DEPTH) {
+  const roomType = getRoomTypeByDepth(depth, maxDepth);
+  const stageType = ROOM_TYPE_TO_STAGE_TYPE[roomType];
+
+  if (stageType === "rest" || stageType === "shop") {
+    return {
+      id: `depth-${depth}-${stageType}`,
+      floor: depth,
+      depth,
+      maxDepth,
+      label: `${depth}깊이`,
+      ring: maxDepth - depth,
+      ringLabel: `던전 깊이 ${depth}/${maxDepth}`,
+      type: stageType,
+      roomType,
+      typeLabel: getRoomTypeLabel(roomType),
+      dungeonRun: true,
+    };
+  }
+
+  const tableFloor = depth >= 6 ? 2 : 1;
+  const templateType = stageType === "boss" ? "boss" : stageType === "elite" ? "elite" : "normal";
+  const template = pickEnemyTemplate(tableFloor, templateType, depth);
+  const depthBonus = Math.max(0, depth - 1);
+  const isBoss = stageType === "boss";
+  const isElite = stageType === "elite";
+
+  return {
+    ...template,
+    id: `depth-${depth}-${stageType}`,
+    floor: depth,
+    depth,
+    maxDepth,
+    label: `${depth}깊이`,
+    ring: maxDepth - depth,
+    ringLabel: `던전 깊이 ${depth}/${maxDepth}`,
+    type: stageType,
+    roomType,
+    typeLabel: getRoomTypeLabel(roomType),
+    maxHp: Math.round(template.maxHp + depthBonus * (isBoss ? 8 : isElite ? 7 : 4)),
+    attack: Math.round(template.attack + depthBonus * (isBoss ? 0.8 : isElite ? 0.65 : 0.45)),
+    monsterCount: stageType === "normal" ? randomInt(1, 2) : 1,
+    finalBoss: depth >= maxDepth,
+    dungeonRun: true,
+  };
 }
 
 function getEnemyDeathFx(enemy) {
@@ -3326,12 +3620,11 @@ function buildRoomEncounter(stage, player, deck = []) {
   if (stage.type === "rest") {
     return {
       type: "rest",
-      title: "휴식 방",
+      title: "휴식방",
       situation: "따뜻한 불빛이 바닥의 균열을 부드럽게 덮고 있다. 이곳에서는 잠시 무기를 내려놓아도 될 것 같다.",
       choices: [
-        { id: "rest-full", label: "충분히 쉰다", hint: "최대 체력의 30~100% 회복" },
-        { id: "rest-short", label: "짧게 쉰다", hint: "최대 체력의 10~30% 회복 + 작은 보너스 가능" },
-        { id: "rest-leave", label: "그냥 떠난다", hint: "체력과 자원을 보존한 채 이동" },
+        { id: "rest", label: "휴식하기", hint: "최대 체력의 30% 회복. 이 방에서 1번만 가능" },
+        { id: "rest-leave", label: "나가기", hint: "아무 행동 없이 방 클리어" },
       ],
     };
   }
@@ -4133,7 +4426,7 @@ function CardChoiceRewardItem({ choices, claimedCardId, onOpen }) {
   );
 }
 
-function BattleRewardModal({ reward, claimedCardId, onOpenCardChoice, onContinue }) {
+function BattleRewardModal({ reward, claimedCardId, onOpenCardChoice, onContinue, continueLabel = "계속" }) {
   if (!hasBattleReward(reward)) return null;
   const hasCardChoices = (reward.cardChoices || []).length > 0;
   const canContinue = !hasCardChoices || Boolean(claimedCardId);
@@ -4158,7 +4451,7 @@ function BattleRewardModal({ reward, claimedCardId, onOpenCardChoice, onContinue
           <CardChoiceRewardItem choices={reward.cardChoices} claimedCardId={claimedCardId} onOpen={onOpenCardChoice} />
         </div>
         <button type="button" onClick={onContinue} disabled={!canContinue} className="loot-continue-button">
-          계속
+          {continueLabel}
         </button>
       </motion.section>
     </motion.div>
@@ -4727,6 +5020,129 @@ function HpBar({ current, max }) {
   );
 }
 
+function DungeonProgressPanel({ currentDepth, maxDepth, currentRoomType, isRoomCleared }) {
+  const progress = Math.max(0, Math.min(100, (currentDepth / maxDepth) * 100));
+  return (
+    <section className="rounded-3xl border border-white/10 bg-slate-950/55 p-5 text-slate-100 shadow-xl">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <div className="text-sm font-black uppercase tracking-[0.18em] text-cyan-200">Dungeon Run</div>
+          <h2 className="mt-1 text-2xl font-black">던전 깊이 {currentDepth} / {maxDepth}</h2>
+          <p className="mt-1 text-sm text-slate-300">현재 방: {getRoomTypeLabel(currentRoomType)}</p>
+        </div>
+        <span className={`rounded-2xl px-4 py-3 text-sm font-black ${isRoomCleared ? "bg-emerald-300 text-emerald-950" : "bg-white/10 text-slate-100"}`}>
+          {isRoomCleared ? "방 클리어" : "진행 중"}
+        </span>
+      </div>
+      <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/10">
+        <div className="h-full rounded-full bg-cyan-300 transition-all" style={{ width: `${progress}%` }} />
+      </div>
+      {currentRoomType === "bossBattle" && (
+        <div className="mt-4 rounded-2xl border border-amber-200/25 bg-amber-200/10 p-4 text-sm font-bold text-amber-100">
+          최종 보스방. 이 전투에서 승리하면 던전을 클리어합니다.
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DiceRollDisplay({ title, roll, tone = "player" }) {
+  const toneClass =
+    tone === "enemy"
+      ? "border-red-200 bg-red-50 text-red-950"
+      : tone === "defense"
+        ? "border-cyan-200 bg-cyan-50 text-cyan-950"
+        : "border-amber-200 bg-amber-50 text-amber-950";
+  const dice = roll?.dice || [];
+  const double = isDoubleRoll(roll);
+
+  return (
+    <section className={`rounded-2xl border p-4 ${toneClass}`}>
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-black">{title}</h3>
+        {double && <span className="rounded-full bg-slate-950 px-2 py-1 text-[11px] font-black text-white">더블!</span>}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {dice.length > 0 ? (
+          dice.map((value, index) => (
+            <div
+              key={`${title}-${index}-${value}`}
+              className={`grid h-14 w-14 place-items-center rounded-2xl border-2 bg-white text-2xl font-black shadow-sm ${
+                double ? "border-slate-950" : "border-white"
+              }`}
+            >
+              {value}
+            </div>
+          ))
+        ) : (
+          <>
+            <div className="grid h-14 w-14 place-items-center rounded-2xl border-2 border-dashed border-slate-300 bg-white/70 text-2xl font-black text-slate-400">-</div>
+            <div className="grid h-14 w-14 place-items-center rounded-2xl border-2 border-dashed border-slate-300 bg-white/70 text-2xl font-black text-slate-400">-</div>
+          </>
+        )}
+      </div>
+      <div className="mt-3 text-sm font-black">합계 {roll?.total ?? "-"}</div>
+    </section>
+  );
+}
+
+function BattleHighlightPanel({ highlight }) {
+  if (!highlight) {
+    return (
+      <section className="rounded-3xl border border-white/10 bg-white/5 p-5 text-slate-100 shadow-xl">
+        <div className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">최근 행동 결과</div>
+        <p className="mt-2 text-sm text-slate-400">주사위를 굴리면 계산 결과가 여기에 표시됩니다.</p>
+      </section>
+    );
+  }
+
+  const toneClass = {
+    attack: "border-amber-200/40 bg-amber-300/15 text-amber-50",
+    defense: "border-cyan-200/40 bg-cyan-300/15 text-cyan-50",
+    block: "border-cyan-200/40 bg-cyan-300/15 text-cyan-50",
+    damage: "border-red-200/40 bg-red-400/15 text-red-50",
+    critical: "border-fuchsia-200/40 bg-fuchsia-400/15 text-fuchsia-50",
+    victory: "border-emerald-200/40 bg-emerald-400/15 text-emerald-50",
+    defeat: "border-slate-300/30 bg-slate-950/70 text-slate-100",
+  }[highlight.type] || "border-white/10 bg-white/5 text-slate-100";
+
+  return (
+    <section className={`rounded-3xl border p-5 shadow-xl ${toneClass}`}>
+      <div className="text-sm font-black uppercase tracking-[0.18em] opacity-75">최근 행동 결과</div>
+      <h2 className="mt-2 text-3xl font-black">{highlight.title}</h2>
+      <p className="mt-2 text-base font-bold">{highlight.message}</p>
+      {highlight.formula && <div className="mt-4 rounded-2xl bg-white/12 px-4 py-3 text-sm font-black">{highlight.formula}</div>}
+    </section>
+  );
+}
+
+function BattleLogPanel({ logs }) {
+  return (
+    <aside className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-xl">
+      <h2 className="text-xl font-black">전투 로그</h2>
+      <div className="mt-3 max-h-[520px] space-y-2 overflow-auto pr-1">
+        {logs.length > 0 ? (
+          logs.map((entry) => (
+            <article key={entry.id} className="rounded-2xl bg-white/10 p-3 text-sm text-slate-200">
+              <div className="flex items-center justify-between gap-3">
+                <strong className="text-white">{entry.turn ? `[${entry.turn}턴] ${entry.title}` : `[전투 종료] ${entry.title}`}</strong>
+                {entry.isDouble && <span className="rounded-full bg-amber-300 px-2 py-0.5 text-[10px] font-black text-slate-950">더블!</span>}
+              </div>
+              {entry.dice?.length > 0 && <div className="mt-2">주사위: {entry.dice.join(" + ")} = {entry.diceTotal ?? entry.dice.reduce((sum, value) => sum + value, 0)}</div>}
+              {entry.enemyDice?.length > 0 && <div className="mt-1">적 주사위: {entry.enemyDice.join(" + ")} = {entry.enemyDiceTotal}</div>}
+              {entry.defenseDice?.length > 0 && <div className="mt-1">방어 주사위: {entry.defenseDice.join(" + ")} = {entry.defenseDiceTotal}</div>}
+              {entry.formula && <div className="mt-1 text-slate-300">계산: {entry.formula}</div>}
+              <div className="mt-1 font-bold">{entry.message}</div>
+            </article>
+          ))
+        ) : (
+          <div className="rounded-2xl bg-white/10 p-4 text-sm text-slate-400">아직 전투 로그가 없습니다.</div>
+        )}
+      </div>
+    </aside>
+  );
+}
+
 function CharacterImage({ character, className = "character-image", fallbackClassName = "" }) {
   const [failed, setFailed] = useState(false);
   if (!character?.image || failed) {
@@ -5064,14 +5480,16 @@ function ShopDeckCardButton({ entry, onSell }) {
   );
 }
 
-function ShopRoomPanel({ encounter, result, player, deck, onBuyCard, onSellCard, onHeal, onLeave }) {
+function ShopRoomPanel({ encounter, result, player, deck, onBuyCard, onSellCard, onHeal, onLeave, onUpgradeCard, onDismantleCard }) {
   const [view, setView] = useState("table");
+  const [inspectedShopCardId, setInspectedShopCardId] = useState(null);
   const deckEntries = Object.entries(
     deck.reduce((acc, id) => {
       acc[id] = (acc[id] || 0) + 1;
       return acc;
     }, {}),
   ).map(([id, amount]) => ({ ...CARD_POOL[id], id, amount }));
+  const inspectedShopCard = inspectedShopCardId ? CARD_POOL[inspectedShopCardId] : null;
 
   return (
     <motion.section
@@ -5106,6 +5524,13 @@ function ShopRoomPanel({ encounter, result, player, deck, onBuyCard, onSellCard,
         >
           {view === "deck" ? "카드 테이블" : "덱 열기 / 카드 판매"}
         </button>
+        <button
+          type="button"
+          onClick={() => setView((current) => (current === "upgrade" ? "table" : "upgrade"))}
+          className="rounded-2xl bg-violet-300 px-4 py-3 font-black text-violet-950 hover:bg-violet-200"
+        >
+          카드 강화
+        </button>
         <button type="button" onClick={onHeal} className="rounded-2xl bg-emerald-300 px-4 py-3 font-black text-emerald-950 hover:bg-emerald-200">
           체력 회복
         </button>
@@ -5127,7 +5552,7 @@ function ShopRoomPanel({ encounter, result, player, deck, onBuyCard, onSellCard,
             <div className="rounded-2xl bg-white/10 p-5 text-sm text-slate-300">진열된 카드를 모두 구매했습니다.</div>
           )}
         </section>
-      ) : (
+      ) : view === "deck" ? (
         <section className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
           <div className="mb-3 text-sm font-black text-cyan-200">판매할 카드 선택</div>
           {deckEntries.length > 0 ? (
@@ -5140,6 +5565,20 @@ function ShopRoomPanel({ encounter, result, player, deck, onBuyCard, onSellCard,
             <div className="rounded-2xl bg-white/10 p-5 text-sm text-slate-300">판매할 카드가 없습니다.</div>
           )}
         </section>
+      ) : (
+        <div className="mt-4">
+          <DeckManagementPanel
+            deck={deck}
+            deckCount={deckEntries}
+            inspectedCard={inspectedShopCard}
+            onInspectCard={setInspectedShopCardId}
+            classId={player.classId}
+            player={player}
+            onDismantleCard={onDismantleCard}
+            onUpgradeCard={onUpgradeCard}
+            upgradeCelebration={null}
+          />
+        </div>
       )}
 
       <section className="mt-4 rounded-2xl border border-white/10 bg-slate-900/70 p-4">
@@ -5161,7 +5600,7 @@ function ShopRoomPanel({ encounter, result, player, deck, onBuyCard, onSellCard,
   );
 }
 
-function RoomEncounterPanel({ encounter, result, player, deck, onChoose, onContinue, onShopBuyCard, onShopSellCard, onShopHeal, onShopLeave }) {
+function RoomEncounterPanel({ encounter, result, player, deck, onChoose, onContinue, onShopBuyCard, onShopSellCard, onShopHeal, onShopLeave, onUpgradeCard, onDismantleCard }) {
   if (!encounter) return null;
 
   if (encounter.type === "shop") {
@@ -5175,6 +5614,8 @@ function RoomEncounterPanel({ encounter, result, player, deck, onChoose, onConti
         onSellCard={onShopSellCard}
         onHeal={onShopHeal}
         onLeave={onShopLeave}
+        onUpgradeCard={onUpgradeCard}
+        onDismantleCard={onDismantleCard}
       />
     );
   }
@@ -5256,7 +5697,7 @@ function RoomEncounterPanel({ encounter, result, player, deck, onChoose, onConti
                 onClick={onContinue}
                 className="mt-4 rounded-2xl bg-cyan-300 px-5 py-3 font-black text-slate-950 shadow-lg hover:bg-cyan-200"
               >
-                계속 이동
+                다음 방으로 이동
               </button>
             </div>
           ) : (
@@ -5665,7 +6106,41 @@ export default function DeckbuilderRoguelikePrototype() {
   const [enemies, setEnemies] = useState(() => [createEnemy(0)]);
   const [selectedEnemyIndex, setSelectedEnemyIndex] = useState(0);
   const [turn, setTurn] = useState(1);
-  const [phase, setPhase] = useState("start");
+  const [phase, setPhase] = useState("title");
+  const [highestClearedFloor, setHighestClearedFloor] = useState(0);
+  const [highestUnlockedFloor, setHighestUnlockedFloor] = useState(1);
+  const [currentEnemy, setCurrentEnemy] = useState(null);
+  const [battlePhase, setBattlePhase] = useState("playerAttack");
+  const [battleResult, setBattleResult] = useState(null);
+  const [battleLogs, setBattleLogs] = useState([]);
+  const [battleTurn, setBattleTurn] = useState(1);
+  const [battleHighlight, setBattleHighlight] = useState(null);
+  const [lastDiceResult, setLastDiceResult] = useState(null);
+  const [lastDiceResults, setLastDiceResults] = useState({});
+  const [lastPlayerAttackRoll, setLastPlayerAttackRoll] = useState(null);
+  const [lastEnemyAttackRoll, setLastEnemyAttackRoll] = useState(null);
+  const [lastPlayerDefenseRoll, setLastPlayerDefenseRoll] = useState(null);
+  const [pendingEnemyAttack, setPendingEnemyAttack] = useState(null);
+  const [isResolvingAction, setIsResolvingAction] = useState(false);
+  const [battleRewardSummary, setBattleRewardSummary] = useState(null);
+  const [playerDice, setPlayerDice] = useState(DEFAULT_PLAYER_DICE);
+  const [nextBattleBuff, setNextBattleBuff] = useState({ attack: 0, defense: 0 });
+  const [attemptedFloors, setAttemptedFloors] = useState([]);
+  const [diceUpgradeMaterial, setDiceUpgradeMaterial] = useState(0);
+  const [playerEquipment, setPlayerEquipment] = useState(DEFAULT_PLAYER_EQUIPMENT);
+  const [ownedAccessories, setOwnedAccessories] = useState([]);
+  const [difficultyMode, setDifficultyMode] = useState(null);
+  const [diceShards, setDiceShards] = useState(0);
+  const [diceShardUpgrades, setDiceShardUpgrades] = useState(DEFAULT_DICE_SHARD_UPGRADES);
+  const [potions, setPotions] = useState(0);
+  const [currentDepth, setCurrentDepth] = useState(1);
+  const [maxDepth, setMaxDepth] = useState(DEFAULT_MAX_DUNGEON_DEPTH);
+  const [currentRoomType, setCurrentRoomType] = useState(() => getRoomTypeByDepth(1, DEFAULT_MAX_DUNGEON_DEPTH));
+  const [isRoomCleared, setIsRoomCleared] = useState(false);
+  const [runCompleted, setRunCompleted] = useState(false);
+  const [hasRestedInThisRoom, setHasRestedInThisRoom] = useState(false);
+  const [selectedShopCardId, setSelectedShopCardId] = useState(null);
+  const [selectedUpgradeCardId, setSelectedUpgradeCardId] = useState(null);
   const [log, setLog] = useState(["캐릭터를 선택하면 첫 전투가 시작됩니다."]);
   const [rewards, setRewards] = useState([]);
   const [flippedRewards, setFlippedRewards] = useState([]);
@@ -5706,6 +6181,7 @@ export default function DeckbuilderRoguelikePrototype() {
   const playerTargetRef = useRef(null);
   const enemyActorRefs = useRef([]);
   const saveReadyRef = useRef(false);
+  const resolvingActionRef = useRef(false);
 
   const liveEnemyIndex = getFirstAliveEnemyIndex(enemies);
   const safeSelectedEnemyIndex =
@@ -5728,12 +6204,12 @@ export default function DeckbuilderRoguelikePrototype() {
     const savedPermanentData = loadPermanentData();
     const savedRunData = loadRunData();
     setPlayerData(savedPermanentData);
-    if (savedRunData.hasActiveRun) {
+    if (savedRunData.hasActiveRun && savedRunData.towerGameVersion === TOWER_DICE_GAME_VERSION) {
       restoreRunData(savedRunData, savedPermanentData, "저장된 진행상황을 불러왔습니다.");
     } else {
-      clearRunData();
+      if (savedRunData.hasActiveRun) clearRunData();
     }
-    setHasSavedRun(Boolean(savedRunData.hasActiveRun));
+    setHasSavedRun(Boolean(savedRunData.hasActiveRun && savedRunData.towerGameVersion === TOWER_DICE_GAME_VERSION));
     window.setTimeout(() => {
       saveReadyRef.current = true;
     }, 0);
@@ -5746,7 +6222,7 @@ export default function DeckbuilderRoguelikePrototype() {
     if (runData.hasActiveRun) {
       saveRunData(runData);
       setHasSavedRun(true);
-    } else if (phase === "defeat" || phase === "victory") {
+    } else if (phase === "defeat" || phase === "gameOver" || phase === "victory") {
       clearRunData();
       setHasSavedRun(false);
     }
@@ -5763,6 +6239,40 @@ export default function DeckbuilderRoguelikePrototype() {
     selectedEnemyIndex,
     turn,
     phase,
+    highestClearedFloor,
+    highestUnlockedFloor,
+    currentEnemy,
+    battlePhase,
+    battleResult,
+    battleLogs,
+    battleTurn,
+    battleHighlight,
+    lastDiceResult,
+    lastDiceResults,
+    lastPlayerAttackRoll,
+    lastEnemyAttackRoll,
+    lastPlayerDefenseRoll,
+    pendingEnemyAttack,
+    isResolvingAction,
+    battleRewardSummary,
+    playerDice,
+    nextBattleBuff,
+    attemptedFloors,
+    diceUpgradeMaterial,
+    playerEquipment,
+    ownedAccessories,
+    difficultyMode,
+    diceShards,
+    diceShardUpgrades,
+    potions,
+    currentDepth,
+    maxDepth,
+    currentRoomType,
+    isRoomCleared,
+    runCompleted,
+    hasRestedInThisRoom,
+    selectedShopCardId,
+    selectedUpgradeCardId,
     log,
     rewards,
     flippedRewards,
@@ -5786,7 +6296,7 @@ export default function DeckbuilderRoguelikePrototype() {
   ]);
 
   useEffect(() => {
-    if (phase !== "combat" || initiativeReady || enemies.length === 0 || player.hp <= 0) return;
+    if (phase !== "battle" || currentEnemy || initiativeReady || enemies.length === 0 || player.hp <= 0) return;
 
     const firstActor = nextActorFromCombatGauge(normalizeSpeedGauge(speedGauge, enemies), player.speed, enemies);
     if (firstActor.actor.type === "player") {
@@ -5820,10 +6330,684 @@ export default function DeckbuilderRoguelikePrototype() {
     setLog((prev) => [text, ...prev].slice(0, 6));
   }
 
+  function getUpgradeMaterial(playerState = player) {
+    return playerState.resources?.[UPGRADE_MATERIAL_ID] || 0;
+  }
+
+  function getCurrentEquipmentBonuses() {
+    return getEquipmentBonuses(playerEquipment);
+  }
+
+  function getFinalMaxHp() {
+    const bonuses = getCurrentEquipmentBonuses();
+    return Math.max(1, Number(player.maxHp || player.baseMaxHp || 100) + bonuses.maxHpBonus);
+  }
+
+  function getEffectivePlayerDice() {
+    const bonuses = getCurrentEquipmentBonuses();
+    const sides = Math.max(1, Number(playerDice.sides || 6) + bonuses.diceMaxBonus);
+    const min = Math.min(sides, Math.max(1, Number(playerDice.min || 1) + bonuses.diceMinBonus));
+    return {
+      count: Math.max(1, Number(playerDice.count || 2)),
+      sides,
+      min,
+      totalBonus: bonuses.diceTotalBonus,
+    };
+  }
+
+  function getAdjustedDiceTotal(roll) {
+    return Math.max(0, Number(roll?.total || 0) + getCurrentEquipmentBonuses().diceTotalBonus);
+  }
+
+  function getDiceFormulaTotalText(roll) {
+    const totalBonus = getCurrentEquipmentBonuses().diceTotalBonus;
+    if (!totalBonus) return `${roll.total}`;
+    return `${roll.total} + 장신구 ${totalBonus} = ${roll.total + totalBonus}`;
+  }
+
+  function setUpgradeMaterialAmount(amount) {
+    setPlayer((current) => ({
+      ...current,
+      resources: {
+        ...(current.resources || {}),
+        [UPGRADE_MATERIAL_ID]: Math.max(0, amount),
+      },
+    }));
+  }
+
+  function initializePlayerIfNeeded() {
+    if (player.classId) return;
+    setPlayer(createTowerBasePlayer({ difficultyMode: difficultyMode || "hardcore", diceShardUpgrades }));
+    setPlayerEquipment(DEFAULT_PLAYER_EQUIPMENT);
+  }
+
+  function startGame() {
+    initializePlayerIfNeeded();
+    setPhase("difficultySelect");
+  }
+
+  function selectDifficulty(mode) {
+    initializePlayerIfNeeded();
+    setDifficultyMode(mode);
+    startNewClimb(mode);
+    setHasSavedRun(true);
+  }
+
+  function startNewClimb(mode = difficultyMode || "hardcore") {
+    const basePlayer = createTowerBasePlayer({ difficultyMode: mode, diceShardUpgrades });
+    setCurrentFloor(1);
+    setSelectedFloor(1);
+    setHighestClearedFloor(0);
+    setHighestUnlockedFloor(1);
+    setUnlockedFloors([1]);
+    setAttemptedFloors([]);
+    setClearedFloors([]);
+    setClearedNodesByFloor({});
+    setCurrentEnemy(null);
+    setBattlePhase("playerAttack");
+    setBattleResult(null);
+    setBattleLogs([]);
+    setBattleTurn(1);
+    setBattleHighlight(null);
+    setLastDiceResult(null);
+    setLastDiceResults({});
+    setLastPlayerAttackRoll(null);
+    setLastEnemyAttackRoll(null);
+    setLastPlayerDefenseRoll(null);
+    setPendingEnemyAttack(null);
+    setBattleRewardSummary(null);
+    setNextBattleBuff({ attack: 0, defense: 0 });
+    setIsResolvingAction(false);
+    resolvingActionRef.current = false;
+    setPlayer(basePlayer);
+    setPlayerDice(DEFAULT_PLAYER_DICE);
+    setDiceUpgradeMaterial(0);
+    setPlayerEquipment(DEFAULT_PLAYER_EQUIPMENT);
+    setOwnedAccessories([]);
+    setPotions(0);
+    setPhase("tower");
+    setHasSavedRun(true);
+  }
+
+  function returnToTitle() {
+    initializePlayerIfNeeded();
+    setPhase("title");
+  }
+
+  function goToTower() {
+    setCurrentEnemy(null);
+    setBattleResult(null);
+    setBattleRewardSummary(null);
+    setLastDiceResult(null);
+    setBattlePhase("playerAttack");
+    setPlayer((current) => ({
+      ...current,
+      hp: Math.min(getFinalMaxHp(), Math.max(1, current.hp || 1)),
+    }));
+    setPhase("tower");
+  }
+
+  function isTowerFloorUnlocked(floor) {
+    return floor <= highestUnlockedFloor;
+  }
+
+  function canChallengeFloor(floor) {
+    return isTowerFloorUnlocked(floor) && !attemptedFloors.includes(floor) && !clearedFloors.includes(floor);
+  }
+
+  function markFloorAttempted(floor) {
+    setAttemptedFloors((current) => (current.includes(floor) ? current : [...current, floor]));
+  }
+
+  function markFloorCleared(floor) {
+    setClearedFloors((current) => (current.includes(floor) ? current : [...current, floor]));
+  }
+
+  function addAccessoryIfNotOwned(accessoryId) {
+    const accessory = getAccessoryById(accessoryId);
+    if (!accessory) return null;
+    setOwnedAccessories((current) => (current.some((item) => item.id === accessory.id) ? current : [...current, accessory]));
+    return accessory;
+  }
+
+  function equipAccessory(accessoryId) {
+    const accessory = ownedAccessories.find((item) => item.id === accessoryId);
+    if (!accessory) return;
+    setPlayerEquipment((current) => ({ ...current, accessory }));
+  }
+
+  function unequipAccessory() {
+    setPlayerEquipment((current) => ({ ...current, accessory: null }));
+  }
+
+  function restartClimb() {
+    startNewClimb(difficultyMode || "hardcore");
+  }
+
+  function buyDiceShardShopItem(itemId) {
+    if (difficultyMode !== "roguelike") return;
+    const item = diceShardShopItems.find((entry) => entry.id === itemId);
+    const currentLevel = diceShardUpgrades[item?.stat] || 0;
+    if (!item || diceShards < item.cost || currentLevel >= item.maxLevel) return;
+    setDiceShards((current) => current - item.cost);
+    setDiceShardUpgrades((current) => ({
+      ...createDefaultDiceShardUpgrades(current),
+      [item.stat]: currentLevel + 1,
+    }));
+    setPlayer((current) => {
+      if (item.stat === "baseAttackLevel") {
+        const nextAttack = Number(current.baseAttack || current.attack || 3) + 1;
+        return { ...current, baseAttack: nextAttack, attack: nextAttack };
+      }
+      if (item.stat === "baseDefenseLevel") {
+        const nextDefense = Number(current.baseDefense || current.defense || 2) + 1;
+        return { ...current, baseDefense: nextDefense, defense: nextDefense };
+      }
+      const nextMaxHp = Number(current.maxHp || current.baseMaxHp || 100) + 10;
+      return { ...current, baseMaxHp: nextMaxHp, maxHp: nextMaxHp, hp: Math.min(nextMaxHp, (current.hp || 0) + 10) };
+    });
+  }
+
+  function usePotion() {
+    if (potions <= 0 || player.hp >= getFinalMaxHp()) return;
+    setPotions((current) => Math.max(0, current - 1));
+    setPlayer((current) => ({ ...current, hp: Math.min(getFinalMaxHp(), (current.hp || 0) + 30) }));
+  }
+
+  function getPlayerAttackValue() {
+    return Math.max(
+      1,
+      Number(player.baseAttack || player.attack || 3) +
+        Number(nextBattleBuff.attack || 0) +
+        getCurrentEquipmentBonuses().attackBonus
+    );
+  }
+
+  function getPlayerDefenseValue() {
+    return Math.max(
+      0,
+      Number(player.baseDefense || player.defense || 2) +
+        Number(nextBattleBuff.defense || 0) +
+        getCurrentEquipmentBonuses().defenseBonus
+    );
+  }
+
+  function addBattleLog(entry) {
+    const newEntry = {
+      ...entry,
+      id: createBattleLogId(),
+      createdAt: Date.now(),
+    };
+    setBattleLogs((current) => [newEntry, ...current].slice(0, 30));
+  }
+
+  function finishResolvingAction(delay = 180) {
+    window.setTimeout(() => {
+      resolvingActionRef.current = false;
+      setIsResolvingAction(false);
+    }, delay);
+  }
+
+  function createPendingEnemyAttack(enemyState = currentEnemy) {
+    if (!enemyState) return null;
+    const enemyRoll = rollDice(enemyState.diceCount, enemyState.diceSides, enemyState.diceMin || 1);
+    const isDouble = isDoubleRoll(enemyRoll);
+    const attackValue = enemyState.baseAttack * enemyRoll.total;
+    return {
+      rolls: enemyRoll.dice,
+      dice: enemyRoll.dice,
+      diceTotal: enemyRoll.total,
+      total: enemyRoll.total,
+      attackValue,
+      isDouble,
+    };
+  }
+
+  function startBattleForFloor(floor) {
+    if (!canChallengeFloor(floor)) return;
+    const enemy = createTowerEnemyForFloor(floor);
+    setCurrentEnemy(enemy);
+    setSelectedFloor(floor);
+    setCurrentFloor(floor);
+    markFloorAttempted(floor);
+    setBattlePhase("playerAttack");
+    setBattleResult(null);
+    setBattleRewardSummary(null);
+    setBattleTurn(1);
+    setBattleHighlight(null);
+    setLastDiceResult(null);
+    setLastDiceResults({});
+    setLastPlayerAttackRoll(null);
+    setLastEnemyAttackRoll(null);
+    setLastPlayerDefenseRoll(null);
+    setPendingEnemyAttack(null);
+    setBattleLogs([]);
+    setIsResolvingAction(false);
+    resolvingActionRef.current = false;
+    addBattleLog({
+      turn: 1,
+      type: "playerAttack",
+      title: "전투 시작",
+      message: `${floor}층 ${getBossFloorLabel(floor) ? `${getBossFloorLabel(floor)} ` : ""}${enemy.name} 전투 시작`,
+      formula: `${enemy.name}: HP ${enemy.maxHp}, 공격력 ${enemy.baseAttack}, 주사위 ${enemy.diceCount}D${enemy.diceSides}`,
+      resultValue: enemy.maxHp,
+    });
+    setPhase("battle");
+  }
+
+  function handleBattleWin(enemySnapshot = currentEnemy) {
+    if (!enemySnapshot || !selectedFloor) return;
+    const nextCleared = Math.max(highestClearedFloor, selectedFloor);
+    const unlockedFloor = Math.min(MAX_TOWER_FLOOR, Math.max(highestUnlockedFloor, selectedFloor + 1));
+    const newlyUnlocked = unlockedFloor > highestUnlockedFloor ? unlockedFloor : null;
+    const bossReward = getBossReward(selectedFloor);
+    const bossAccessory = bossReward?.accessoryId ? getAccessoryById(bossReward.accessoryId) : null;
+    const alreadyOwnedAccessory = bossAccessory ? ownedAccessories.some((item) => item.id === bossAccessory.id) : false;
+    const potionDropped = rollPotionDrop();
+    setPlayer((current) => ({
+      ...current,
+      gold: (current.gold || 0) + enemySnapshot.goldReward,
+      resources: {
+        ...(current.resources || {}),
+        [UPGRADE_MATERIAL_ID]: (current.resources?.[UPGRADE_MATERIAL_ID] || 0) + enemySnapshot.materialReward,
+      },
+    }));
+    if (bossReward?.diceUpgradeMaterial) {
+      setDiceUpgradeMaterial((current) => current + bossReward.diceUpgradeMaterial);
+    }
+    if (bossReward?.accessoryId) {
+      addAccessoryIfNotOwned(bossReward.accessoryId);
+    }
+    if (potionDropped) {
+      setPotions((current) => current + 1);
+    }
+    setHighestClearedFloor(nextCleared);
+    setHighestUnlockedFloor(unlockedFloor);
+    setUnlockedFloors((current) => (current.includes(unlockedFloor) ? current : [...current, unlockedFloor]));
+    markFloorCleared(selectedFloor);
+    setNextBattleBuff({ attack: 0, defense: 0 });
+    setBattleRewardSummary({
+      result: "win",
+      floor: selectedFloor,
+      gold: enemySnapshot.goldReward,
+      material: enemySnapshot.materialReward,
+      diceMaterial: bossReward?.diceUpgradeMaterial || 0,
+      accessory: bossAccessory,
+      accessoryAlreadyOwned: alreadyOwnedAccessory,
+      potionDropped,
+      isBoss: isBossFloor(selectedFloor),
+      newlyUnlocked,
+    });
+    setBattleHighlight({
+      type: "victory",
+      title: selectedFloor === 10 ? "탑 정복!" : selectedFloor === 5 ? "중간보스 처치!" : "승리!",
+      message: `${enemySnapshot.name}을(를) 처치했습니다. 보상을 획득했습니다.`,
+      formula: `보상: 골드 ${enemySnapshot.goldReward}, 장비 재료 ${enemySnapshot.materialReward}${
+        bossReward?.diceUpgradeMaterial ? `, 주사위 재료 ${bossReward.diceUpgradeMaterial}` : ""
+      }${potionDropped ? ", 회복 물약 1" : ""}`,
+    });
+    addBattleLog({
+      turn: 0,
+      type: "victory",
+      title: selectedFloor === 10 ? "탑 정복" : selectedFloor === 5 ? "중간보스 처치" : "승리",
+      message: `${enemySnapshot.name} 처치 / 골드 ${enemySnapshot.goldReward} 획득 / 장비 재료 ${enemySnapshot.materialReward} 획득${
+        bossReward?.diceUpgradeMaterial ? ` / 주사위 재료 ${bossReward.diceUpgradeMaterial} 획득` : ""
+      }${potionDropped ? " / 몬스터 처치 보너스: 회복 물약을 발견했습니다!" : ""}`,
+      formula: newlyUnlocked ? `${newlyUnlocked}층 해금` : "추가 해금 없음",
+      resultValue: enemySnapshot.goldReward,
+    });
+    setPendingEnemyAttack(null);
+    setBattleResult("win");
+    setBattlePhase("finished");
+    setPhase("battleResult");
+  }
+
+  function handleBattleLose() {
+    const reachedFloor = Math.max(1, Number(selectedFloor || currentFloor || highestClearedFloor || 1));
+    const shardReward = difficultyMode === "roguelike" ? calculateDiceShardReward(reachedFloor) : 0;
+    if (shardReward > 0) {
+      setDiceShards((current) => current + shardReward);
+    }
+    setNextBattleBuff({ attack: 0, defense: 0 });
+    setBattleRewardSummary({
+      result: "lose",
+      floor: selectedFloor,
+      gold: 0,
+      material: 0,
+      diceMaterial: 0,
+      diceShards: shardReward,
+      difficultyMode,
+      newlyUnlocked: null,
+      climbFailed: true,
+    });
+    setBattleHighlight({
+      type: "defeat",
+      title: "등반 실패",
+      message:
+        difficultyMode === "roguelike"
+          ? `플레이어가 쓰러졌습니다. 주사위 조각 ${shardReward}개를 획득했습니다.`
+          : "하드코어 난이도에서는 패배 보상이 없습니다.",
+    });
+    addBattleLog({
+      turn: 0,
+      type: "defeat",
+      title: "패배",
+      message: shardReward > 0 ? `플레이어가 쓰러졌습니다. 주사위 조각 ${shardReward}개 획득` : "플레이어가 쓰러졌습니다. 패배 보상 없음",
+      resultValue: shardReward,
+    });
+    setPendingEnemyAttack(null);
+    if (difficultyMode === "roguelike") {
+      setPlayer(createTowerBasePlayer({ difficultyMode: "roguelike", diceShardUpgrades }));
+      setPlayerDice(DEFAULT_PLAYER_DICE);
+      setDiceUpgradeMaterial(0);
+      setPlayerEquipment(DEFAULT_PLAYER_EQUIPMENT);
+      setOwnedAccessories([]);
+      setPotions(0);
+      setHighestClearedFloor(0);
+      setHighestUnlockedFloor(1);
+      setUnlockedFloors([1]);
+      setAttemptedFloors([]);
+      setClearedFloors([]);
+      setClearedNodesByFloor({});
+      setCurrentEnemy(null);
+    }
+    setBattleResult("lose");
+    setBattlePhase("finished");
+    setPhase("battleResult");
+  }
+
+  function rollPlayerAttackDice() {
+    if (phase !== "battle" || battlePhase !== "playerAttack" || !currentEnemy || resolvingActionRef.current) return;
+    resolvingActionRef.current = true;
+    setIsResolvingAction(true);
+    const effectiveDice = getEffectivePlayerDice();
+    const playerRoll = rollDice(effectiveDice.count, effectiveDice.sides, effectiveDice.min);
+    const adjustedTotal = getAdjustedDiceTotal(playerRoll);
+    const attackValue = getPlayerAttackValue();
+    const double = isDoubleRoll(playerRoll);
+    const damage = calculateAttackDamage(attackValue, adjustedTotal, double);
+    const nextEnemy = { ...currentEnemy, hp: Math.max(0, currentEnemy.hp - damage) };
+    setCurrentEnemy(nextEnemy);
+    setLastPlayerAttackRoll(playerRoll);
+    setLastPlayerDefenseRoll(null);
+    setLastDiceResult({
+      type: "attack",
+      playerRoll,
+      formula: `공격 피해 = 공격력 ${attackValue} x 주사위 합계 ${getDiceFormulaTotalText(playerRoll)}${double ? ` x ${DOUBLE_MULTIPLIER}` : ""} = ${damage}`,
+      damage,
+      isDouble: double,
+    });
+    addBattleLog({
+      turn: battleTurn,
+      type: double ? "critical" : "playerAttack",
+      title: double ? "더블 치명타!" : "플레이어 공격",
+      message: `${currentEnemy.name}에게 ${damage} 피해${nextEnemy.hp <= 0 ? " / 처치" : ""}`,
+      formula: `공격력 ${attackValue} x (${playerRoll.dice.join(" + ")}${
+        effectiveDice.totalBonus ? ` + 장신구 ${effectiveDice.totalBonus}` : ""
+      })${double ? ` x ${DOUBLE_MULTIPLIER}` : ""} = ${damage}`,
+      dice: playerRoll.dice,
+      diceTotal: adjustedTotal,
+      resultValue: damage,
+      isDouble: double,
+    });
+    if (nextEnemy.hp <= 0) {
+      setLastEnemyAttackRoll(null);
+      setLastDiceResults({
+        playerAttack: {
+          rolls: playerRoll.dice,
+          diceTotal: adjustedTotal,
+          isDouble: double,
+          finalDamage: damage,
+        },
+      });
+      handleBattleWin(nextEnemy);
+      finishResolvingAction();
+      return;
+    }
+    const enemyAttack = createPendingEnemyAttack(nextEnemy);
+    setPendingEnemyAttack(enemyAttack);
+    setLastEnemyAttackRoll(enemyAttack ? { dice: enemyAttack.rolls, total: enemyAttack.diceTotal } : null);
+    setLastDiceResults({
+      playerAttack: {
+        rolls: playerRoll.dice,
+        diceTotal: adjustedTotal,
+        isDouble: double,
+        finalDamage: damage,
+      },
+      enemyAttack: enemyAttack
+        ? {
+            rolls: enemyAttack.rolls,
+            diceTotal: enemyAttack.diceTotal,
+            isDouble: enemyAttack.isDouble,
+            attackValue: enemyAttack.attackValue,
+          }
+        : null,
+    });
+    if (enemyAttack) {
+      addBattleLog({
+        turn: battleTurn,
+        type: "enemyAttack",
+        title: enemyAttack.isDouble ? "적 더블!" : "적 공격 준비",
+        message: `${currentEnemy.name}이(가) 다음 공격을 준비합니다. 공격값 ${enemyAttack.attackValue}`,
+        formula: `적 공격력 ${currentEnemy.baseAttack} x (${enemyAttack.rolls.join(" + ")}) = ${enemyAttack.attackValue}`,
+        dice: enemyAttack.rolls,
+        diceTotal: enemyAttack.diceTotal,
+        resultValue: enemyAttack.attackValue,
+        isDouble: enemyAttack.isDouble,
+      });
+    }
+    setBattleHighlight({
+      type: double ? "critical" : "attack",
+      title: double ? "더블 치명타!" : "플레이어 공격!",
+      message: `${currentEnemy.name}에게 ${damage} 피해를 입혔습니다.${enemyAttack ? ` 적 공격값 ${enemyAttack.attackValue}을(를) 수비턴에 막아야 합니다.` : ""}`,
+      formula: `공격력 ${attackValue} x 주사위 합계 ${getDiceFormulaTotalText(playerRoll)}${double ? ` x ${DOUBLE_MULTIPLIER}` : ""} = ${damage}`,
+    });
+    setBattlePhase("playerDefense");
+    finishResolvingAction();
+  }
+
+  function rollPlayerDefenseDice() {
+    if (phase !== "battle" || battlePhase !== "playerDefense" || !currentEnemy || resolvingActionRef.current) return;
+    resolvingActionRef.current = true;
+    setIsResolvingAction(true);
+    let enemyAttack = pendingEnemyAttack;
+    if (!enemyAttack) {
+      enemyAttack = createPendingEnemyAttack(currentEnemy);
+      addBattleLog({
+        turn: battleTurn,
+        type: "enemyAttack",
+        title: "적 공격 재계산",
+        message: "적 공격 준비값이 없어 새로 계산합니다.",
+        formula: enemyAttack ? `적 공격력 ${currentEnemy.baseAttack} x (${enemyAttack.rolls.join(" + ")}) = ${enemyAttack.attackValue}` : "",
+        dice: enemyAttack?.rolls || [],
+        diceTotal: enemyAttack?.diceTotal || 0,
+        resultValue: enemyAttack?.attackValue || 0,
+      });
+    }
+    if (!enemyAttack) {
+      resolvingActionRef.current = false;
+      setIsResolvingAction(false);
+      return;
+    }
+    const effectiveDice = getEffectivePlayerDice();
+    const playerRoll = rollDice(effectiveDice.count, effectiveDice.sides, effectiveDice.min);
+    const playerDefense = getPlayerDefenseValue();
+    const adjustedDefenseTotal = getAdjustedDiceTotal(playerRoll);
+    const playerDefenseDouble = isDoubleRoll(playerRoll);
+    const block = calculateDefenseValue(playerDefense, adjustedDefenseTotal, playerDefenseDouble);
+    const damage = Math.max(0, enemyAttack.attackValue - block);
+    const nextHp = Math.max(0, player.hp - damage);
+    const double = enemyAttack.isDouble || playerDefenseDouble;
+    setPlayer((current) => ({ ...current, hp: Math.max(0, current.hp - damage) }));
+    setLastEnemyAttackRoll({ dice: enemyAttack.rolls, total: enemyAttack.diceTotal });
+    setLastPlayerDefenseRoll(playerRoll);
+    setLastDiceResult({
+      type: "defense",
+      enemyRoll: { dice: enemyAttack.rolls, total: enemyAttack.diceTotal },
+      playerRoll,
+      formula: `최종 피해 = max(0, 적 공격 ${enemyAttack.attackValue} - 방어 ${block}) = ${damage}`,
+      damage,
+      enemyAttack: enemyAttack.attackValue,
+      block,
+      isDouble: double,
+    });
+    setLastDiceResults({
+      enemyAttack: {
+        rolls: enemyAttack.rolls,
+        diceTotal: enemyAttack.diceTotal,
+        isDouble: enemyAttack.isDouble,
+        attackValue: enemyAttack.attackValue,
+      },
+      playerDefense: {
+        rolls: playerRoll.dice,
+        diceTotal: adjustedDefenseTotal,
+        isDouble: playerDefenseDouble,
+        defenseValue: block,
+        finalDamageTaken: damage,
+      },
+    });
+    if (damage <= 0) {
+      setBattleHighlight({
+        type: "block",
+        title: playerDefenseDouble ? "더블 강화 방어!" : "완전 방어!",
+        message: "피해를 받지 않았습니다.",
+        formula: `적 공격 ${enemyAttack.attackValue} - 방어 ${block} = 0`,
+      });
+    } else {
+      setBattleHighlight({
+        type: "damage",
+        title: playerDefenseDouble ? "강화 방어 후 피해 발생" : "방어 실패",
+        message: `플레이어가 ${damage} 피해를 받았습니다.`,
+        formula: `적 공격 ${enemyAttack.attackValue} - 방어 ${block} = ${damage}`,
+      });
+    }
+    addBattleLog({
+      turn: battleTurn,
+      type: playerDefenseDouble ? "block" : damage <= 0 ? "block" : "damage",
+      title: playerDefenseDouble ? "더블 강화 방어!" : damage <= 0 ? "완전 방어" : "피해 발생",
+      message: damage <= 0 ? "피해를 받지 않음" : `플레이어가 ${damage} 피해를 받음`,
+      formula: `적 공격값: ${enemyAttack.attackValue} / 방어: ${playerDefense} x (${playerRoll.dice.join(" + ")}${
+        effectiveDice.totalBonus ? ` + 장신구 ${effectiveDice.totalBonus}` : ""
+      })${playerDefenseDouble ? ` x ${DOUBLE_MULTIPLIER}` : ""} = ${block} / 최종 피해: max(0, ${enemyAttack.attackValue} - ${block}) = ${damage}`,
+      enemyDice: enemyAttack.rolls,
+      enemyDiceTotal: enemyAttack.diceTotal,
+      defenseDice: playerRoll.dice,
+      defenseDiceTotal: adjustedDefenseTotal,
+      resultValue: damage,
+      isDouble: double,
+    });
+    setPendingEnemyAttack(null);
+    if (nextHp <= 0) {
+      handleBattleLose();
+      finishResolvingAction();
+      return;
+    }
+    setBattleTurn((current) => current + 1);
+    setBattlePhase("playerAttack");
+    finishResolvingAction();
+  }
+
+  function upgradeEquipment(kind) {
+    const costs = {
+      weapon: { gold: 50, material: 1 },
+      armor: { gold: 50, material: 1 },
+      hp: { gold: 40, material: 1 },
+    };
+    const cost = costs[kind];
+    if (!cost || player.gold < cost.gold || getUpgradeMaterial() < cost.material) return;
+    setPlayer((current) => {
+      const nextResources = { ...(current.resources || {}) };
+      nextResources[UPGRADE_MATERIAL_ID] = Math.max(0, (nextResources[UPGRADE_MATERIAL_ID] || 0) - cost.material);
+      const base = { ...current, gold: current.gold - cost.gold, resources: nextResources };
+      if (kind === "weapon") return { ...base, baseAttack: (base.baseAttack || base.attack || 3) + 1, attack: (base.baseAttack || base.attack || 3) + 1 };
+      if (kind === "armor") return { ...base, baseDefense: (base.baseDefense || base.defense || 2) + 1, defense: (base.baseDefense || base.defense || 2) + 1 };
+      return { ...base, baseMaxHp: (base.baseMaxHp || base.maxHp || 100) + 10, maxHp: (base.maxHp || 100) + 10, hp: (base.hp || 1) + 10 };
+    });
+  }
+
+  function upgradeDice(kind) {
+    const cost = { gold: 100, material: 1 };
+    if (player.gold < cost.gold || diceUpgradeMaterial < cost.material) return;
+    if (kind === "count" && playerDice.count >= DICE_UPGRADE_LIMITS.count) return;
+    if (kind === "sides" && playerDice.sides >= DICE_UPGRADE_LIMITS.sides) return;
+    if (kind === "min" && playerDice.min >= DICE_UPGRADE_LIMITS.min) return;
+    setPlayer((current) => ({
+      ...current,
+      gold: current.gold - cost.gold,
+    }));
+    setDiceUpgradeMaterial((current) => Math.max(0, current - cost.material));
+    setPlayerDice((current) => ({
+      count: kind === "count" ? current.count + 1 : current.count,
+      sides: kind === "sides" ? current.sides + 1 : current.sides,
+      min: kind === "min" ? current.min + 1 : current.min,
+    }));
+  }
+
+  function buyTowerShopItem(itemId) {
+    const items = {
+      heal30: { cost: 25, apply: (current) => ({ ...current, hp: Math.min(getFinalMaxHp(), current.hp + 30) }) },
+      healHalf: { cost: 55, apply: (current) => ({ ...current, hp: Math.min(getFinalMaxHp(), current.hp + Math.ceil(getFinalMaxHp() * 0.5)) }) },
+      attackBuff: { cost: 45, apply: (current) => current, buff: { attack: 2, defense: 0 } },
+      defenseBuff: { cost: 45, apply: (current) => current, buff: { attack: 0, defense: 2 } },
+    };
+    const item = items[itemId];
+    if (!item || player.gold < item.cost) return;
+    setPlayer((current) => item.apply({ ...current, gold: current.gold - item.cost }));
+    if (item.buff) {
+      setNextBattleBuff((current) => ({
+        attack: current.attack + item.buff.attack,
+        defense: current.defense + item.buff.defense,
+      }));
+    }
+  }
+
+  function enterRoom(roomType = currentRoomType, depth = currentDepth) {
+    const nextStage = buildDungeonStage(depth, maxDepth);
+    setCurrentRoomType(roomType);
+    setHasRestedInThisRoom(false);
+    setIsRoomCleared(false);
+    selectStage(nextStage);
+  }
+
+  function completeRun() {
+    setRunCompleted(true);
+    setIsRoomCleared(true);
+    setBattleReward(null);
+    setRewards([]);
+    setFlippedRewards([]);
+    setCardChoiceOpen(false);
+    setClaimedRewardCardId(null);
+    setSelectedStage(null);
+    setPhase("runClear");
+    pushLog("최종 보스를 처치했습니다. 던전 클리어!");
+  }
+
+  function goToNextRoom() {
+    if (!isRoomCleared && phase !== "runClear") return;
+
+    if (currentDepth >= maxDepth) {
+      completeRun();
+      return;
+    }
+
+    const nextDepth = currentDepth + 1;
+    const nextRoomType = getRoomTypeByDepth(nextDepth, maxDepth);
+    setCurrentDepth(nextDepth);
+    setCurrentRoomType(nextRoomType);
+    setIsRoomCleared(false);
+    setHasRestedInThisRoom(false);
+    setRoomResult(null);
+    setRoomEncounter(null);
+    setSelectedStage(null);
+    pushLog(`던전 깊이 ${nextDepth}/${maxDepth}: ${getRoomTypeLabel(nextRoomType)}으로 이동합니다.`);
+    enterRoom(nextRoomType, nextDepth);
+  }
+
   function buildRunData(overrides = {}) {
     const clearedRooms = Object.values(clearedNodesByFloor).flat();
     const snapshot = {
       saveVersion: SAVE_VERSION,
+      towerGameVersion: TOWER_DICE_GAME_VERSION,
       player,
       selectedCharacter: player.classId || selectedCharacterId,
       currentRoomId: selectedStage?.id || null,
@@ -5841,6 +7025,16 @@ export default function DeckbuilderRoguelikePrototype() {
       selectedEnemyIndex,
       turn,
       phase,
+      gameState: phase,
+      currentDepth,
+      maxDepth,
+      currentRoomType,
+      isRoomCleared,
+      runCompleted,
+      hasRestedInThisRoom,
+      selectedShopCardId,
+      selectedUpgradeCardId,
+      upgradeMaterial: player.resources?.manaShard || 0,
       log,
       rewards,
       flippedRewards,
@@ -5853,6 +7047,32 @@ export default function DeckbuilderRoguelikePrototype() {
       selectedCharacterId,
       selectedStage,
       selectedFloor,
+      highestClearedFloor,
+      highestUnlockedFloor,
+      currentEnemy,
+      battlePhase,
+      battleResult,
+      battleLogs,
+      battleTurn,
+      battleHighlight,
+      lastDiceResult,
+      lastDiceResults,
+      lastPlayerAttackRoll,
+      lastEnemyAttackRoll,
+      lastPlayerDefenseRoll,
+      pendingEnemyAttack,
+      isResolvingAction,
+      battleRewardSummary,
+      playerDice,
+      nextBattleBuff,
+      attemptedFloors,
+      diceUpgradeMaterial,
+      playerEquipment,
+      ownedAccessories,
+      difficultyMode,
+      diceShards,
+      diceShardUpgrades,
+      potions,
       currentFloor,
       unlockedFloors,
       clearedFloors,
@@ -5872,6 +7092,17 @@ export default function DeckbuilderRoguelikePrototype() {
 
   function restoreRunData(runData, permanentData = playerData, message = "") {
     const normalizedPermanentData = normalizePermanentData(permanentData);
+    const restoredMaxDepth = Number(runData?.maxDepth || DEFAULT_MAX_DUNGEON_DEPTH);
+    const restoredDepth = clampNumber(Number(runData?.currentDepth || 1), 1, restoredMaxDepth);
+    const restoredRoomType = runData?.currentRoomType || getRoomTypeByDepth(restoredDepth, restoredMaxDepth);
+    const restoredPhase =
+      runData?.phase === "combat"
+        ? "battle"
+        : runData?.phase === "defeat"
+          ? "gameOver"
+          : runData?.phase === "victory"
+            ? "runClear"
+            : runData?.phase || "dungeon";
     setPlayer(applyTraitEffectsToPlayer({ ...INITIAL_PLAYER, ...(runData?.player || {}) }, normalizedPermanentData));
     setPlayerData(normalizedPermanentData);
     setDeck(runData?.deck || []);
@@ -5883,7 +7114,15 @@ export default function DeckbuilderRoguelikePrototype() {
     setEnemies(runData?.enemies || [createEnemy(0)]);
     setSelectedEnemyIndex(runData?.selectedEnemyIndex || 0);
     setTurn(runData?.turn || 1);
-    setPhase(runData?.phase || "towerMap");
+    setPhase(restoredPhase);
+    setCurrentDepth(restoredDepth);
+    setMaxDepth(restoredMaxDepth);
+    setCurrentRoomType(restoredRoomType);
+    setIsRoomCleared(Boolean(runData?.isRoomCleared));
+    setRunCompleted(Boolean(runData?.runCompleted || restoredPhase === "runClear"));
+    setHasRestedInThisRoom(Boolean(runData?.hasRestedInThisRoom));
+    setSelectedShopCardId(runData?.selectedShopCardId || null);
+    setSelectedUpgradeCardId(runData?.selectedUpgradeCardId || null);
     setRewards(runData?.rewards || []);
     setFlippedRewards(runData?.flippedRewards || []);
     setBattleReward(runData?.battleReward || null);
@@ -5895,6 +7134,33 @@ export default function DeckbuilderRoguelikePrototype() {
     setSelectedCharacterId(runData?.selectedCharacterId || runData?.player?.classId || null);
     setSelectedStage(runData?.selectedStage || null);
     setSelectedFloor(runData?.selectedFloor || 1);
+    setHighestClearedFloor(Math.max(0, Number(runData?.highestClearedFloor || 0)));
+    setHighestUnlockedFloor(Math.max(1, Number(runData?.highestUnlockedFloor || 1)));
+    setCurrentEnemy(runData?.currentEnemy || null);
+    setBattlePhase(runData?.battlePhase || "playerAttack");
+    setBattleResult(runData?.battleResult || null);
+    setBattleLogs(runData?.battleLogs || []);
+    setBattleTurn(runData?.battleTurn || 1);
+    setBattleHighlight(runData?.battleHighlight || null);
+    setLastDiceResult(runData?.lastDiceResult || null);
+    setLastDiceResults(runData?.lastDiceResults || {});
+    setLastPlayerAttackRoll(runData?.lastPlayerAttackRoll || null);
+    setLastEnemyAttackRoll(runData?.lastEnemyAttackRoll || null);
+    setLastPlayerDefenseRoll(runData?.lastPlayerDefenseRoll || null);
+    setPendingEnemyAttack(runData?.pendingEnemyAttack || null);
+    setIsResolvingAction(false);
+    resolvingActionRef.current = false;
+    setBattleRewardSummary(runData?.battleRewardSummary || null);
+    setPlayerDice(runData?.playerDice || DEFAULT_PLAYER_DICE);
+    setNextBattleBuff(runData?.nextBattleBuff || { attack: 0, defense: 0 });
+    setAttemptedFloors(runData?.attemptedFloors || []);
+    setDiceUpgradeMaterial(Number(runData?.diceUpgradeMaterial || 0));
+    setPlayerEquipment({ ...DEFAULT_PLAYER_EQUIPMENT, ...(runData?.playerEquipment || {}) });
+    setOwnedAccessories(runData?.ownedAccessories || []);
+    setDifficultyMode(runData?.difficultyMode || null);
+    setDiceShards(Number(runData?.diceShards || 0));
+    setDiceShardUpgrades(createDefaultDiceShardUpgrades(runData?.diceShardUpgrades));
+    setPotions(Number(runData?.potions ?? runData?.emergencyPotions ?? 0));
     setCurrentFloor(runData?.currentFloor || 1);
     setUnlockedFloors(runData?.unlockedFloors || [1]);
     setClearedFloors(runData?.clearedFloors || []);
@@ -5965,6 +7231,14 @@ export default function DeckbuilderRoguelikePrototype() {
     setSelectedEnemyIndex(0);
     setTurn(1);
     setPhase(nextPhase);
+    setCurrentDepth(1);
+    setMaxDepth(DEFAULT_MAX_DUNGEON_DEPTH);
+    setCurrentRoomType(getRoomTypeByDepth(1, DEFAULT_MAX_DUNGEON_DEPTH));
+    setIsRoomCleared(false);
+    setRunCompleted(false);
+    setHasRestedInThisRoom(false);
+    setSelectedShopCardId(null);
+    setSelectedUpgradeCardId(null);
     setRewards([]);
     setFlippedRewards([]);
     setBattleReward(null);
@@ -5976,6 +7250,33 @@ export default function DeckbuilderRoguelikePrototype() {
     setSelectedCharacterId(null);
     setSelectedStage(null);
     setSelectedFloor(1);
+    setHighestClearedFloor(0);
+    setHighestUnlockedFloor(1);
+    setCurrentEnemy(null);
+    setBattlePhase("playerAttack");
+    setBattleResult(null);
+    setBattleLogs([]);
+    setBattleTurn(1);
+    setBattleHighlight(null);
+    setLastDiceResult(null);
+    setLastDiceResults({});
+    setLastPlayerAttackRoll(null);
+    setLastEnemyAttackRoll(null);
+    setLastPlayerDefenseRoll(null);
+    setPendingEnemyAttack(null);
+    setIsResolvingAction(false);
+    resolvingActionRef.current = false;
+    setBattleRewardSummary(null);
+    setPlayerDice(DEFAULT_PLAYER_DICE);
+    setNextBattleBuff({ attack: 0, defense: 0 });
+    setAttemptedFloors([]);
+    setDiceUpgradeMaterial(0);
+    setPlayerEquipment(DEFAULT_PLAYER_EQUIPMENT);
+    setOwnedAccessories([]);
+    setDifficultyMode(null);
+    setDiceShards(0);
+    setDiceShardUpgrades(DEFAULT_DICE_SHARD_UPGRADES);
+    setPotions(0);
     setCurrentFloor(1);
     setUnlockedFloors([1]);
     setClearedFloors([]);
@@ -6009,7 +7310,7 @@ export default function DeckbuilderRoguelikePrototype() {
     clearRunData();
     setHasSavedRun(false);
     savePermanentData(playerData);
-    setPhase("defeat");
+    setPhase("gameOver");
     pushLog(message);
   }
 
@@ -6117,13 +7418,22 @@ export default function DeckbuilderRoguelikePrototype() {
       return;
     }
 
-    const confirmed = window.confirm(`${card.name} 카드를 ${option.name}(으)로 강화하시겠습니까?\n\n강화 후: ${upgradedCard.name}\n${upgradedCard.description || upgradedCard.desc}`);
-    if (!confirmed) return;
+    const targetIndex = deck.findIndex((id) => id === cardId);
+    if (targetIndex < 0) {
+      pushLog("강화할 카드를 덱에서 찾지 못했습니다.");
+      return;
+    }
+    const targetInstanceId = `${cardId}:${targetIndex}`;
+    setSelectedUpgradeCardId(targetInstanceId);
 
-    let replaced = false;
-    const nextDeck = deck.map((id) => {
-      if (!replaced && id === cardId) {
-        replaced = true;
+    const confirmed = window.confirm(`${card.name} 카드를 ${option.name}(으)로 강화하시겠습니까?\n\n강화 후: ${upgradedCard.name}\n${upgradedCard.description || upgradedCard.desc}`);
+    if (!confirmed) {
+      setSelectedUpgradeCardId(null);
+      return;
+    }
+
+    const nextDeck = deck.map((id, index) => {
+      if (index === targetIndex && `${id}:${index}` === targetInstanceId) {
         return option.resultCardId;
       }
       return id;
@@ -6132,6 +7442,7 @@ export default function DeckbuilderRoguelikePrototype() {
     setDeck(nextDeck);
     setPlayer((currentPlayer) => consumeUpgradeCost(currentPlayer, option.cost));
     setInspectedCardId(option.resultCardId);
+    setSelectedUpgradeCardId(null);
     setUpgradeCelebration({ cardId: option.resultCardId, key: `${option.resultCardId}-${Date.now()}` });
     window.setTimeout(() => {
       setUpgradeCelebration((current) => (current?.cardId === option.resultCardId ? null : current));
@@ -6167,6 +7478,10 @@ export default function DeckbuilderRoguelikePrototype() {
     const freshDeck = buildStarterDeck(characterId);
     const startDrawPile = shuffle(freshDeck);
     const drawResult = drawFromPiles(5, startDrawPile, []);
+    const runMaxDepth = DEFAULT_MAX_DUNGEON_DEPTH;
+    const firstDepth = 1;
+    const firstRoomType = getRoomTypeByDepth(firstDepth, runMaxDepth);
+    const firstStage = buildDungeonStage(firstDepth, runMaxDepth);
 
     setSelectedCharacterId(characterId);
     const basePlayer = {
@@ -6201,14 +7516,22 @@ export default function DeckbuilderRoguelikePrototype() {
     setDiscardPile(drawResult.newDiscardPile);
     setExhaustPile([]);
     setEnemyIndex(0);
-    setEnemies([createEnemy(0)]);
+    setEnemies(createStageEnemies(firstStage));
     setSelectedEnemyIndex(0);
-    setSelectedStage(null);
+    setSelectedStage(firstStage);
     setSelectedFloor(1);
     setCurrentFloor(1);
     setUnlockedFloors([1]);
     setClearedFloors([]);
     setClearedNodesByFloor({});
+    setCurrentDepth(firstDepth);
+    setMaxDepth(runMaxDepth);
+    setCurrentRoomType(firstRoomType);
+    setIsRoomCleared(false);
+    setRunCompleted(false);
+    setHasRestedInThisRoom(false);
+    setSelectedShopCardId(null);
+    setSelectedUpgradeCardId(null);
     setTurn(1);
     setRewards([]);
     setFlippedRewards([]);
@@ -6232,11 +7555,11 @@ export default function DeckbuilderRoguelikePrototype() {
     setRageStacks(0);
     setComboStacks(0);
     setSpeedGauge({ player: 0, enemies: [] });
-    setPhase("towerMap");
+    setPhase("battle");
     setHasSavedRun(true);
     setLog([
-      `${profile.name} 선택 완료. 시작 자금 80골드를 챙겨 100층 고대탑의 1층이 열렸습니다.`,
-      "보상 카드, 희귀도, 속도 기반 전투가 적용됩니다.",
+      `${profile.name} 선택 완료. 던전 깊이 1/${runMaxDepth} ${getRoomTypeLabel(firstRoomType)}에 진입했습니다.`,
+      "최종 보스까지 이어지는 최소 플레이 루프가 시작됩니다.",
     ]);
   }
 
@@ -6316,7 +7639,7 @@ export default function DeckbuilderRoguelikePrototype() {
     setShowDeckManager(false);
     setInspectedCardId(null);
     setHoveredCombatCardId(null);
-    setPhase("room");
+    setPhase(encounter.type === "shop" ? "shop" : "rest");
     setLog([
       `상황: ${encounter.situation}`,
       encounter.type === "shop"
@@ -6385,7 +7708,7 @@ export default function DeckbuilderRoguelikePrototype() {
         { resetEnergy: true },
       ),
     );
-    setPhase("combat");
+    setPhase("battle");
     const monsterCount = stage.type === "boss" ? 1 : stage.type === "elite" ? 2 : 1;
     setLog([
       `던전 ${stage.floor}층 ${stage.ringLabel} ${stage.typeLabel} 시작. 몬스터 ${monsterCount}마리가 등장했습니다.`,
@@ -6394,7 +7717,7 @@ export default function DeckbuilderRoguelikePrototype() {
   }
 
   async function playCard(cardId, handIndex, event) {
-    if (phase !== "combat" || isCardAnimating || !initiativeReady || currentActor.type !== "player") return;
+    if (phase !== "battle" || isCardAnimating || !initiativeReady || currentActor.type !== "player") return;
     const card = CARD_POOL[cardId];
     if (player.energy < card.cost) return;
     if (aliveEnemies.length === 0) return;
@@ -6547,6 +7870,7 @@ export default function DeckbuilderRoguelikePrototype() {
     setDeck(nextDeck);
     setRoomResult(result);
     markStageCleared(selectedStage);
+    setIsRoomCleared(true);
     pushLog(`결과: ${result.summary}`);
   }
 
@@ -6557,25 +7881,37 @@ export default function DeckbuilderRoguelikePrototype() {
   }
 
   function handleShopBuyCard(item) {
-    if (phase !== "room" || roomEncounter?.type !== "shop") return;
-    const card = CARD_POOL[item.id];
-    if (!card) return;
-
-    if (player.gold < item.price) {
-      showShopFeedback("골드가 부족합니다.", [`보유 골드: ${player.gold}`, `필요 골드: ${item.price}`, `${card.name} 구매 실패`]);
+    if (phase !== "shop" || roomEncounter?.type !== "shop") return;
+    if (!item?.stockId) return;
+    setSelectedShopCardId(item.stockId);
+    const selectedStock = (roomEncounter.shopCards || []).find((stock) => stock.stockId === item.stockId);
+    if (!selectedStock) {
+      setSelectedShopCardId(null);
+      return;
+    }
+    const card = CARD_POOL[selectedStock.id];
+    if (!card) {
+      setSelectedShopCardId(null);
       return;
     }
 
-    const nextPlayer = { ...player, gold: player.gold - item.price };
-    const nextDeck = [...deck, item.id];
+    if (player.gold < selectedStock.price) {
+      showShopFeedback("골드가 부족합니다.", [`보유 골드: ${player.gold}`, `필요 골드: ${selectedStock.price}`, `${card.name} 구매 실패`]);
+      setSelectedShopCardId(null);
+      return;
+    }
+
+    const nextPlayer = { ...player, gold: player.gold - selectedStock.price };
+    const nextDeck = [...deck, selectedStock.id];
     setPlayer(nextPlayer);
     setDeck(nextDeck);
     setRoomEncounter((current) => ({
       ...current,
-      shopCards: (current?.shopCards || []).filter((stock) => stock.stockId !== item.stockId),
+      shopCards: (current?.shopCards || []).filter((stock) => stock.stockId !== selectedStock.stockId),
     }));
+    setSelectedShopCardId(null);
     showShopFeedback(`${card.name} 카드를 구매했습니다.`, [
-      `가격: ${item.price}G`,
+      `가격: ${selectedStock.price}G`,
       `골드: ${player.gold} → ${nextPlayer.gold}`,
       `카드 +1: ${card.name}`,
       `현재 덱: ${nextDeck.length}장`,
@@ -6583,7 +7919,7 @@ export default function DeckbuilderRoguelikePrototype() {
   }
 
   function handleShopSellCard(cardId) {
-    if (phase !== "room" || roomEncounter?.type !== "shop") return;
+    if (phase !== "shop" || roomEncounter?.type !== "shop") return;
     const card = CARD_POOL[cardId];
     if (!card) return;
     const value = Math.floor(getCardBaseValue(card) * 0.5);
@@ -6617,7 +7953,7 @@ export default function DeckbuilderRoguelikePrototype() {
   }
 
   function handleShopHeal() {
-    if (phase !== "room" || roomEncounter?.type !== "shop") return;
+    if (phase !== "shop" || roomEncounter?.type !== "shop") return;
     const missingHp = Math.max(0, player.maxHp - player.hp);
     const healUnit = getModifiedHealAmount(player, Math.max(1, Math.ceil(player.maxHp * 0.1)));
     const affordableUnits = Math.floor(player.gold / 10);
@@ -6647,18 +7983,20 @@ export default function DeckbuilderRoguelikePrototype() {
   }
 
   function leaveShopRoom() {
-    if (phase !== "room" || roomEncounter?.type !== "shop") return;
+    if (phase !== "shop" || roomEncounter?.type !== "shop") return;
     markStageCleared(selectedStage);
+    setIsRoomCleared(true);
     setRoomEncounter(null);
     setRoomResult(null);
     setSelectedStage(null);
     setTurn(1);
-    setPhase("floorMap");
-    pushLog(`상점을 떠났습니다. 던전 ${currentFloor}층 내부 지도로 돌아갑니다.`);
+    setSelectedShopCardId(null);
+    setPhase("dungeon");
+    pushLog("상점방을 클리어했습니다. 다음 방으로 이동할 수 있습니다.");
   }
 
   function handleRoomChoice(choice) {
-    if (phase !== "room" || !roomEncounter || roomResult) return;
+    if (!["rest", "shop"].includes(phase) || !roomEncounter || roomResult) return;
 
     let nextPlayer = { ...player };
     let nextDeck = [...deck];
@@ -6689,25 +8027,13 @@ export default function DeckbuilderRoguelikePrototype() {
       details.push(`체력: ${player.hp}/${player.maxHp} → ${nextPlayer.hp}/${nextPlayer.maxHp}`);
     };
 
-    if (choice.id === "rest-full") {
-      const percent = randomInt(30, 100);
-      applyHeal(percent, "깊은 잠이 오래된 피로를 씻어냈습니다.");
-    }
-
-    if (choice.id === "rest-short") {
-      const percent = randomInt(10, 30);
-      applyHeal(percent, "짧은 휴식으로 호흡이 안정되었습니다.");
-      const bonusRoll = Math.random();
-      if (bonusRoll < 0.4) {
-        const gold = getModifiedGoldGain(nextPlayer, randomInt(10, 30));
-        nextPlayer = { ...nextPlayer, gold: nextPlayer.gold + gold };
-        details.push(`작은 보너스: 숨겨둔 주머니에서 ${gold} 골드 발견`);
-        summary += ` 숨겨둔 주머니에서 ${gold} 골드도 발견했습니다.`;
-      } else if (bonusRoll < 0.7) {
-        const cardId = pickRandomExplorationCard(nextPlayer.classId);
-        nextDeck = [...nextDeck, cardId];
-        details.push(`작은 보너스: ${CARD_POOL[cardId].name} 카드 +1`);
-        summary += ` 불씨 곁에서 ${CARD_POOL[cardId].name} 카드도 챙겼습니다.`;
+    if (choice.id === "rest") {
+      if (hasRestedInThisRoom) {
+        summary = "이미 이 휴식방에서 쉬었습니다.";
+        details.push("휴식은 방마다 1번만 가능합니다.");
+      } else {
+        applyHeal(30, "휴식으로 호흡이 안정되었습니다.");
+        setHasRestedInThisRoom(true);
       }
     }
 
@@ -6910,12 +8236,13 @@ export default function DeckbuilderRoguelikePrototype() {
       handlePlayerDeath("탐험 중 쓰러졌습니다. 다음 런에서는 위험한 선택을 조심하세요.");
       return;
     }
-    setPhase("floorMap");
-    pushLog(`던전 ${currentFloor}층 내부 지도로 돌아갑니다. 다음 방으로 이어지는 길이 밝아졌습니다.`);
+    pushLog("방을 클리어했습니다. 다음 방으로 이동합니다.");
+    goToNextRoom();
   }
 
   function finishBattle(isBoss) {
     markStageCleared(selectedStage);
+    setIsRoomCleared(true);
 
     const baseBattleGold = selectedStage?.type === "boss" ? randomInt(60, 100) : selectedStage?.type === "elite" ? randomInt(35, 65) : randomInt(15, 40);
     const battleGold = getModifiedGoldGain(player, baseBattleGold);
@@ -6995,7 +8322,7 @@ export default function DeckbuilderRoguelikePrototype() {
   }
 
   async function enemyTurn(options = {}) {
-    if (phase !== "combat" || isCardAnimating) return;
+    if (phase !== "battle" || isCardAnimating) return;
     setIsCardAnimating(true);
     let nextPlayer = { ...player };
     let nextEnemies = enemies.map((entry) => ({ ...entry }));
@@ -7197,21 +8524,15 @@ export default function DeckbuilderRoguelikePrototype() {
     if (!options.skipRewardUi && (battleReward?.cardChoices || []).length > 0 && !claimedRewardCardId) return;
 
     const completedBossRoom = selectedStage?.type === "boss";
-    const returnPhase = completedBossRoom ? "towerMap" : "floorMap";
-    const returnLog = completedBossRoom
-      ? `던전 ${selectedStage.floor}층 공략 완료. 던전 ${Math.min(TOTAL_FLOORS, selectedStage.floor + 1)}층이 해금되었습니다.`
-      : `던전 ${selectedStage?.floor || currentFloor}층 내부 지도로 돌아갑니다. 다음 안쪽 방을 공략하세요.`;
+    const completedFinalBoss = completedBossRoom && currentDepth >= maxDepth;
 
-    if (selectedStage?.finalBoss) {
-      clearRunData();
-      setHasSavedRun(false);
+    if (completedFinalBoss || selectedStage?.finalBoss) {
       setBattleReward(null);
       setRewards([]);
       setFlippedRewards([]);
       setCardChoiceOpen(false);
       setClaimedRewardCardId(null);
-      setPhase("victory");
-      pushLog("100층 중앙 보스방을 공략했습니다. 탑 정복 완료!");
+      completeRun();
       return;
     }
 
@@ -7227,7 +8548,7 @@ export default function DeckbuilderRoguelikePrototype() {
     setRoomEncounter(null);
     setRoomResult(null);
     setTurn(1);
-    setPhase(returnPhase);
+    setPhase("dungeon");
     setComboStacks(0);
     setSelectedStage(null);
     setPlayer((p) => ({
@@ -7242,7 +8563,7 @@ export default function DeckbuilderRoguelikePrototype() {
       vulnerable: 0,
     }));
     setSpeedGauge((g) => ({ ...g }));
-    pushLog(`전리품 확인 완료. ${returnLog}`);
+    pushLog("전리품 확인 완료. 다음 방으로 이동할 수 있습니다.");
   }
 
   function skipReward() {
@@ -7272,6 +8593,684 @@ export default function DeckbuilderRoguelikePrototype() {
     return Object.entries(count).map(([id, amount]) => ({ ...CARD_POOL[id], amount }));
   }, [deck]);
 
+  const upgradeMaterial = getUpgradeMaterial();
+  const highestDisplayFloor = Math.min(MAX_TOWER_FLOOR, Math.max(1, highestUnlockedFloor + 2));
+  const floorList = Array.from({ length: highestDisplayFloor }, (_, index) => index + 1);
+
+  if (phase === "title") {
+    return (
+      <div className="grid min-h-screen place-items-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
+        <section className="w-full max-w-3xl text-center">
+          <div className="mx-auto mb-5 grid h-20 w-20 place-items-center rounded-3xl border border-amber-200/40 bg-amber-200/10 text-4xl shadow-[0_0_50px_rgba(251,191,36,0.2)]">
+            <TowerControl size={42} />
+          </div>
+          <div className="text-sm font-black uppercase tracking-[0.22em] text-cyan-200">Tower Dice Battle</div>
+          <h1 className="mt-3 text-5xl font-black tracking-tight md:text-7xl">주사위 탑 등반</h1>
+          <p className="mx-auto mt-4 max-w-2xl text-slate-300">
+            장비와 주사위를 강화하고 해금된 층에 도전하는 탑 등반형 주사위 전투 게임입니다.
+          </p>
+          <div className="mt-5 flex flex-wrap justify-center gap-2 text-sm font-bold text-slate-200">
+            <span className="rounded-xl bg-white/10 px-3 py-2">최고 클리어 {highestClearedFloor}층</span>
+            <span className="rounded-xl bg-white/10 px-3 py-2">해금 {highestUnlockedFloor}층</span>
+            {hasSavedRun && <span className="rounded-xl bg-emerald-300/15 px-3 py-2 text-emerald-100">저장된 진행상황 있음</span>}
+          </div>
+          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+            <button type="button" onClick={startGame} className="rounded-2xl bg-amber-300 px-8 py-4 text-lg font-black text-slate-950 shadow-lg hover:bg-amber-200">
+              게임 시작
+            </button>
+            <button type="button" onClick={() => setPhase("how-to-play")} className="rounded-2xl border border-white/15 bg-white/10 px-8 py-4 text-lg font-black text-white hover:bg-white/15">
+              게임 방법
+            </button>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (phase === "difficultySelect") {
+    const difficultyCards = [
+      {
+        id: "roguelike",
+        title: "로그라이크 난이도",
+        description: "죽으면 장비와 재화는 사라지지만, 주사위 조각은 남습니다. 조각으로 기본 능력치를 영구 강화해 다음 등반을 준비합니다.",
+        features: [
+          "패배 시 등반 진행도 초기화",
+          "패배 시 주사위 조각 획득",
+          "주사위 조각 상점 이용 가능",
+          "기본 공격력/방어력/체력 영구 강화",
+          "반복 플레이를 통해 조금씩 강해지는 모드",
+        ],
+        button: "로그라이크로 시작",
+        tone: "from-cyan-300 to-emerald-300",
+      },
+      {
+        id: "hardcore",
+        title: "하드코어 난이도",
+        description: "죽으면 모든 진행이 끝납니다. 패배 시 이번 등반에서 얻은 이점 없이 처음부터 다시 도전해야 합니다.",
+        features: [
+          "패배 시 등반 진행도 초기화",
+          "패배 보상 없음",
+          "주사위 조각 획득 없음",
+          "주사위 조각 상점 사용 불가",
+          "순수 실력과 운으로 클리어하는 모드",
+        ],
+        button: "하드코어로 시작",
+        tone: "from-rose-300 to-amber-300",
+      },
+    ];
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
+        <section className="mx-auto max-w-6xl">
+          <header className="mb-5 rounded-3xl border border-white/10 bg-white/5 p-6 text-center shadow-2xl">
+            <div className="text-sm font-black uppercase tracking-[0.22em] text-cyan-200">Climb Rule</div>
+            <h1 className="mt-2 text-5xl font-black">난이도 선택</h1>
+            <p className="mt-3 text-slate-300">이번 등반의 규칙을 선택하세요.</p>
+            <p className="mt-2 text-sm font-bold text-amber-100">새 난이도로 시작하면 현재 등반 진행도가 초기화됩니다.</p>
+          </header>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {difficultyCards.map((card) => (
+              <article key={card.id} className="rounded-3xl bg-white p-6 text-slate-950 shadow-2xl">
+                <div className={`mb-5 h-2 rounded-full bg-gradient-to-r ${card.tone}`} />
+                <h2 className="text-3xl font-black">{card.title}</h2>
+                <p className="mt-3 min-h-20 text-sm font-bold leading-6 text-slate-600">{card.description}</p>
+                <ul className="mt-5 grid gap-2 text-sm font-black text-slate-700">
+                  {card.features.map((feature) => (
+                    <li key={feature} className="rounded-xl bg-slate-100 px-3 py-2">{feature}</li>
+                  ))}
+                </ul>
+                <button
+                  onClick={() => selectDifficulty(card.id)}
+                  className="mt-6 w-full rounded-2xl bg-slate-950 px-5 py-4 text-lg font-black text-white hover:bg-slate-700"
+                >
+                  {card.button}
+                </button>
+              </article>
+            ))}
+          </div>
+          <button onClick={returnToTitle} className="mt-5 rounded-2xl border border-white/15 bg-white/10 px-5 py-3 font-black text-white hover:bg-white/15">
+            처음 화면으로
+          </button>
+        </section>
+      </div>
+    );
+  }
+
+  if (phase === "tower") {
+    const effectiveDice = getEffectivePlayerDice();
+    const equipmentBonuses = getCurrentEquipmentBonuses();
+    const finalMaxHp = getFinalMaxHp();
+    const shardBonuses = getDiceShardUpgradeBonuses(diceShardUpgrades);
+    const shardBonusLabels = [
+      `기본 공격력 +${shardBonuses.attack}`,
+      `기본 방어력 +${shardBonuses.defense}`,
+      `최대 체력 +${shardBonuses.maxHp}`,
+    ];
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
+        <div className="mx-auto max-w-6xl">
+          <header className="mb-5 rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.18em] text-cyan-200">
+                  <TowerControl size={18} /> Tower Hub
+                </div>
+                <h1 className="mt-1 text-4xl font-black">탑 화면</h1>
+                <p className="mt-1 text-sm text-slate-300">전투 전에 장비, 주사위, 상점 준비를 마치고 해금된 층에 도전합니다.</p>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs font-black">
+                  <span className="rounded-xl bg-white/10 px-3 py-2">현재 난이도: {DIFFICULTY_LABELS[difficultyMode] || "미선택"}</span>
+                  {difficultyMode === "roguelike" ? (
+                    <span className="rounded-xl bg-cyan-300/20 px-3 py-2 text-cyan-100">보유 주사위 조각: {diceShards}</span>
+                  ) : (
+                    <span className="rounded-xl bg-rose-300/20 px-3 py-2 text-rose-100">하드코어 모드: 패배 시 보상이 없습니다.</span>
+                  )}
+                </div>
+              </div>
+              <button onClick={returnToTitle} className="rounded-2xl bg-white px-4 py-3 font-black text-slate-950 hover:bg-cyan-100">
+                처음 화면으로
+              </button>
+            </div>
+          </header>
+
+          <main className="grid gap-4 lg:grid-cols-[1fr_320px]">
+            <section className="rounded-3xl border border-white/10 bg-white p-5 text-slate-950 shadow-xl">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="rounded-2xl bg-slate-100 p-4"><div className="text-sm font-bold text-slate-500">최고 클리어 층</div><strong className="text-3xl">{highestClearedFloor}</strong></div>
+                <div className="rounded-2xl bg-slate-100 p-4"><div className="text-sm font-bold text-slate-500">도전 가능 최고 층</div><strong className="text-3xl">{highestUnlockedFloor}</strong></div>
+                <div className="rounded-2xl bg-amber-100 p-4"><div className="text-sm font-bold text-amber-700">골드</div><strong className="text-3xl">{player.gold || 0}</strong></div>
+                <div className="rounded-2xl bg-cyan-100 p-4"><div className="text-sm font-bold text-cyan-700">장비 강화 재료</div><strong className="text-3xl">{upgradeMaterial}</strong></div>
+                <div className="rounded-2xl bg-indigo-100 p-4"><div className="text-sm font-bold text-indigo-700">주사위 강화 재료</div><strong className="text-3xl">{diceUpgradeMaterial}</strong></div>
+                <div className="rounded-2xl bg-rose-100 p-4"><div className="text-sm font-bold text-rose-700">HP</div><strong className="text-3xl">{player.hp || 0}/{finalMaxHp}</strong></div>
+                <div className="rounded-2xl bg-emerald-100 p-4"><div className="text-sm font-bold text-emerald-700">주사위</div><strong className="text-3xl">{formatDice(effectiveDice)}</strong><div className="text-sm font-bold">최소 {effectiveDice.min} / 합계 +{effectiveDice.totalBonus}</div></div>
+                <div className="rounded-2xl bg-violet-100 p-4"><div className="text-sm font-bold text-violet-700">회복 물약</div><strong className="text-3xl">{potions}</strong><div className="text-sm font-bold">사용 시 HP 30 회복</div></div>
+              </div>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-3">
+                <div className="rounded-2xl border border-slate-200 p-4">
+                  <div className="flex items-center gap-2 text-sm font-black text-slate-500"><Sword size={16} /> 기본 공격력</div>
+                  <div className="mt-2 text-3xl font-black">{getPlayerAttackValue()}</div>
+                  <div className="mt-1 text-xs font-bold text-slate-500">장신구 +{equipmentBonuses.attackBonus} / 버프 +{nextBattleBuff.attack}</div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 p-4">
+                  <div className="flex items-center gap-2 text-sm font-black text-slate-500"><Shield size={16} /> 기본 방어력</div>
+                  <div className="mt-2 text-3xl font-black">{getPlayerDefenseValue()}</div>
+                  <div className="mt-1 text-xs font-bold text-slate-500">장신구 +{equipmentBonuses.defenseBonus} / 버프 +{nextBattleBuff.defense}</div>
+                </div>
+                <div className="rounded-2xl border border-slate-200 p-4">
+                  <div className="flex items-center gap-2 text-sm font-black text-slate-500"><Zap size={16} /> 다음 전투 버프</div>
+                  <div className="mt-2 text-lg font-black">공격 +{nextBattleBuff.attack} / 방어 +{nextBattleBuff.defense}</div>
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-slate-200 p-4">
+                <div className="text-sm font-black text-slate-500">주사위 조각 영구 강화</div>
+                {difficultyMode === "roguelike" ? (
+                  <div className="mt-3 flex flex-wrap gap-2 text-sm font-black">
+                    {shardBonusLabels.map((label) => <span key={label} className="rounded-xl bg-cyan-100 px-3 py-2 text-cyan-900">{label}</span>)}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm font-bold text-slate-500">하드코어 난이도에서는 주사위 조각 영구 강화를 적용하지 않습니다.</p>
+                )}
+              </div>
+            </section>
+
+            <aside className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-xl">
+              <h2 className="text-xl font-black">메뉴</h2>
+              <div className="mt-4 grid gap-3">
+                <button onClick={() => setPhase("equipmentUpgrade")} className="rounded-2xl bg-amber-300 px-4 py-4 font-black text-slate-950 hover:bg-amber-200">장비 강화</button>
+                <button onClick={() => setPhase("equipmentManage")} className="rounded-2xl bg-violet-300 px-4 py-4 font-black text-violet-950 hover:bg-violet-200">장비 관리</button>
+                <button onClick={() => setPhase("diceUpgrade")} className="rounded-2xl bg-cyan-300 px-4 py-4 font-black text-slate-950 hover:bg-cyan-200">주사위 강화</button>
+                <button onClick={() => setPhase("shop")} className="rounded-2xl bg-emerald-300 px-4 py-4 font-black text-emerald-950 hover:bg-emerald-200">상점</button>
+                {difficultyMode === "roguelike" ? (
+                  <button onClick={() => setPhase("diceShardShop")} className="rounded-2xl bg-indigo-300 px-4 py-4 font-black text-indigo-950 hover:bg-indigo-200">주사위 조각 상점</button>
+                ) : (
+                  <div className="rounded-2xl border border-white/15 px-4 py-4 text-sm font-black text-slate-300">하드코어 난이도에서는 사용할 수 없습니다.</div>
+                )}
+                <button onClick={usePotion} disabled={potions <= 0 || player.hp >= finalMaxHp} className="rounded-2xl bg-rose-300 px-4 py-4 font-black text-rose-950 hover:bg-rose-200 disabled:cursor-not-allowed disabled:opacity-45">회복 물약 사용</button>
+                <button onClick={() => setPhase("floorSelect")} className="rounded-2xl bg-white px-4 py-4 font-black text-slate-950 hover:bg-cyan-100">층 선택</button>
+                <button onClick={restartClimb} className="rounded-2xl border border-white/20 px-4 py-4 font-black text-white hover:bg-white/10">새 등반 시작</button>
+              </div>
+            </aside>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === "equipmentManage") {
+    const effectiveDice = getEffectivePlayerDice();
+    const equipmentBonuses = getCurrentEquipmentBonuses();
+    const finalMaxHp = getFinalMaxHp();
+    const equippedAccessory = playerEquipment.accessory;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
+        <section className="mx-auto max-w-6xl rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h1 className="text-4xl font-black">장비 관리</h1>
+              <p className="mt-2 text-slate-300">무기, 방어구, 장신구 슬롯과 최종 전투 능력치를 확인합니다.</p>
+            </div>
+            <button onClick={goToTower} className="rounded-2xl bg-white px-5 py-3 font-black text-slate-950 hover:bg-cyan-100">탑으로 돌아가기</button>
+          </div>
+
+          <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_360px]">
+            <div className="grid gap-4 md:grid-cols-3">
+              {[
+                { slot: "weapon", label: "무기", item: playerEquipment.weapon, effect: "무기 강화로 기본 공격력 증가" },
+                { slot: "armor", label: "방어구", item: playerEquipment.armor, effect: "방어구 강화로 기본 방어력 증가" },
+                { slot: "accessory", label: "장신구", item: equippedAccessory, effect: getAccessoryEffectText(equippedAccessory) },
+              ].map((entry) => (
+                <article key={entry.slot} className="rounded-3xl bg-white p-5 text-slate-950 shadow-xl">
+                  <div className="text-sm font-black text-slate-500">{entry.label}</div>
+                  <h2 className="mt-2 text-2xl font-black">{entry.item?.name || "비어 있음"}</h2>
+                  <p className="mt-2 text-sm font-bold text-slate-600">{entry.item?.description || "장신구를 획득하면 이 슬롯에 장착할 수 있습니다."}</p>
+                  <div className="mt-4 rounded-xl bg-slate-100 px-3 py-2 text-sm font-black">{entry.effect}</div>
+                  {entry.slot === "accessory" && equippedAccessory && (
+                    <button onClick={unequipAccessory} className="mt-4 w-full rounded-2xl bg-slate-950 px-4 py-3 font-black text-white hover:bg-slate-700">장신구 해제</button>
+                  )}
+                </article>
+              ))}
+            </div>
+
+            <aside className="rounded-3xl bg-white p-5 text-slate-950 shadow-xl">
+              <h2 className="text-2xl font-black">최종 능력치</h2>
+              <div className="mt-4 grid gap-2 text-sm font-black">
+                <div className="rounded-xl bg-slate-100 p-3">공격력: {getPlayerAttackValue()}</div>
+                <div className="rounded-xl bg-slate-100 p-3">방어력: {getPlayerDefenseValue()}</div>
+                <div className="rounded-xl bg-slate-100 p-3">최대 HP: {finalMaxHp}</div>
+                <div className="rounded-xl bg-slate-100 p-3">주사위: {formatDice(effectiveDice)}</div>
+                <div className="rounded-xl bg-slate-100 p-3">주사위 최소값: {effectiveDice.min}</div>
+                <div className="rounded-xl bg-slate-100 p-3">주사위 합계 보정: +{equipmentBonuses.diceTotalBonus}</div>
+              </div>
+            </aside>
+          </div>
+
+          <div className="mt-5 rounded-3xl bg-white p-5 text-slate-950 shadow-xl">
+            <h2 className="text-2xl font-black">보유 장신구</h2>
+            {ownedAccessories.length === 0 ? (
+              <p className="mt-3 font-bold text-slate-500">아직 획득한 장신구가 없습니다. 5층과 10층 보스를 처치해 보상을 얻으세요.</p>
+            ) : (
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                {ownedAccessories.map((accessory) => {
+                  const equipped = equippedAccessory?.id === accessory.id;
+                  return (
+                    <article key={accessory.id} className={`rounded-2xl border p-4 ${equipped ? "border-violet-400 bg-violet-50" : "border-slate-200 bg-white"}`}>
+                      <h3 className="text-xl font-black">{accessory.name}</h3>
+                      <p className="mt-2 text-sm font-bold text-slate-600">{accessory.description}</p>
+                      <div className="mt-3 rounded-xl bg-slate-100 px-3 py-2 text-sm font-black">{getAccessoryEffectText(accessory)}</div>
+                      <button
+                        onClick={() => equipAccessory(accessory.id)}
+                        disabled={equipped}
+                        className="mt-4 w-full rounded-2xl bg-violet-500 px-4 py-3 font-black text-white hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {equipped ? "장착 중" : "장착"}
+                      </button>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (phase === "diceShardShop") {
+    if (difficultyMode !== "roguelike") {
+      return (
+        <div className="grid min-h-screen place-items-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
+          <section className="w-full max-w-2xl rounded-3xl bg-white p-8 text-center text-slate-950 shadow-2xl">
+            <h1 className="text-4xl font-black">주사위 조각 상점</h1>
+            <p className="mt-3 font-bold text-slate-600">하드코어 난이도에서는 사용할 수 없습니다.</p>
+            <button onClick={goToTower} className="mt-6 rounded-2xl bg-slate-950 px-5 py-3 font-black text-white hover:bg-slate-700">탑으로 돌아가기</button>
+          </section>
+        </div>
+      );
+    }
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
+        <section className="mx-auto max-w-6xl rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h1 className="text-4xl font-black">주사위 조각 상점</h1>
+              <p className="mt-2 text-slate-300">로그라이크 전용 영구 강화 상점입니다. 보유 주사위 조각 {diceShards}개</p>
+            </div>
+            <button onClick={goToTower} className="rounded-2xl bg-white px-5 py-3 font-black text-slate-950 hover:bg-cyan-100">탑으로 돌아가기</button>
+          </div>
+
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
+            {diceShardShopItems.map((item) => {
+              const currentLevel = diceShardUpgrades[item.stat] || 0;
+              const maxed = currentLevel >= item.maxLevel;
+              const canBuy = !maxed && diceShards >= item.cost;
+              const currentEffect = item.stat === "maxHpLevel" ? currentLevel * item.effectValue : currentLevel;
+              return (
+                <article key={item.id} className="rounded-3xl bg-white p-5 text-slate-950 shadow-xl">
+                  <h2 className="text-2xl font-black">{item.name}</h2>
+                  <p className="mt-2 min-h-12 text-sm font-bold text-slate-600">{item.description}</p>
+                  <div className="mt-4 grid gap-2 text-sm font-black">
+                    <div className="rounded-xl bg-slate-100 px-3 py-2">현재 레벨: {currentLevel} / {item.maxLevel}</div>
+                    <div className="rounded-xl bg-slate-100 px-3 py-2">효과: {item.effectText} +{currentEffect}</div>
+                    <div className="rounded-xl bg-slate-100 px-3 py-2">다음 구매 효과: {item.effectText} +{item.effectValue}</div>
+                    <div className="rounded-xl bg-indigo-100 px-3 py-2 text-indigo-900">비용: 주사위 조각 {item.cost}개</div>
+                  </div>
+                  <button
+                    onClick={() => buyDiceShardShopItem(item.id)}
+                    disabled={!canBuy}
+                    className="mt-4 w-full rounded-2xl bg-slate-950 px-4 py-3 font-black text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    {maxed ? "최대 강화 완료" : "구매"}
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (phase === "equipmentUpgrade") {
+    const baseAttack = Number(player.baseAttack || player.attack || 3);
+    const baseDefense = Number(player.baseDefense || player.defense || 2);
+    const baseMaxHp = Number(player.maxHp || player.baseMaxHp || 100);
+    const rows = [
+      { id: "weapon", title: "무기 강화", desc: `현재 공격력: ${baseAttack} / 강화 후 공격력: ${baseAttack + 1}`, cost: "50G / 장비 재료 1" },
+      { id: "armor", title: "방어구 강화", desc: `현재 방어력: ${baseDefense} / 강화 후 방어력: ${baseDefense + 1}`, cost: "50G / 장비 재료 1" },
+      { id: "hp", title: "체력 강화", desc: `현재 최대 체력: ${baseMaxHp} / 강화 후 최대 체력: ${baseMaxHp + 10}`, cost: "40G / 장비 재료 1" },
+    ];
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
+        <section className="mx-auto max-w-5xl rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
+          <h1 className="text-4xl font-black">장비 강화</h1>
+          <p className="mt-2 text-slate-300">골드 {player.gold || 0} / 강화 재료 {upgradeMaterial}</p>
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
+            {rows.map((row) => (
+              <article key={row.id} className="rounded-3xl bg-white p-5 text-slate-950 shadow-xl">
+                <h2 className="text-2xl font-black">{row.title}</h2>
+                <p className="mt-2 font-semibold text-slate-600">{row.desc}</p>
+                <div className="mt-4 rounded-xl bg-slate-100 px-3 py-2 text-sm font-black">{row.cost}</div>
+                <button onClick={() => upgradeEquipment(row.id)} className="mt-4 w-full rounded-2xl bg-slate-950 px-4 py-3 font-black text-white hover:bg-slate-700">강화</button>
+              </article>
+            ))}
+          </div>
+          <button onClick={goToTower} className="mt-5 rounded-2xl bg-white px-5 py-3 font-black text-slate-950 hover:bg-cyan-100">탑으로 돌아가기</button>
+        </section>
+      </div>
+    );
+  }
+
+  if (phase === "diceUpgrade") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
+        <section className="mx-auto max-w-5xl rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
+          <h1 className="text-4xl font-black">주사위 강화</h1>
+          <p className="mt-2 text-slate-300">현재 주사위: {formatDice(playerDice)} / 최소 눈금 {playerDice.min} / 골드 {player.gold || 0} / 주사위 강화 재료 {diceUpgradeMaterial}</p>
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
+            {[
+              { id: "count", title: "주사위 개수 +1", value: `${playerDice.count}/${DICE_UPGRADE_LIMITS.count}` },
+              { id: "sides", title: "주사위 최대 눈금 +1", value: `${playerDice.sides}/${DICE_UPGRADE_LIMITS.sides}` },
+              { id: "min", title: "최소 주사위값 +1", value: `${playerDice.min}/${DICE_UPGRADE_LIMITS.min}` },
+            ].map((item) => (
+              <article key={item.id} className="rounded-3xl bg-white p-5 text-slate-950 shadow-xl">
+                <h2 className="text-2xl font-black">{item.title}</h2>
+                <div className="mt-3 text-3xl font-black">{item.value}</div>
+                <div className="mt-4 rounded-xl bg-slate-100 px-3 py-2 text-sm font-black">100G / 주사위 재료 1</div>
+                <button onClick={() => upgradeDice(item.id)} className="mt-4 w-full rounded-2xl bg-slate-950 px-4 py-3 font-black text-white hover:bg-slate-700">강화</button>
+              </article>
+            ))}
+          </div>
+          <button onClick={goToTower} className="mt-5 rounded-2xl bg-white px-5 py-3 font-black text-slate-950 hover:bg-cyan-100">탑으로 돌아가기</button>
+        </section>
+      </div>
+    );
+  }
+
+  if (phase === "shop") {
+    const items = [
+      { id: "heal30", title: "체력 30 회복", cost: "25G" },
+      { id: "healHalf", title: "최대 체력의 50% 회복", cost: "55G" },
+      { id: "attackBuff", title: "다음 전투 공격력 +2", cost: "45G" },
+      { id: "defenseBuff", title: "다음 전투 방어력 +2", cost: "45G" },
+    ];
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
+        <section className="mx-auto max-w-5xl rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
+          <h1 className="text-4xl font-black">상점</h1>
+          <p className="mt-2 text-slate-300">카드 상점 대신 회복과 다음 전투 버프를 구매합니다. 골드 {player.gold || 0}</p>
+          <div className="mt-5 grid gap-4 md:grid-cols-4">
+            {items.map((item) => (
+              <article key={item.id} className="rounded-3xl bg-white p-5 text-slate-950 shadow-xl">
+                <h2 className="text-xl font-black">{item.title}</h2>
+                <div className="mt-4 rounded-xl bg-slate-100 px-3 py-2 text-sm font-black">{item.cost}</div>
+                <button onClick={() => buyTowerShopItem(item.id)} className="mt-4 w-full rounded-2xl bg-slate-950 px-4 py-3 font-black text-white hover:bg-slate-700">구매</button>
+              </article>
+            ))}
+          </div>
+          <button onClick={goToTower} className="mt-5 rounded-2xl bg-white px-5 py-3 font-black text-slate-950 hover:bg-cyan-100">탑으로 돌아가기</button>
+        </section>
+      </div>
+    );
+  }
+
+  if (phase === "floorSelect") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
+        <section className="mx-auto max-w-6xl rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h1 className="text-4xl font-black">층 선택</h1>
+              <p className="mt-2 text-slate-300">이번 등반에서 각 층은 한 번만 도전할 수 있습니다. 패배하면 새 등반은 1층부터 시작합니다.</p>
+            </div>
+            <button onClick={goToTower} className="rounded-2xl bg-white px-5 py-3 font-black text-slate-950 hover:bg-cyan-100">탑으로 돌아가기</button>
+          </div>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            {floorList.map((floor) => {
+              const enemy = createTowerEnemyForFloor(floor);
+              const unlocked = isTowerFloorUnlocked(floor);
+              const cleared = clearedFloors.includes(floor);
+              const attempted = attemptedFloors.includes(floor) && !cleared;
+              const challengeable = canChallengeFloor(floor);
+              const boss = isBossFloor(floor);
+              const statusLabel = cleared ? "클리어 완료" : attempted ? "재도전 불가" : !unlocked ? "잠김" : boss ? `${getBossFloorLabel(floor)} / 도전 가능` : "도전 가능";
+              return (
+                <button
+                  key={floor}
+                  type="button"
+                  onClick={() => startBattleForFloor(floor)}
+                  disabled={!challengeable}
+                  className={`rounded-3xl p-5 text-left shadow-xl transition ${
+                    challengeable
+                      ? boss
+                        ? "bg-amber-100 text-slate-950 hover:-translate-y-1"
+                        : "bg-white text-slate-950 hover:-translate-y-1"
+                      : "bg-white/10 text-slate-400"
+                  } disabled:cursor-not-allowed`}
+                >
+                  <div className="flex items-center justify-between">
+                    <strong className="text-2xl">{floor}층</strong>
+                    {cleared ? <CheckCircle2 size={22} /> : !unlocked ? <Lock size={22} /> : boss ? <Crown size={22} /> : <Sword size={22} />}
+                  </div>
+                  <div className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-black ${challengeable ? "bg-slate-950 text-white" : "bg-white/10 text-slate-300"}`}>{statusLabel}</div>
+                  <div className="mt-3 font-black">{enemy.name}</div>
+                  <div className="mt-2 text-sm">HP {enemy.maxHp} / 공격 {enemy.baseAttack}</div>
+                  <div className="mt-1 text-sm">{enemy.diceCount}D{enemy.diceSides}</div>
+                  {boss && (
+                    <div className="mt-3 rounded-xl bg-amber-200/70 px-3 py-2 text-xs font-black text-amber-950">
+                      보상: 주사위 강화 재료 + 장신구
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (phase === "battle") {
+    const enemyHpPercent = currentEnemy ? Math.max(0, Math.min(100, (currentEnemy.hp / currentEnemy.maxHp) * 100)) : 0;
+    const finalMaxHp = getFinalMaxHp();
+    const effectiveDice = getEffectivePlayerDice();
+    const playerHpPercent = Math.max(0, Math.min(100, ((player.hp || 0) / Math.max(1, finalMaxHp)) * 100));
+    const isAttackTurn = battlePhase === "playerAttack";
+    const isDefenseTurn = battlePhase === "playerDefense";
+    const bossLabel = getBossFloorLabel(selectedFloor);
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
+        <section className="mx-auto max-w-6xl">
+          <header className="mb-4 rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="text-sm font-black uppercase tracking-[0.18em] text-cyan-200">Dice Battle</div>
+                <h1 className="text-4xl font-black">{selectedFloor}층 전투</h1>
+                {bossLabel && (
+                  <p className="mt-2 font-black text-amber-200">
+                    {selectedFloor === 10 ? "최종 보스 층 - 드래곤을 쓰러뜨리면 이번 탑을 정복합니다." : "중간보스 층 - 탑 수문장이 길을 막고 있습니다."}
+                  </p>
+                )}
+              </div>
+              <div className={`rounded-2xl px-4 py-3 text-sm font-black ${isAttackTurn ? "bg-amber-300 text-slate-950" : "bg-cyan-300 text-cyan-950"}`}>
+                {battleTurn}턴 · 현재 턴: {isAttackTurn ? "공격턴" : "수비턴"}
+              </div>
+            </div>
+          </header>
+
+          <main className="grid gap-4 lg:grid-cols-2">
+            <article className="rounded-3xl bg-white p-5 text-slate-950 shadow-xl">
+              <div className="text-sm font-black text-slate-500">플레이어</div>
+              <h2 className="mt-1 text-3xl font-black">등반자</h2>
+              <div className="mt-4 h-4 overflow-hidden rounded-full bg-slate-200"><div className="h-full bg-rose-500" style={{ width: `${playerHpPercent}%` }} /></div>
+              <div className="mt-2 font-black">HP {player.hp}/{finalMaxHp}</div>
+              <div className="mt-4 grid grid-cols-3 gap-2 text-sm font-bold">
+                <div className="rounded-xl bg-slate-100 p-3">공격 {getPlayerAttackValue()}</div>
+                <div className="rounded-xl bg-slate-100 p-3">방어 {getPlayerDefenseValue()}</div>
+                <div className="rounded-xl bg-slate-100 p-3">{formatDice(effectiveDice)} / 최소 {effectiveDice.min} / 합계 +{effectiveDice.totalBonus}</div>
+              </div>
+              <button
+                onClick={usePotion}
+                disabled={potions <= 0 || player.hp >= finalMaxHp || isResolvingAction}
+                className="mt-4 rounded-2xl bg-rose-300 px-4 py-3 font-black text-rose-950 hover:bg-rose-200 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                회복 물약 사용 · 보유 {potions}개 · HP 30 회복
+              </button>
+            </article>
+
+            <article className="rounded-3xl bg-white p-5 text-slate-950 shadow-xl">
+              <div className="text-sm font-black text-slate-500">적</div>
+              <div className="mt-2 flex items-center gap-4">
+                <span className="grid h-20 w-20 place-items-center rounded-2xl bg-slate-100">
+                  <MonsterImage monster={currentEnemy} className="h-16 w-16 object-contain" fallbackClassName="text-4xl" />
+                </span>
+                <h2 className="text-3xl font-black">{currentEnemy?.name}</h2>
+              </div>
+              <div className="mt-4 h-4 overflow-hidden rounded-full bg-slate-200"><div className="h-full bg-slate-950" style={{ width: `${enemyHpPercent}%` }} /></div>
+              <div className="mt-2 font-black">HP {currentEnemy?.hp}/{currentEnemy?.maxHp}</div>
+              <div className="mt-4 grid grid-cols-3 gap-2 text-sm font-bold">
+                <div className="rounded-xl bg-slate-100 p-3">공격 {currentEnemy?.baseAttack}</div>
+                <div className="rounded-xl bg-slate-100 p-3">{currentEnemy?.diceCount}D{currentEnemy?.diceSides}</div>
+                <div className="rounded-xl bg-slate-100 p-3">보상 {currentEnemy?.goldReward}G / 장비 재료 {currentEnemy?.materialReward}</div>
+              </div>
+            </article>
+          </main>
+
+          <section className="mt-4 grid gap-4 lg:grid-cols-[1fr_360px]">
+            <div className="space-y-4">
+              <BattleHighlightPanel highlight={battleHighlight} />
+
+              <section className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-xl">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h2 className="text-xl font-black">최근 주사위 결과</h2>
+                    <p className="mt-1 text-sm text-slate-400">플레이어 공격, 적 공격, 플레이어 방어 주사위를 구분해서 표시합니다.</p>
+                  </div>
+                  {lastDiceResult?.isDouble && <span className="rounded-2xl bg-amber-300 px-3 py-2 text-sm font-black text-slate-950">더블!</span>}
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <DiceRollDisplay title="플레이어 공격 주사위" roll={lastPlayerAttackRoll} tone="player" />
+                  <DiceRollDisplay title="적 공격 주사위" roll={lastEnemyAttackRoll} tone="enemy" />
+                  <DiceRollDisplay title="플레이어 방어 주사위" roll={lastPlayerDefenseRoll} tone="defense" />
+                </div>
+                <div className="mt-4 grid gap-2 text-sm font-black md:grid-cols-3">
+                  <div className="rounded-2xl bg-white/10 p-3">
+                    공격 결과: {lastDiceResults.playerAttack ? `${lastDiceResults.playerAttack.finalDamage} 피해${lastDiceResults.playerAttack.isDouble ? " / 더블 치명타" : ""}` : "-"}
+                  </div>
+                  <div className="rounded-2xl bg-white/10 p-3">
+                    적 공격값: {lastDiceResults.enemyAttack ? `${lastDiceResults.enemyAttack.attackValue}${lastDiceResults.enemyAttack.isDouble ? " / 적 더블" : ""}` : "-"}
+                  </div>
+                  <div className="rounded-2xl bg-white/10 p-3">
+                    방어 결과: {lastDiceResults.playerDefense ? `${lastDiceResults.playerDefense.defenseValue} 방어 / 피해 ${lastDiceResults.playerDefense.finalDamageTaken}${lastDiceResults.playerDefense.isDouble ? " / 더블 강화 방어" : ""}` : "-"}
+                  </div>
+                </div>
+              </section>
+
+              <section className={`rounded-3xl border p-5 shadow-xl ${isAttackTurn ? "border-amber-200/40 bg-amber-300/15" : "border-cyan-200/40 bg-cyan-300/15"}`}>
+                <div className="text-sm font-black uppercase tracking-[0.18em] text-slate-200">
+                  {isAttackTurn ? "공격턴" : "수비턴"}
+                </div>
+                <h2 className="mt-2 text-2xl font-black">
+                  {isAttackTurn ? "공격 주사위를 굴려 적에게 피해를 줍니다." : "방어 주사위를 굴려 적 공격을 막습니다."}
+                </h2>
+                <p className="mt-2 text-sm font-semibold text-slate-300">
+                  {isAttackTurn
+                    ? `공격 피해 = 기본공격력 ${getPlayerAttackValue()} x 주사위 합계${" / 더블 시 x 1.5"}`
+                    : `적 공격값 ${pendingEnemyAttack?.attackValue ?? "-"}을(를) 방어합니다. 더블 방어 시 x 1.5`}
+                </p>
+                <button
+                  onClick={isAttackTurn ? rollPlayerAttackDice : rollPlayerDefenseDice}
+                  disabled={(isAttackTurn && battlePhase !== "playerAttack") || (isDefenseTurn && battlePhase !== "playerDefense") || isResolvingAction}
+                  className={`mt-4 rounded-2xl px-5 py-4 text-lg font-black shadow-lg disabled:cursor-not-allowed disabled:opacity-45 ${
+                    isAttackTurn ? "bg-amber-300 text-slate-950 hover:bg-amber-200" : "bg-cyan-300 text-cyan-950 hover:bg-cyan-200"
+                  }`}
+                >
+                  {isResolvingAction ? "처리 중..." : isAttackTurn ? "공격 주사위 굴리기" : "방어 주사위 굴리기"}
+                </button>
+              </section>
+            </div>
+
+            <BattleLogPanel logs={battleLogs} />
+          </section>
+        </section>
+      </div>
+    );
+  }
+
+  if (phase === "battleResult") {
+    const won = battleResult === "win";
+    const resultFloor = battleRewardSummary?.floor || selectedFloor;
+    const resultTitle = won
+      ? resultFloor === 10
+        ? "탑 정복!"
+        : resultFloor === 5
+          ? "중간보스 처치!"
+          : "승리!"
+      : "등반 실패";
+    return (
+      <div className="grid min-h-screen place-items-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
+        <section className="w-full max-w-5xl">
+          <div className="rounded-3xl bg-white p-8 text-center text-slate-950 shadow-2xl">
+            {won ? <Trophy className="mx-auto mb-3 h-12 w-12 text-yellow-600" /> : <Skull className="mx-auto mb-3 h-12 w-12" />}
+            <h1 className="text-4xl font-black">{resultTitle}</h1>
+            <p className="mt-2 text-slate-600">{resultFloor}층 전투 결과</p>
+            {won && (
+              <div className="mt-5 grid gap-2 rounded-2xl bg-slate-100 p-4 text-left text-sm font-bold">
+                <div>{resultFloor}층을 클리어했습니다.</div>
+                <div>획득 골드: {battleRewardSummary?.gold || 0}</div>
+                <div>획득 장비 강화 재료: {battleRewardSummary?.material || 0}</div>
+                {(battleRewardSummary?.diceMaterial || 0) > 0 && <div>획득 주사위 강화 재료: {battleRewardSummary.diceMaterial}</div>}
+                {battleRewardSummary?.potionDropped && <div>추가 보상: 회복 물약 1개 획득!</div>}
+                {battleRewardSummary?.accessory && (
+                  <div>
+                    장신구 {battleRewardSummary.accessoryAlreadyOwned ? "이미 보유" : "획득"}: {battleRewardSummary.accessory.name}
+                  </div>
+                )}
+                <div>새로 해금된 층: {battleRewardSummary?.newlyUnlocked ? `${battleRewardSummary.newlyUnlocked}층` : "없음"}</div>
+              </div>
+            )}
+            {!won && (
+              <div className="mt-5 grid gap-2 rounded-2xl bg-slate-100 p-4 text-left text-sm font-bold">
+                {battleRewardSummary?.difficultyMode === "roguelike" ? (
+                  <>
+                    <div>하지만 경험은 남았습니다.</div>
+                    <div>획득한 주사위 조각: {battleRewardSummary?.diceShards || 0}개</div>
+                    <div>주사위 조각 상점에서 다음 등반을 준비할 수 있습니다.</div>
+                  </>
+                ) : (
+                  <>
+                    <div>하드코어 난이도에서는 패배 보상이 없습니다.</div>
+                    <div>모든 진행은 처음부터 다시 시작됩니다.</div>
+                  </>
+                )}
+              </div>
+            )}
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
+              {won ? (
+                <button onClick={goToTower} className="rounded-2xl bg-slate-950 px-5 py-3 font-bold text-white hover:bg-slate-700">탑으로 돌아가기</button>
+              ) : battleRewardSummary?.difficultyMode === "roguelike" ? (
+                <>
+                  <button onClick={() => startNewClimb(difficultyMode || "roguelike", { applyPendingBonuses: false })} className="rounded-2xl bg-slate-950 px-5 py-3 font-bold text-white hover:bg-slate-700">탑으로 돌아가기</button>
+                  <button onClick={restartClimb} className="rounded-2xl border border-slate-200 px-5 py-3 font-bold text-slate-950 hover:bg-slate-100">새 등반 시작</button>
+                  <button onClick={() => setPhase("diceShardShop")} className="rounded-2xl bg-indigo-500 px-5 py-3 font-bold text-white hover:bg-indigo-400">주사위 조각 상점으로 이동</button>
+                </>
+              ) : (
+                <>
+                  <button onClick={restartClimb} className="rounded-2xl bg-slate-950 px-5 py-3 font-bold text-white hover:bg-slate-700">새 등반 시작</button>
+                  <button onClick={() => setPhase("difficultySelect")} className="rounded-2xl border border-slate-200 px-5 py-3 font-bold text-slate-950 hover:bg-slate-100">난이도 선택으로 돌아가기</button>
+                  <button onClick={returnToTitle} className="rounded-2xl border border-slate-200 px-5 py-3 font-bold text-slate-950 hover:bg-slate-100">처음 화면으로</button>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_360px]">
+            <BattleHighlightPanel highlight={battleHighlight} />
+            <BattleLogPanel logs={battleLogs} />
+          </div>
+        </section>
+      </div>
+    );
+  }
+
   if (phase === "start") {
     return (
       <div className="grid min-h-screen place-items-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
@@ -7282,7 +9281,7 @@ export default function DeckbuilderRoguelikePrototype() {
           <div className="text-sm font-black uppercase tracking-[0.22em] text-cyan-200">test1 merged build</div>
           <h1 className="mt-3 text-5xl font-black tracking-tight md:text-7xl">Deck Spire Prototype</h1>
           <p className="mx-auto mt-4 max-w-2xl text-slate-300">
-            직업을 선택하고 100층 고대탑을 한 층씩 공략하는 카드 전투 로그라이크입니다.
+            직업을 선택하고 10깊이 던전을 최종 보스까지 공략하는 카드 전투 로그라이크입니다.
           </p>
           <div className="mt-5 flex flex-wrap justify-center gap-2 text-sm font-bold text-slate-200">
             <span className="rounded-xl bg-white/10 px-3 py-2">특성 포인트 {normalizePlayerData(playerData).traitPoint}</span>
@@ -7327,13 +9326,13 @@ export default function DeckbuilderRoguelikePrototype() {
           <h1 className="mt-2 text-4xl font-black">게임 방법</h1>
           <div className="mt-6 grid gap-3">
             {[
-              "직업을 선택합니다.",
-              "탑 화면에서 도전 가능한 던전 층을 선택합니다.",
-              "층에 도전하기를 눌러 해당 층 내부로 진입합니다.",
-              "바깥 원의 방부터 클리어하며 중앙 보스방으로 들어갑니다.",
-              "전투 방에서는 카드를 사용하고, 이벤트·휴식·상점 방에서는 선택지의 결과를 즉시 적용합니다.",
-              "골드로 카드를 사거나 체력을 회복하고, 필요 없는 카드는 판매할 수 있습니다.",
-              "중앙 보스방을 공략하면 다음 층이 해금됩니다.",
+              "게임 시작을 누르면 바로 탑 화면으로 이동합니다.",
+              "탑 화면에서 장비 강화, 주사위 강화, 상점, 층 선택을 고릅니다.",
+              "해금된 층을 선택하면 해당 층의 적과 주사위 전투를 시작합니다.",
+              "공격턴에는 기본공격력에 주사위 합계를 곱해 피해를 줍니다.",
+              "수비턴에는 기본방어력에 주사위 합계를 곱해 적 공격을 막습니다.",
+              "승리하면 골드와 재료를 얻고 다음 층이 해금됩니다.",
+              "패배하면 해금은 늘어나지 않지만 탑으로 돌아가 다시 준비할 수 있습니다.",
             ].map((line, index) => (
               <div key={line} className="flex items-center gap-3 rounded-2xl bg-white/8 p-4">
                 <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-amber-300 font-black text-slate-950">{index + 1}</span>
@@ -7343,7 +9342,7 @@ export default function DeckbuilderRoguelikePrototype() {
           </div>
           <button
             type="button"
-            onClick={() => setPhase("start")}
+            onClick={() => setPhase("title")}
             className="mt-6 rounded-2xl bg-white px-5 py-3 font-black text-slate-950 hover:bg-cyan-100"
           >
             시작 화면으로
@@ -7411,10 +9410,83 @@ export default function DeckbuilderRoguelikePrototype() {
               onClick={() => initializeRun(selectedCharacterId || activeCharacter.id)}
               className="mt-4 rounded-2xl bg-slate-950 px-5 py-3 font-black text-white hover:bg-slate-700"
             >
-              선택 확정 후 탑으로 이동
+              선택 확정 후 던전 입장
             </button>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (phase === "dungeon") {
+    const nextDepth = Math.min(maxDepth, currentDepth + 1);
+    const nextRoomType = currentDepth >= maxDepth ? null : getRoomTypeByDepth(nextDepth, maxDepth);
+    return (
+      <div className="grid min-h-screen place-items-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
+        <section className="w-full max-w-3xl rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl">
+          <DungeonProgressPanel
+            currentDepth={currentDepth}
+            maxDepth={maxDepth}
+            currentRoomType={currentRoomType}
+            isRoomCleared={isRoomCleared}
+          />
+          <div className="mt-5 rounded-3xl bg-white p-5 text-slate-950 shadow-xl">
+            <div className="text-sm font-black text-slate-500">현재 상태</div>
+            <h1 className="mt-1 text-3xl font-black">{getRoomTypeLabel(currentRoomType)} 클리어</h1>
+            <p className="mt-2 text-sm font-semibold text-slate-600">
+              {nextRoomType ? `다음 깊이 ${nextDepth}/${maxDepth}: ${getRoomTypeLabel(nextRoomType)}` : "최종 보스 처치 결과를 확인하세요."}
+            </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={goToNextRoom}
+                disabled={!isRoomCleared}
+                className="rounded-2xl bg-cyan-300 px-5 py-3 font-black text-slate-950 shadow-lg hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                다음 방으로 이동
+              </button>
+              <button
+                type="button"
+                onClick={restart}
+                className="rounded-2xl border border-slate-200 px-5 py-3 font-black text-slate-950 hover:bg-slate-100"
+              >
+                처음 화면으로
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (phase === "runClear") {
+    return (
+      <div className="grid min-h-screen place-items-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
+        <section className="w-full max-w-2xl rounded-3xl bg-white p-8 text-center text-slate-950 shadow-2xl">
+          <Trophy className="mx-auto mb-3 h-12 w-12 text-yellow-600" />
+          <h1 className="text-4xl font-black">던전 클리어</h1>
+          <p className="mt-2 text-slate-600">최종 보스를 처치하고 깊이 {maxDepth}/{maxDepth}까지 한 판을 완료했습니다.</p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <button onClick={restart} className="rounded-2xl border border-slate-200 px-5 py-3 font-bold text-slate-950 hover:bg-slate-100">처음 화면으로</button>
+            <button onClick={restartRun} className="rounded-2xl bg-slate-950 px-5 py-3 font-bold text-white hover:bg-slate-700">다시 시작</button>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (phase === "gameOver") {
+    return (
+      <div className="grid min-h-screen place-items-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 p-4 text-slate-100">
+        <section className="w-full max-w-2xl rounded-3xl bg-white p-8 text-center text-slate-950 shadow-2xl">
+          <Skull className="mx-auto mb-3 h-12 w-12" />
+          <h1 className="text-4xl font-black">게임 오버</h1>
+          <p className="mt-2 text-slate-600">플레이어 체력이 0이 되어 던전 진행이 종료되었습니다. 특성 데이터는 유지됩니다.</p>
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            <button onClick={restart} className="rounded-2xl border border-slate-200 px-5 py-3 font-bold text-slate-950 hover:bg-slate-100">처음 화면으로</button>
+            <button onClick={restartRun} className="rounded-2xl bg-slate-950 px-5 py-3 font-bold text-white hover:bg-slate-700">다시 도전</button>
+          </div>
+        </section>
       </div>
     );
   }
@@ -7493,11 +9565,11 @@ export default function DeckbuilderRoguelikePrototype() {
     );
   }
 
-  if (phase === "combat") {
+  if (phase === "battle") {
     const isPlayerTurn = initiativeReady && currentActor.type === "player" && !isCardAnimating;
-    const canEndTurn = phase === "combat" && isPlayerTurn;
+    const canEndTurn = phase === "battle" && isPlayerTurn;
     const canPlayAnyCard = isPlayerTurn && hand.some((cardId) => player.energy >= CARD_POOL[cardId].cost);
-    const stageLabel = selectedStage ? `던전 ${selectedStage.floor}층 / ${selectedStage.typeLabel}` : `${enemyIndex + 1}/${ENEMIES.length}`;
+    const stageLabel = `던전 깊이 ${currentDepth} / ${maxDepth} · 현재 방: ${getRoomTypeLabel(currentRoomType)}`;
     const combatGauge = normalizeSpeedGauge(speedGauge, enemies);
     const timelineActors = buildCombatTimeline(combatGauge, player, enemies, 6);
     const currentTimelineActor =
@@ -7509,9 +9581,9 @@ export default function DeckbuilderRoguelikePrototype() {
     const enemyTotalMaxHp = aliveEnemies.reduce((sum, entry) => sum + entry.maxHp, 0) || 1;
     const commanderEnemy = enemies.find((entry) => isEnemyAlive(entry) && entry.boss) || enemy;
     const commanderIntent = commanderEnemy?.actions?.[commanderEnemy.actionIndex % commanderEnemy.actions.length];
-    const encounterRank = selectedStage?.type === "boss" ? "BOSS" : selectedStage?.type === "elite" ? "ELITE" : "ENCOUNTER";
+    const encounterRank = selectedStage?.type === "boss" ? "보스" : selectedStage?.type === "elite" ? "정예" : "전투";
     const isBossEncounter = selectedStage?.type === "boss";
-    const waveLabel = selectedStage ? (isBossEncounter ? "Boss 1/1" : `Enemy ${aliveEnemies.length}/${enemies.length}`) : "Enemy 1/1";
+    const waveLabel = selectedStage ? (isBossEncounter ? "보스 1/1" : `몬스터 ${aliveEnemies.length}/${enemies.length}`) : "몬스터 1/1";
     const incomingDamage = aliveEnemies.reduce((sum, entry) => {
       const action = entry.actions[entry.actionIndex % entry.actions.length];
       if (action.type !== "attack") return sum;
@@ -7543,21 +9615,22 @@ export default function DeckbuilderRoguelikePrototype() {
 
         <header className="sts-top-hud">
           <div className="sts-run-left">
-            <span className="sts-name">infantry0</span>
+            <span className="sts-name">모험대</span>
             <span>{currentClassTheme.name}</span>
             <span className="sts-hp-text"><Heart size={17} /> {player.hp}/{player.maxHp}</span>
             <span><Coins size={16} /> {player.gold}</span>
             <span><TowerControl size={16} /> {stageLabel}</span>
+            {currentRoomType === "bossBattle" && <span className="text-amber-200">최종 보스방</span>}
           </div>
           <div className="sts-run-center">
-            <button type="button">Draw {drawPile.length}</button>
-            <button type="button">Discard {discardPile.length}</button>
-            <button type="button">Exhaust {exhaustPile.length}</button>
+            <button type="button">덱 {drawPile.length}</button>
+            <button type="button">버림 {discardPile.length}</button>
+            <button type="button">소멸 {exhaustPile.length}</button>
           </div>
           <div className="sts-run-right">
-            <span>Turn {turn}</span>
-            <button type="button">Map</button>
-            <button type="button" onClick={restart}><RotateCcw size={15} /> Reset</button>
+            <span>{turn}턴</span>
+            <button type="button">지도</button>
+            <button type="button" onClick={restart}><RotateCcw size={15} /> 처음</button>
           </div>
         </header>
 
@@ -7575,6 +9648,11 @@ export default function DeckbuilderRoguelikePrototype() {
               <strong>{commanderEnemy?.name || "적"}</strong>
               <em>{waveLabel}</em>
             </div>
+            {currentRoomType === "bossBattle" && (
+              <div className="mt-2 rounded-xl bg-amber-200/15 px-3 py-2 text-xs font-black text-amber-100">
+                이 전투에서 승리하면 던전을 클리어합니다.
+              </div>
+            )}
             {isBossEncounter && <div className="sts-boss-hp-label">BOSS</div>}
             <div className="sts-encounter-health">
               <i style={{ width: `${Math.max(0, Math.min(100, (enemyTotalHp / enemyTotalMaxHp) * 100))}%` }} />
@@ -7634,13 +9712,13 @@ export default function DeckbuilderRoguelikePrototype() {
           </aside>
 
           <aside className="sts-target-panel" aria-label="타겟 정보">
-            <div className="sts-target-kicker">Target Scan</div>
+            <div className="sts-target-kicker">타겟 정보</div>
             <strong>{enemy.name}</strong>
             <div className="sts-target-grid">
               <span><Heart size={13} /> {enemy.hp}/{enemy.maxHp}</span>
-              <span><Zap size={13} /> SPD {enemy.speed}</span>
+              <span><Zap size={13} /> 속도 {enemy.speed}</span>
               <span><Sword size={13} /> {enemy.attack || commanderIntent?.value || 0}</span>
-              <span><Shield size={13} /> DEF {enemy.defense || enemy.block || 0}</span>
+              <span><Shield size={13} /> 방어 {enemy.defense || enemy.block || 0}</span>
             </div>
             <div className={`sts-target-intent type-${commanderIntent?.type || "attack"}`}>
               {commanderIntent?.type === "attack" ? <Sword size={16} /> : commanderIntent?.type === "block" ? <Shield size={16} /> : <Zap size={16} />}
@@ -7790,7 +9868,7 @@ export default function DeckbuilderRoguelikePrototype() {
         </main>
 
         <footer className="sts-bottom-bar">
-          <button type="button" className="sts-pile-button">Draw <strong>{drawPile.length}</strong></button>
+          <button type="button" className="sts-pile-button">덱 <strong>{drawPile.length}</strong></button>
           <div className="sts-energy-orb">
             <span>{player.energy}/{player.maxEnergy}</span>
           </div>
@@ -7824,8 +9902,8 @@ export default function DeckbuilderRoguelikePrototype() {
             })}
             {hand.length === 0 && <div className="sts-empty-hand">손패가 없습니다.</div>}
           </section>
-          <button type="button" className="sts-pile-button" ref={discardPileRef}>Discard <strong>{discardPile.length}</strong></button>
-          <button type="button" className="sts-pile-button">Exhaust <strong>{exhaustPile.length}</strong></button>
+          <button type="button" className="sts-pile-button" ref={discardPileRef}>버림 <strong>{discardPile.length}</strong></button>
+          <button type="button" className="sts-pile-button">소멸 <strong>{exhaustPile.length}</strong></button>
           <button
             type="button"
             onClick={enemyTurn}
@@ -7927,7 +10005,7 @@ export default function DeckbuilderRoguelikePrototype() {
           </aside>
 
           <main className="relative rounded-3xl border border-white/10 bg-white/5 p-4 shadow-xl">
-            {phase === "combat" && (
+            {phase === "battle" && (
               <DiscardPileWidget
                 pileRef={discardPileRef}
                 drawCount={drawPile.length}
@@ -7936,7 +10014,7 @@ export default function DeckbuilderRoguelikePrototype() {
                 classId={player.classId}
               />
             )}
-            {phase === "combat" && (
+            {phase === "battle" && (
               <div className="mb-4 grid gap-4 md:grid-cols-2">
                 <div className="rounded-3xl bg-gradient-to-br from-slate-100 to-white p-5 text-slate-900 shadow-xl">
                 <div className="mb-3 flex items-center justify-between">
@@ -8024,7 +10102,7 @@ export default function DeckbuilderRoguelikePrototype() {
                 </div>
                 <button
                   onClick={enemyTurn}
-                  disabled={phase !== "combat" || isCardAnimating}
+                  disabled={phase !== "battle" || isCardAnimating}
                   className="mt-4 w-full rounded-2xl bg-cyan-300 px-4 py-3 font-black text-slate-950 shadow-lg hover:bg-cyan-200 disabled:opacity-40"
                 >
                   턴 종료
@@ -8102,22 +10180,32 @@ export default function DeckbuilderRoguelikePrototype() {
                 </motion.section>
               )}
 
-              {phase === "room" && (
-                <RoomEncounterPanel
-                  encounter={roomEncounter}
-                  result={roomResult}
-                  player={player}
-                  deck={deck}
-                  onChoose={handleRoomChoice}
-                  onContinue={continueAfterRoom}
-                  onShopBuyCard={handleShopBuyCard}
-                  onShopSellCard={handleShopSellCard}
-                  onShopHeal={handleShopHeal}
-                  onShopLeave={leaveShopRoom}
-                />
+              {(phase === "rest" || phase === "shop") && (
+                <div className="space-y-4">
+                  <DungeonProgressPanel
+                    currentDepth={currentDepth}
+                    maxDepth={maxDepth}
+                    currentRoomType={currentRoomType}
+                    isRoomCleared={isRoomCleared}
+                  />
+                  <RoomEncounterPanel
+                    encounter={roomEncounter}
+                    result={roomResult}
+                    player={player}
+                    deck={deck}
+                    onChoose={handleRoomChoice}
+                    onContinue={continueAfterRoom}
+                    onShopBuyCard={handleShopBuyCard}
+                    onShopSellCard={handleShopSellCard}
+                    onShopHeal={handleShopHeal}
+                    onShopLeave={leaveShopRoom}
+                    onUpgradeCard={handleUpgradeCard}
+                    onDismantleCard={handleDismantleCard}
+                  />
+                </div>
               )}
 
-              {phase === "combat" && (
+              {phase === "battle" && (
                 <motion.section key="combat" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}>
                   <div className="mb-3 flex items-center justify-between">
                     <h2 className="text-xl font-black">핸드</h2>
@@ -8175,6 +10263,7 @@ export default function DeckbuilderRoguelikePrototype() {
                     claimedCardId={claimedRewardCardId}
                     onOpenCardChoice={() => setCardChoiceOpen(true)}
                     onContinue={continueAfterBattleReward}
+                    continueLabel={currentDepth >= maxDepth && currentRoomType === "bossBattle" ? "던전 클리어" : "다음 방으로 이동"}
                   />
                   <AnimatePresence>
                     {cardChoiceOpen && (

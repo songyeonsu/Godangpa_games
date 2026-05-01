@@ -2613,16 +2613,18 @@ const DICE_UPGRADE_LIMITS = { count: 4, sides: 8, min: 3 };
 const UPGRADE_MATERIAL_ID = "manaShard";
 const DICE_UPGRADE_MATERIAL_ID = "diceCore";
 const BOSS_FLOORS = [5, 10];
+const BATTLE_STEP_DELAY_MS = 2000;
+const BATTLE_RESOLVE_DELAY_MS = 500;
 const BATTLE_ACTION_LABELS = {
   idle: "대기",
-  rollingPlayerAttack: "플레이어 공격 주사위",
-  waitingEnemyDefense: "적 방어 대기",
-  rollingEnemyDefense: "적 방어 주사위",
-  resolvingPlayerAttack: "공격 피해 계산",
-  rollingPlayerDefense: "플레이어 방어 주사위",
-  waitingEnemyAttack: "적 공격 대기",
-  rollingEnemyAttack: "적 공격 주사위",
-  resolvingEnemyAttack: "수비 피해 계산",
+  rollingPlayerAttack: "플레이어 공격 주사위!",
+  waitingEnemyDefense: "적 방어 주사위 준비 중...",
+  rollingEnemyDefense: "적 방어 주사위!",
+  resolvingPlayerAttack: "피해 계산 중...",
+  rollingPlayerDefense: "플레이어 방어 주사위!",
+  waitingEnemyAttack: "적 공격 주사위 준비 중...",
+  rollingEnemyAttack: "적 공격 주사위!",
+  resolvingEnemyAttack: "피해 계산 중...",
 };
 const DIFFICULTY_LABELS = {
   roguelike: "로그라이크",
@@ -5086,7 +5088,7 @@ function DungeonProgressPanel({ currentDepth, maxDepth, currentRoomType, isRoomC
   );
 }
 
-function DiceRollDisplay({ title, roll, tone = "player", isRolling = false, compact = false }) {
+function DiceRollDisplay({ title, roll, tone = "player", isRolling = false, displayDiceValues = [], compact = false }) {
   const [rollingDice, setRollingDice] = useState([1, 6]);
   const toneClass =
     tone === "enemy"
@@ -5105,7 +5107,10 @@ function DiceRollDisplay({ title, roll, tone = "player", isRolling = false, comp
 
   const dice = roll?.dice || [];
   const double = isDoubleRoll(roll);
-  const placeholder = isRolling ? rollingDice : ["-", "-"];
+  const placeholder = isRolling ? (displayDiceValues.length > 0 ? displayDiceValues : rollingDice) : ["-", "-"];
+  const displayTotal = isRolling && placeholder.every((value) => Number.isFinite(value))
+    ? placeholder.reduce((sum, value) => sum + value, 0)
+    : null;
 
   return (
     <section className={`dice-roll-card rounded-2xl border p-4 ${toneClass} ${isRolling ? "is-rolling" : ""} ${double ? `is-double ${tone}` : ""}`}>
@@ -5133,7 +5138,7 @@ function DiceRollDisplay({ title, roll, tone = "player", isRolling = false, comp
           ))
         )}
       </div>
-      <div className="mt-3 text-sm font-black">합계 {roll?.total ?? "-"}</div>
+      <div className="mt-3 text-sm font-black">합계 {isRolling ? displayTotal ?? "굴림 중" : roll?.total ?? "-"}</div>
     </section>
   );
 }
@@ -5148,6 +5153,8 @@ function DiceDuelPanel({
   lastEnemyAttackRoll,
   debugCombatFormulas,
   battleHighlight,
+  rollingDiceType,
+  displayDiceValues,
 }) {
   const isAttack = battlePhase === "playerAttack";
   const steps = isAttack
@@ -5181,8 +5188,13 @@ function DiceDuelPanel({
   const formula = isAttack
     ? debugCombatFormulas.playerDamageFormula || debugCombatFormulas.playerAttackFormula
     : debugCombatFormulas.enemyDamageFormula || debugCombatFormulas.playerDefenseFormula;
-  const primaryRolling = ["rollingPlayerAttack", "rollingPlayerDefense"].includes(battleActionState);
-  const secondaryRolling = ["waitingEnemyDefense", "rollingEnemyDefense", "waitingEnemyAttack", "rollingEnemyAttack"].includes(battleActionState);
+  const primaryRollingType = isAttack ? "playerAttack" : "playerDefense";
+  const secondaryRollingType = isAttack ? "enemyDefense" : "enemyAttack";
+  const primaryRolling = rollingDiceType === primaryRollingType;
+  const secondaryRolling = rollingDiceType === secondaryRollingType;
+  const currentActionLabel = battleActionState === "idle"
+    ? isAttack ? "플레이어 공격 준비" : "플레이어 방어 준비"
+    : BATTLE_ACTION_LABELS[battleActionState] || "대기";
 
   return (
     <section className={`dice-duel-panel ${isAttack ? "is-attack" : "is-defense"}`}>
@@ -5192,7 +5204,7 @@ function DiceDuelPanel({
           <h2 className="mt-1 text-3xl font-black">{isAttack ? "공격턴" : "수비턴"}</h2>
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-black">
-          현재 진행: {BATTLE_ACTION_LABELS[battleActionState] || "대기"}
+          현재 진행: {currentActionLabel}
         </div>
       </div>
 
@@ -5205,9 +5217,9 @@ function DiceDuelPanel({
       </div>
 
       <div className="mt-6 grid items-stretch gap-4 lg:grid-cols-[1fr_auto_1fr]">
-        <DiceRollDisplay title={primaryLabel} roll={primaryRoll} tone={primaryTone} isRolling={primaryRolling} compact />
+        <DiceRollDisplay title={primaryLabel} roll={primaryRoll} tone={primaryTone} isRolling={primaryRolling} displayDiceValues={primaryRolling ? displayDiceValues : []} compact />
         <div className="grid place-items-center text-3xl font-black text-white/60">vs</div>
-        <DiceRollDisplay title={secondaryLabel} roll={secondaryRoll} tone={secondaryTone} isRolling={secondaryRolling} compact />
+        <DiceRollDisplay title={secondaryLabel} roll={secondaryRoll} tone={secondaryTone} isRolling={secondaryRolling} displayDiceValues={secondaryRolling ? displayDiceValues : []} compact />
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-3">
@@ -6269,6 +6281,8 @@ export default function DeckbuilderRoguelikePrototype() {
   const [battleTurn, setBattleTurn] = useState(1);
   const [battleHighlight, setBattleHighlight] = useState(null);
   const [battleActionState, setBattleActionState] = useState("idle");
+  const [rollingDiceType, setRollingDiceType] = useState(null);
+  const [displayDiceValues, setDisplayDiceValues] = useState([]);
   const [isResolvingBattleAction, setIsResolvingBattleAction] = useState(false);
   const [debugCombatFormulas, setDebugCombatFormulas] = useState({});
   const [isDebugPanelOpen, setIsDebugPanelOpen] = useState(false);
@@ -6372,6 +6386,17 @@ export default function DeckbuilderRoguelikePrototype() {
       battleActionSeqRef.current += 1;
     };
   }, []);
+
+  useEffect(() => {
+    if (phase === "battle") return;
+    battleActionSeqRef.current += 1;
+    resolvingActionRef.current = false;
+    setRollingDiceType(null);
+    setDisplayDiceValues([]);
+    setBattleActionState("idle");
+    setIsResolvingBattleAction(false);
+    setIsResolvingAction(false);
+  }, [phase]);
 
   useEffect(() => {
     if (!isDev) return undefined;
@@ -6623,6 +6648,8 @@ export default function DeckbuilderRoguelikePrototype() {
     setBattleTurn(1);
     setBattleHighlight(null);
     setBattleActionState("idle");
+    setRollingDiceType(null);
+    setDisplayDiceValues([]);
     setIsResolvingBattleAction(false);
     setDebugCombatFormulas({});
     setLastDiceResult(null);
@@ -6667,6 +6694,8 @@ export default function DeckbuilderRoguelikePrototype() {
     setLastPlayerDefenseRoll(null);
     setBattlePhase("playerAttack");
     setBattleActionState("idle");
+    setRollingDiceType(null);
+    setDisplayDiceValues([]);
     setIsResolvingBattleAction(false);
     setIsResolvingAction(false);
     resolvingActionRef.current = false;
@@ -6820,10 +6849,33 @@ export default function DeckbuilderRoguelikePrototype() {
 
   function resetTowerBattleActionState() {
     battleActionSeqRef.current += 1;
+    setRollingDiceType(null);
+    setDisplayDiceValues([]);
     setBattleActionState("idle");
     setIsResolvingBattleAction(false);
     setIsResolvingAction(false);
     resolvingActionRef.current = false;
+  }
+
+  async function animateDiceRoll({ type, diceCount, diceSides, minValue, finalValues, actionId }) {
+    setRollingDiceType(type);
+    setDisplayDiceValues(
+      Array.from({ length: Math.max(1, diceCount) }, () => randomInt(minValue, diceSides))
+    );
+
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < BATTLE_STEP_DELAY_MS) {
+      if (!mountedRef.current || battleActionSeqRef.current !== actionId) return false;
+      setDisplayDiceValues(
+        Array.from({ length: Math.max(1, diceCount) }, () => randomInt(minValue, diceSides))
+      );
+      await delay(80);
+    }
+
+    if (!mountedRef.current || battleActionSeqRef.current !== actionId) return false;
+    setDisplayDiceValues(finalValues);
+    setRollingDiceType(null);
+    return true;
   }
 
   function startBattleForFloor(floor) {
@@ -6847,6 +6899,8 @@ export default function DeckbuilderRoguelikePrototype() {
     setPendingEnemyAttack(null);
     setBattleLogs([]);
     setBattleActionState("idle");
+    setRollingDiceType(null);
+    setDisplayDiceValues([]);
     setIsResolvingBattleAction(false);
     setDebugCombatFormulas({});
     setIsResolvingAction(false);
@@ -7049,11 +7103,36 @@ export default function DeckbuilderRoguelikePrototype() {
       playerAttackDouble ? ` x 더블 배율 ${attackDoubleMultiplier}` : ""
     } = ${attackValue}`;
 
-    setLastPlayerAttackRoll(playerRoll);
+    setLastPlayerAttackRoll(null);
     setLastEnemyDefenseRoll(null);
     setLastPlayerDefenseRoll(null);
     setLastEnemyAttackRoll(null);
     setPendingEnemyAttack(null);
+    setLastDiceResults({});
+    setDebugCombatFormulas((current) => ({
+      ...current,
+      playerAttackFormula: "",
+      enemyDefenseFormula: "",
+      playerDamageFormula: "",
+    }));
+    setBattleHighlight({
+      type: "attack",
+      title: "플레이어 공격 주사위 굴림 중...",
+      message: "2초 동안 주사위가 굴러간 뒤 최종 결과가 확정됩니다.",
+      formula: "",
+    });
+
+    const playerRollAnimated = await animateDiceRoll({
+      type: "playerAttack",
+      diceCount: effectiveDice.count,
+      diceSides: effectiveDice.sides,
+      minValue: effectiveDice.min,
+      finalValues: playerRoll.dice,
+      actionId,
+    });
+    if (!playerRollAnimated || !mountedRef.current || battleActionSeqRef.current !== actionId) return;
+
+    setLastPlayerAttackRoll(playerRoll);
     setLastDiceResults({
       playerAttack: {
         rolls: playerRoll.dice,
@@ -7066,19 +7145,24 @@ export default function DeckbuilderRoguelikePrototype() {
     setDebugCombatFormulas((current) => ({
       ...current,
       playerAttackFormula,
-      enemyDefenseFormula: "",
-      playerDamageFormula: "",
     }));
     setBattleHighlight({
       type: playerAttackDouble ? "critical" : "attack",
       title: playerAttackDouble ? "플레이어 공격 주사위 - 더블!" : "플레이어 공격 주사위",
-      message: `주사위 ${playerRoll.dice.join(" + ")} = ${playerRoll.total}. 1초 후 적 방어 주사위가 자동으로 굴러갑니다.`,
+      message: `주사위 ${playerRoll.dice.join(" + ")} = ${playerRoll.total}. 이제 적 방어 주사위가 굴러갑니다.`,
       formula: playerAttackFormula,
     });
-
-    setBattleActionState("waitingEnemyDefense");
-    await delay(1000);
-    if (!mountedRef.current || battleActionSeqRef.current !== actionId) return;
+    addBattleLog({
+      turn: battleTurn,
+      type: playerAttackDouble ? "critical" : "playerAttack",
+      title: `${battleTurn}턴 공격 - 플레이어 주사위`,
+      message: `플레이어 공격 주사위: ${playerRoll.dice.join(" + ")} = ${playerRoll.total}`,
+      formula: playerAttackFormula,
+      dice: playerRoll.dice,
+      diceTotal: adjustedTotal,
+      resultValue: attackValue,
+      isDouble: playerAttackDouble,
+    });
 
     setBattleActionState("rollingEnemyDefense");
     const enemyDefenseRoll = createEnemyDefenseRoll(enemySnapshot);
@@ -7086,6 +7170,22 @@ export default function DeckbuilderRoguelikePrototype() {
       resetTowerBattleActionState();
       return;
     }
+    setBattleHighlight({
+      type: "defense",
+      title: "적 방어 주사위 굴림 중...",
+      message: "적 방어 주사위가 2초 동안 굴러간 뒤 확정됩니다.",
+      formula: playerAttackFormula,
+    });
+    const enemyDefenseAnimated = await animateDiceRoll({
+      type: "enemyDefense",
+      diceCount: enemySnapshot.defenseDiceCount || enemySnapshot.diceCount || 2,
+      diceSides: enemySnapshot.defenseDiceSides || enemySnapshot.diceSides || 6,
+      minValue: enemySnapshot.defenseDiceMin || enemySnapshot.diceMin || 1,
+      finalValues: enemyDefenseRoll.rolls,
+      actionId,
+    });
+    if (!enemyDefenseAnimated || !mountedRef.current || battleActionSeqRef.current !== actionId) return;
+
     setLastEnemyDefenseRoll({ dice: enemyDefenseRoll.rolls, total: enemyDefenseRoll.diceTotal });
     setLastDiceResults((current) => ({
       ...current,
@@ -7096,12 +7196,42 @@ export default function DeckbuilderRoguelikePrototype() {
         defenseValue: enemyDefenseRoll.defenseValue,
       },
     }));
+    const enemyDefenseFormula = `적 방어값 = 방어력 ${enemySnapshot.baseDefense || 0} x 주사위 합계 ${enemyDefenseRoll.diceTotal} = ${enemyDefenseRoll.defenseValue}`;
+    setDebugCombatFormulas((current) => ({
+      ...current,
+      enemyDefenseFormula,
+    }));
+    setBattleHighlight({
+      type: enemyDefenseRoll.isDouble ? "block" : "defense",
+      title: enemyDefenseRoll.isDouble ? "적 더블 방어!" : "적 방어 주사위",
+      message: `적 방어 주사위 ${enemyDefenseRoll.rolls.join(" + ")} = ${enemyDefenseRoll.diceTotal}. 2초 후 피해를 계산합니다.`,
+      formula: enemyDefenseFormula,
+    });
+    addBattleLog({
+      turn: battleTurn,
+      type: "enemyDefense",
+      title: `${battleTurn}턴 공격 - 적 방어 주사위`,
+      message: `적 방어 주사위: ${enemyDefenseRoll.rolls.join(" + ")} = ${enemyDefenseRoll.diceTotal}`,
+      formula: enemyDefenseFormula,
+      enemyDice: enemyDefenseRoll.rolls,
+      enemyDiceTotal: enemyDefenseRoll.diceTotal,
+      resultValue: enemyDefenseRoll.defenseValue,
+      isDouble: enemyDefenseRoll.isDouble,
+    });
 
     setBattleActionState("resolvingPlayerAttack");
+    setBattleHighlight({
+      type: "attack",
+      title: "피해 계산 중...",
+      message: `플레이어 공격값 ${attackValue}과 적 방어값 ${enemyDefenseRoll.defenseValue}을 비교합니다.`,
+      formula: `${playerAttackFormula} / ${enemyDefenseFormula}`,
+    });
+    await delay(BATTLE_RESOLVE_DELAY_MS);
+    if (!mountedRef.current || battleActionSeqRef.current !== actionId) return;
+
     const mitigatedDamage = Math.max(0, attackValue - enemyDefenseRoll.defenseValue);
     const bossDamageBonus = enemySnapshot.isBoss ? getAccessoryEffectValue(equippedAccessory, "bossDamageBonus") : 0;
     const finalDamage = Math.floor(mitigatedDamage * (1 + bossDamageBonus));
-    const enemyDefenseFormula = `적 방어값 = 방어력 ${enemySnapshot.baseDefense || 0} x 주사위 합계 ${enemyDefenseRoll.diceTotal} = ${enemyDefenseRoll.defenseValue}`;
     const playerDamageFormula = `최종 피해 = max(0, ${attackValue} - ${enemyDefenseRoll.defenseValue})${
       bossDamageBonus > 0 ? ` x 보스 피해 ${1 + bossDamageBonus}` : ""
     } = ${finalDamage}`;
@@ -7147,15 +7277,10 @@ export default function DeckbuilderRoguelikePrototype() {
     addBattleLog({
       turn: battleTurn,
       type: playerAttackDouble ? "critical" : "playerAttack",
-      title: `${battleTurn}턴 - 공격`,
+      title: `${battleTurn}턴 공격 - 피해 계산`,
       message: [
-        `플레이어 공격 주사위: ${playerRoll.dice.join(" + ")} = ${playerRoll.total}`,
         playerAttackDouble ? "더블 치명타 발동!" : null,
-        playerAttackFormula,
-        "1초 후 적 방어 주사위 자동 굴림",
-        `적 방어 주사위: ${enemyDefenseRoll.rolls.join(" + ")} = ${enemyDefenseRoll.diceTotal}`,
         enemyDefenseRoll.isDouble ? "적 더블 방어!" : null,
-        enemyDefenseFormula,
         playerDamageFormula,
         `${enemySnapshot.name}에게 ${finalDamage} 피해${nextEnemy.hp <= 0 ? " / 처치" : ""}`,
         activeAccessoryMessages.length ? activeAccessoryMessages.join(" / ") : null,
@@ -7208,8 +7333,37 @@ export default function DeckbuilderRoguelikePrototype() {
       playerDefenseDouble ? ` x 더블 배율 ${defenseDoubleMultiplier}` : ""
     } = ${defenseValue}`;
 
-    setLastPlayerDefenseRoll(playerRoll);
+    setLastPlayerDefenseRoll(null);
     setLastEnemyAttackRoll(null);
+    setLastDiceResults((current) => ({
+      ...current,
+      playerDefense: null,
+      enemyAttack: null,
+    }));
+    setDebugCombatFormulas((current) => ({
+      ...current,
+      playerDefenseFormula: "",
+      enemyAttackFormula: "",
+      enemyDamageFormula: "",
+    }));
+    setBattleHighlight({
+      type: "defense",
+      title: "플레이어 방어 주사위 굴림 중...",
+      message: "2초 동안 주사위가 굴러간 뒤 최종 방어 결과가 확정됩니다.",
+      formula: "",
+    });
+
+    const playerDefenseAnimated = await animateDiceRoll({
+      type: "playerDefense",
+      diceCount: effectiveDice.count,
+      diceSides: effectiveDice.sides,
+      minValue: effectiveDice.min,
+      finalValues: playerRoll.dice,
+      actionId,
+    });
+    if (!playerDefenseAnimated || !mountedRef.current || battleActionSeqRef.current !== actionId) return;
+
+    setLastPlayerDefenseRoll(playerRoll);
     setLastDiceResults((current) => ({
       ...current,
       playerDefense: {
@@ -7224,19 +7378,24 @@ export default function DeckbuilderRoguelikePrototype() {
     setDebugCombatFormulas((current) => ({
       ...current,
       playerDefenseFormula,
-      enemyAttackFormula: "",
-      enemyDamageFormula: "",
     }));
     setBattleHighlight({
       type: playerDefenseDouble ? "block" : "defense",
       title: playerDefenseDouble ? "플레이어 방어 주사위 - 더블!" : "플레이어 방어 주사위",
-      message: `주사위 ${playerRoll.dice.join(" + ")} = ${playerRoll.total}. 1초 후 적 공격 주사위가 자동으로 굴러갑니다.`,
+      message: `주사위 ${playerRoll.dice.join(" + ")} = ${playerRoll.total}. 이제 적 공격 주사위가 굴러갑니다.`,
       formula: playerDefenseFormula,
     });
-
-    setBattleActionState("waitingEnemyAttack");
-    await delay(1000);
-    if (!mountedRef.current || battleActionSeqRef.current !== actionId) return;
+    addBattleLog({
+      turn: battleTurn,
+      type: playerDefenseDouble ? "block" : "playerDefense",
+      title: `${battleTurn}턴 수비 - 플레이어 주사위`,
+      message: `플레이어 방어 주사위: ${playerRoll.dice.join(" + ")} = ${playerRoll.total}`,
+      formula: playerDefenseFormula,
+      defenseDice: playerRoll.dice,
+      defenseDiceTotal: adjustedDefenseTotal,
+      resultValue: defenseValue,
+      isDouble: playerDefenseDouble,
+    });
 
     setBattleActionState("rollingEnemyAttack");
     const enemyAttack = createPendingEnemyAttack(enemySnapshot);
@@ -7244,6 +7403,22 @@ export default function DeckbuilderRoguelikePrototype() {
       resetTowerBattleActionState();
       return;
     }
+    setBattleHighlight({
+      type: "attack",
+      title: "적 공격 주사위 굴림 중...",
+      message: "적 공격 주사위가 2초 동안 굴러간 뒤 확정됩니다.",
+      formula: playerDefenseFormula,
+    });
+    const enemyAttackAnimated = await animateDiceRoll({
+      type: "enemyAttack",
+      diceCount: enemySnapshot.diceCount || 2,
+      diceSides: enemySnapshot.diceSides || 6,
+      minValue: enemySnapshot.diceMin || 1,
+      finalValues: enemyAttack.rolls,
+      actionId,
+    });
+    if (!enemyAttackAnimated || !mountedRef.current || battleActionSeqRef.current !== actionId) return;
+
     setLastEnemyAttackRoll({ dice: enemyAttack.rolls, total: enemyAttack.diceTotal });
     setLastDiceResults((current) => ({
       ...current,
@@ -7254,12 +7429,42 @@ export default function DeckbuilderRoguelikePrototype() {
         attackValue: enemyAttack.attackValue,
       },
     }));
+    const enemyAttackFormula = `적 공격값 = 공격력 ${enemySnapshot.baseAttack} x 주사위 합계 ${enemyAttack.diceTotal} = ${enemyAttack.attackValue}`;
+    setDebugCombatFormulas((current) => ({
+      ...current,
+      enemyAttackFormula,
+    }));
+    setBattleHighlight({
+      type: enemyAttack.isDouble ? "damage" : "attack",
+      title: enemyAttack.isDouble ? "적 더블 공격!" : "적 공격 주사위",
+      message: `적 공격 주사위 ${enemyAttack.rolls.join(" + ")} = ${enemyAttack.diceTotal}. 2초 후 피해를 계산합니다.`,
+      formula: enemyAttackFormula,
+    });
+    addBattleLog({
+      turn: battleTurn,
+      type: "enemyAttack",
+      title: `${battleTurn}턴 수비 - 적 공격 주사위`,
+      message: `적 공격 주사위: ${enemyAttack.rolls.join(" + ")} = ${enemyAttack.diceTotal}`,
+      formula: enemyAttackFormula,
+      enemyDice: enemyAttack.rolls,
+      enemyDiceTotal: enemyAttack.diceTotal,
+      resultValue: enemyAttack.attackValue,
+      isDouble: enemyAttack.isDouble,
+    });
 
     setBattleActionState("resolvingEnemyAttack");
+    setBattleHighlight({
+      type: "defense",
+      title: "피해 계산 중...",
+      message: `적 공격값 ${enemyAttack.attackValue}과 플레이어 방어값 ${defenseValue}을 비교합니다.`,
+      formula: `${enemyAttackFormula} / ${playerDefenseFormula}`,
+    });
+    await delay(BATTLE_RESOLVE_DELAY_MS);
+    if (!mountedRef.current || battleActionSeqRef.current !== actionId) return;
+
     const finalDamageTaken = Math.max(0, enemyAttack.attackValue - defenseValue);
     const perfectDefenseHeal = finalDamageTaken === 0 ? getAccessoryEffectValue(equippedAccessory, "perfectDefenseHeal") : 0;
     const nextHp = Math.min(getFinalMaxHp(), Math.max(0, player.hp - finalDamageTaken) + perfectDefenseHeal);
-    const enemyAttackFormula = `적 공격값 = 공격력 ${enemySnapshot.baseAttack} x 주사위 합계 ${enemyAttack.diceTotal} = ${enemyAttack.attackValue}`;
     const enemyDamageFormula = `최종 피해 = max(0, ${enemyAttack.attackValue} - ${defenseValue}) = ${finalDamageTaken}`;
 
     setPlayer((current) => ({
@@ -7308,15 +7513,10 @@ export default function DeckbuilderRoguelikePrototype() {
     addBattleLog({
       turn: battleTurn,
       type: playerDefenseDouble ? "block" : finalDamageTaken <= 0 ? "block" : "damage",
-      title: `${battleTurn}턴 - 수비`,
+      title: `${battleTurn}턴 수비 - 피해 계산`,
       message: [
-        `플레이어 방어 주사위: ${playerRoll.dice.join(" + ")} = ${playerRoll.total}`,
         playerDefenseDouble ? "더블 강화 방어 발동!" : null,
-        playerDefenseFormula,
-        "1초 후 적 공격 주사위 자동 굴림",
-        `적 공격 주사위: ${enemyAttack.rolls.join(" + ")} = ${enemyAttack.diceTotal}`,
         enemyAttack.isDouble ? "적 더블 공격!" : null,
-        enemyAttackFormula,
         enemyDamageFormula,
         finalDamageTaken <= 0 ? "완전 방어!" : `플레이어가 ${finalDamageTaken} 피해를 받음`,
         perfectDefenseMessage,
@@ -9821,6 +10021,26 @@ export default function DeckbuilderRoguelikePrototype() {
       player.hp <= finalMaxHp * 0.3 ? getAccessoryEffectValue(equippedAccessory, "lowHpAttackBonus") : 0;
     const attackDoubleMultiplier = DOUBLE_MULTIPLIER + getAccessoryEffectValue(equippedAccessory, "doubleDamageBonus");
     const defenseDoubleMultiplier = DOUBLE_MULTIPLIER + getAccessoryEffectValue(equippedAccessory, "doubleDefenseBonus");
+    const attackButtonLabel =
+      battleActionState === "rollingPlayerAttack"
+        ? "굴리는 중..."
+        : battleActionState === "waitingEnemyDefense"
+          ? "적 대기 중..."
+          : battleActionState === "rollingEnemyDefense"
+            ? "적 굴림 중..."
+            : battleActionState === "resolvingPlayerAttack"
+              ? "계산 중..."
+              : "공격 굴림";
+    const defenseButtonLabel =
+      battleActionState === "rollingPlayerDefense"
+        ? "굴리는 중..."
+        : battleActionState === "waitingEnemyAttack"
+          ? "적 대기 중..."
+          : battleActionState === "rollingEnemyAttack"
+            ? "적 굴림 중..."
+            : battleActionState === "resolvingEnemyAttack"
+              ? "계산 중..."
+              : "방어 굴림";
     return (
       <div className="tower-battle-table min-h-screen p-4 text-slate-100">
         {renderDebugPanel()}
@@ -9884,6 +10104,8 @@ export default function DeckbuilderRoguelikePrototype() {
                 lastEnemyAttackRoll={lastEnemyAttackRoll}
                 debugCombatFormulas={debugCombatFormulas}
                 battleHighlight={battleHighlight}
+                rollingDiceType={rollingDiceType}
+                displayDiceValues={displayDiceValues}
               />
             </div>
 
@@ -9923,14 +10145,14 @@ export default function DeckbuilderRoguelikePrototype() {
                   disabled={!isAttackTurn || isBattleBusy}
                   className="inline-flex items-center gap-2 rounded-2xl bg-amber-300 px-5 py-3 font-black text-slate-950 shadow-lg hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-35"
                 >
-                  <Sword size={18} /> 공격 굴림
+                  <Sword size={18} /> {attackButtonLabel}
                 </button>
                 <button
                   onClick={rollPlayerDefenseDice}
                   disabled={!isDefenseTurn || isBattleBusy}
                   className="inline-flex items-center gap-2 rounded-2xl bg-cyan-300 px-5 py-3 font-black text-cyan-950 shadow-lg hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-35"
                 >
-                  <Shield size={18} /> 방어 굴림
+                  <Shield size={18} /> {defenseButtonLabel}
                 </button>
                 <button
                   onClick={usePotion}
@@ -9942,7 +10164,7 @@ export default function DeckbuilderRoguelikePrototype() {
               </div>
             </div>
             <div className="mt-3 text-sm font-bold text-slate-300">
-              {isBattleBusy ? `진행 중: ${BATTLE_ACTION_LABELS[battleActionState] || "처리 중"}` : "주사위를 굴리면 중앙 대결판에서 순서대로 결과가 확정됩니다."}
+              {isBattleBusy ? `진행 중: ${BATTLE_ACTION_LABELS[battleActionState] || "처리 중"}` : "내 주사위 → 2초 뒤 적 주사위 → 2초 뒤 계산 순서로 진행됩니다."}
             </div>
           </section>
 

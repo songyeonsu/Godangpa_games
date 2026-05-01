@@ -39,30 +39,17 @@ import { diceShardShopItems } from "./data/diceShardShopItems";
 
 const imagePaths = {
   warrior: {
-    character: "/images/warrior/character.png",
-    cardBack: "/images/warrior/card-back.png",
-    attack: "/images/warrior/slash-card.png",
-    defense: "/images/warrior/defense-card.png",
+    character: "/images/warrior/warrior.png",
   },
   mage: {
-    character: "/images/wizard/character.png",
-    cardBack: "/images/wizard/card-back.png",
-    attack: "/images/wizard/magic-missile-card.png",
-    defense: "/images/wizard/shield-card.png",
+    character: "",
   },
   archer: {
-    character: "/images/archer/character.png",
-    cardBack: "/images/archer/card-back.png",
-    attack: "/images/archer/attack-card.png",
-    defense: "/images/archer/defense-card.png",
+    character: "",
   },
 };
 
-const classCardBackImages = {
-  warrior: imagePaths.warrior.cardBack,
-  mage: imagePaths.mage.cardBack,
-  archer: imagePaths.archer.cardBack,
-};
+const classCardBackImages = {};
 
 const RAW_CARD_POOL = {
   "warrior-slash": {
@@ -77,7 +64,6 @@ const RAW_CARD_POOL = {
     description: "적 하나에게 8의 피해를 줍니다. 취약 1을 부여합니다.",
     damage: 8,
     block: 0,
-    fullImage: imagePaths.warrior.attack,
     animationType: "slash",
     upgradeOptions: [
       {
@@ -138,7 +124,6 @@ const RAW_CARD_POOL = {
     description: "적 하나에게 22의 피해를 줍니다. 취약 1을 부여합니다.",
     damage: 22,
     block: 0,
-    fullImage: imagePaths.warrior.attack,
     animationType: "impact",
     upgradeOptions: [
       {
@@ -176,7 +161,6 @@ const RAW_CARD_POOL = {
     description: "선택한 적과 다른 적 하나에게 각각 18의 피해를 줍니다.",
     damage: 18,
     block: 0,
-    fullImage: imagePaths.warrior.attack,
     animationType: "slash",
     maxTargets: 2,
     upgradeOptions: [
@@ -224,7 +208,6 @@ const RAW_CARD_POOL = {
     damage: 20,
     block: 0,
     effect: "출혈 6",
-    fullImage: imagePaths.warrior.attack,
     animationType: "slash",
     upgradeOptions: [
       {
@@ -263,7 +246,6 @@ const RAW_CARD_POOL = {
     damage: 34,
     block: 0,
     effect: "출혈 10",
-    fullImage: imagePaths.warrior.attack,
     animationType: "slash",
     upgradeOptions: [
       {
@@ -302,7 +284,6 @@ const RAW_CARD_POOL = {
     damage: 48,
     block: 0,
     effect: "출혈 12 / 처형",
-    fullImage: imagePaths.warrior.attack,
     animationType: "fire",
     maxTargets: 2,
     upgradeOptions: [
@@ -354,7 +335,6 @@ const RAW_CARD_POOL = {
     damage: 84,
     block: 0,
     effect: "출혈 24 / 처치 시 드로우·에너지·게이지 / 공격 피해 누적",
-    fullImage: imagePaths.warrior.attack,
     animationType: "lightning",
     maxTargets: 2,
     play: ({ player, enemies = [], targetIndex = 0, drawCards }) => {
@@ -401,7 +381,6 @@ const RAW_CARD_POOL = {
     description: "방어도 8을 얻습니다.",
     damage: 0,
     block: 8,
-    fullImage: imagePaths.warrior.defense,
     animationType: "shield",
     upgradeOptions: [
       {
@@ -456,7 +435,6 @@ const RAW_CARD_POOL = {
     description: "방어도 14를 얻습니다.",
     damage: 0,
     block: 14,
-    fullImage: imagePaths.warrior.defense,
     animationType: "shield",
     upgradeOptions: [
       {
@@ -486,7 +464,6 @@ const RAW_CARD_POOL = {
     damage: 0,
     block: 22,
     effect: "체력 8 회복",
-    fullImage: imagePaths.warrior.defense,
     animationType: "shield",
     upgradeOptions: [
       {
@@ -519,7 +496,6 @@ const RAW_CARD_POOL = {
     damage: 0,
     block: 13,
     effect: "고정 반사 6",
-    fullImage: imagePaths.warrior.defense,
     animationType: "shield",
     upgradeOptions: [
       {
@@ -558,7 +534,6 @@ const RAW_CARD_POOL = {
     damage: 0,
     block: 32,
     effect: "피해 감소 30% / 반사 25%",
-    fullImage: imagePaths.warrior.defense,
     animationType: "shield",
     upgradeOptions: [
       {
@@ -598,7 +573,6 @@ const RAW_CARD_POOL = {
     damage: 0,
     block: 60,
     effect: "피해 감소 65% / 반사 50%+12 / 사망 방지 / 공격 피해 +12",
-    fullImage: imagePaths.warrior.defense,
     animationType: "shield",
     play: ({ player }) => ({
       player: {
@@ -624,7 +598,6 @@ const RAW_CARD_POOL = {
     description: "적 하나에게 7의 피해를 줍니다. 취약 1을 부여합니다.",
     damage: 7,
     block: 0,
-    fullImage: imagePaths.mage.attack,
     animationType: "magic",
     upgradeOptions: [
       {
@@ -684,7 +657,6 @@ const RAW_CARD_POOL = {
     description: "방어도 6을 얻습니다.",
     damage: 0,
     block: 6,
-    fullImage: imagePaths.mage.defense,
     animationType: "shield",
     upgradeOptions: [
       {
@@ -726,7 +698,6 @@ const RAW_CARD_POOL = {
     description: "적 하나에게 20의 피해를 주고 취약 2를 부여합니다.",
     damage: 20,
     block: 0,
-    fullImage: imagePaths.mage.attack,
     animationType: "magic",
     upgradeOptions: [
       {
@@ -762,7 +733,6 @@ const RAW_CARD_POOL = {
     damage: 18,
     block: 0,
     effect: "턴 게이지 +15",
-    fullImage: imagePaths.mage.attack,
     animationType: "ice",
     upgradeOptions: [
       {
@@ -803,7 +773,6 @@ const RAW_CARD_POOL = {
     damage: 48,
     block: 0,
     effect: "카드 1장",
-    fullImage: imagePaths.mage.attack,
     animationType: "magic",
     upgradeOptions: [
       {
@@ -840,7 +809,6 @@ const RAW_CARD_POOL = {
     damage: 34,
     block: 0,
     effect: "취약 3 / 턴 게이지 +25",
-    fullImage: imagePaths.mage.attack,
     animationType: "ice",
     upgradeOptions: [
       {
@@ -881,7 +849,6 @@ const RAW_CARD_POOL = {
     damage: 58,
     block: 0,
     effect: "전체 공격 / 취약 3 / 카드 1장",
-    fullImage: imagePaths.mage.attack,
     animationType: "magic",
     upgradeOptions: [
       {
@@ -922,7 +889,6 @@ const RAW_CARD_POOL = {
     damage: 50,
     block: 0,
     effect: "전체 공격 / 취약 5 / 턴 게이지 +35",
-    fullImage: imagePaths.mage.attack,
     animationType: "ice",
     upgradeOptions: [
       {
@@ -963,7 +929,6 @@ const RAW_CARD_POOL = {
     damage: 120,
     block: 0,
     effect: "전체 공격 / 처치 snowball / 공격 피해 +18",
-    fullImage: imagePaths.mage.attack,
     animationType: "lightning",
     play: ({ player, enemies = [], drawCards }) => {
       let defeatedAny = false;
@@ -999,7 +964,6 @@ const RAW_CARD_POOL = {
     damage: 96,
     block: 0,
     effect: "전체 공격 / 턴 게이지 +80 / 카드 2장",
-    fullImage: imagePaths.mage.attack,
     animationType: "ice",
     play: ({ player, enemies = [], drawCards }) => ({
       enemies: enemies.map((entry) =>
@@ -1024,7 +988,6 @@ const RAW_CARD_POOL = {
     description: "적 하나에게 4의 피해를 줍니다.",
     damage: 4,
     block: 0,
-    fullImage: imagePaths.archer.attack,
     animationType: "arrow",
     play: ({ player, enemy }) => ({ enemy: { ...enemy, hp: Math.max(0, enemy.hp - calcDamage(4, player, enemy)) } }),
   },
@@ -1040,7 +1003,6 @@ const RAW_CARD_POOL = {
     description: "방어도 6을 얻습니다.",
     damage: 0,
     block: 6,
-    fullImage: imagePaths.archer.defense,
     animationType: "shield",
     upgradeOptions: [
       {
@@ -2105,10 +2067,9 @@ const CHARACTER_CLASSES = {
   warrior: {
     id: "warrior",
     name: "전사",
-    icon: "⚔️",
+    icon: "??",
     color: "from-red-500/30 to-orange-500/20",
     image: imagePaths.warrior.character,
-    cardBack: imagePaths.warrior.cardBack,
     hp: 120,
     energy: 3,
     maxEnergy: 3,
@@ -2122,10 +2083,9 @@ const CHARACTER_CLASSES = {
   mage: {
     id: "mage",
     name: "마법사",
-    icon: "🔮",
+    icon: "??",
     color: "from-violet-500/30 to-fuchsia-500/20",
     image: imagePaths.mage.character,
-    cardBack: imagePaths.mage.cardBack,
     hp: 70,
     energy: 4,
     maxEnergy: 4,
@@ -2139,10 +2099,9 @@ const CHARACTER_CLASSES = {
   archer: {
     id: "archer",
     name: "궁수",
-    icon: "🏹",
+    icon: "??",
     color: "from-emerald-500/30 to-cyan-500/20",
     image: imagePaths.archer.character,
-    cardBack: imagePaths.archer.cardBack,
     hp: 90,
     energy: 3,
     maxEnergy: 3,
@@ -2395,7 +2354,18 @@ function savePermanentData(permanentData) {
 
 function shouldPersistRunData(runData) {
   if (!runData?.player?.classId) return false;
-  return !["start", "character-select", "how-to-play", "defeat", "gameOver", "victory"].includes(runData.phase);
+  return [
+    "difficultySelect",
+    "tower",
+    "equipmentManage",
+    "diceShardShop",
+    "diceUpgrade",
+    "shop",
+    "equipmentUpgrade",
+    "floorSelect",
+    "battle",
+    "battleResult",
+  ].includes(runData.phase);
 }
 
 function loadRunData() {
@@ -2560,7 +2530,7 @@ const ENEMIES = [
     name: "녹슨 정찰병",
     maxHp: 32,
     speed: 8,
-    image: "🪲",
+    image: "??",
     actions: [
       { type: "attack", value: 6, text: "공격 6" },
       { type: "block", value: 5, text: "방어 5" },
@@ -2570,7 +2540,7 @@ const ENEMIES = [
     name: "오염 슬라임",
     maxHp: 42,
     speed: 10,
-    image: "🧪",
+    image: "??",
     actions: [
       { type: "attack", value: 8, text: "공격 8" },
       { type: "debuff", value: 1, text: "취약 1 부여" },
@@ -2581,7 +2551,7 @@ const ENEMIES = [
     name: "맹독 마녀",
     maxHp: 52,
     speed: 12,
-    image: "🧙",
+    image: "??",
     actions: [
       { type: "attack", value: 10, text: "공격 10" },
       { type: "buff", value: 2, text: "힘 +2" },
@@ -2592,7 +2562,7 @@ const ENEMIES = [
     name: "다크 보스",
     maxHp: 85,
     speed: 11,
-    image: "🐉",
+    image: "??",
     boss: true,
     actions: [
       { type: "attack", value: 14, text: "강공격 14" },
@@ -2618,7 +2588,7 @@ const ENEMY_DICE_RULES = [
   { minFloor: 5, maxFloor: 9, maxFace: 3 },
   { minFloor: 10, maxFloor: Infinity, maxFace: 4 },
 ];
-const BATTLE_STEP_DELAY_MS = 2000;
+const BATTLE_STEP_DELAY_MS = 1000;
 const BATTLE_STRIKE_HIT_MS = 300;
 const BATTLE_STRIKE_END_MS = 620;
 const PLAYER_BATTLE_IMAGE_SRC = "/images/warrior/warrior.png";
@@ -2925,16 +2895,16 @@ const SHOP_CARD_VALUE_BY_RARITY = {
 };
 const MATERIAL_DEFINITIONS = {
   card_shard: { id: "card_shard", name: "카드 조각", description: "카드를 분해해 얻는 기본 강화 재료", icon: "◇", rarity: "common", source: "card_dismantle" },
-  warrior_card_shard: { id: "warrior_card_shard", name: "전사 카드 조각", description: "전사 카드를 분해해 얻는 직업 조각", icon: "⚔", rarity: "common", source: "card_dismantle" },
-  mage_card_shard: { id: "mage_card_shard", name: "마법사 카드 조각", description: "마법사 카드를 분해해 얻는 직업 조각", icon: "✦", rarity: "common", source: "card_dismantle" },
-  archer_card_shard: { id: "archer_card_shard", name: "궁수 카드 조각", description: "궁수 카드를 분해해 얻는 직업 조각", icon: "➶", rarity: "common", source: "card_dismantle" },
+  warrior_card_shard: { id: "warrior_card_shard", name: "전사 카드 조각", description: "전사 카드를 분해해 얻는 직업 조각", icon: "?", rarity: "common", source: "card_dismantle" },
+  mage_card_shard: { id: "mage_card_shard", name: "마법사 카드 조각", description: "마법사 카드를 분해해 얻는 직업 조각", icon: "?", rarity: "common", source: "card_dismantle" },
+  archer_card_shard: { id: "archer_card_shard", name: "궁수 카드 조각", description: "궁수 카드를 분해해 얻는 직업 조각", icon: "?", rarity: "common", source: "card_dismantle" },
   rift_fragment: { id: "rift_fragment", name: "균열 파편", description: "1층 보스가 남기는 특수 강화 재료", icon: "◆", rarity: "rare", source: "boss_drop" },
   black_iron_heart: { id: "black_iron_heart", name: "흑철 심장", description: "2층 보스가 남기는 묵직한 강화 재료", icon: "♥", rarity: "epic", source: "boss_drop" },
-  dragon_scale: { id: "dragon_scale", name: "용의 비늘", description: "상층 보스가 남기는 전설급 강화 재료", icon: "▰", rarity: "legendary", source: "boss_drop" },
-  red_fang: { id: "red_fang", name: "붉은 송곳니", description: "강력한 적에게서 얻는 출혈 강화 재료", icon: "♦", rarity: "rare", source: "boss_drop" },
-  manaShard: { id: "manaShard", name: "마력 파편", description: "전투 보상으로 얻는 보조 재료", icon: "🔷", rarity: "common", source: "battle_reward" },
-  orichalcum: { id: "orichalcum", name: "오리하르콘", description: "보스전에서 발견되는 희귀 금속", icon: "💎", rarity: "epic", source: "boss_drop" },
-  ancientRelicDust: { id: "ancientRelicDust", name: "고대 유물 가루", description: "오래된 유물에서 떨어지는 가루", icon: "✨", rarity: "rare", source: "boss_drop" },
+  dragon_scale: { id: "dragon_scale", name: "용의 비늘", description: "상층 보스가 남기는 전설급 강화 재료", icon: "?", rarity: "legendary", source: "boss_drop" },
+  red_fang: { id: "red_fang", name: "붉은 송곳니", description: "강력한 적에게서 얻는 출혈 강화 재료", icon: "?", rarity: "rare", source: "boss_drop" },
+  manaShard: { id: "manaShard", name: "마력 파편", description: "전투 보상으로 얻는 보조 재료", icon: "??", rarity: "common", source: "battle_reward" },
+  orichalcum: { id: "orichalcum", name: "오리하르콘", description: "보스전에서 발견되는 희귀 금속", icon: "??", rarity: "epic", source: "boss_drop" },
+  ancientRelicDust: { id: "ancientRelicDust", name: "고대 유물 가루", description: "오래된 유물에서 떨어지는 가루", icon: "?", rarity: "rare", source: "boss_drop" },
 };
 const BATTLE_RESOURCE_REWARDS = MATERIAL_DEFINITIONS;
 const DISMANTLE_REWARDS_BY_RARITY = {
@@ -2959,7 +2929,7 @@ const BOSS_STAT_MULTIPLIERS = {
   defense: 1.35,
 };
 
-const DEFAULT_MONSTER_IMAGE = "/images/monster/default_monster.png";
+const DEFAULT_MONSTER_IMAGE = "";
 const MONSTER_IMAGE_PATHS = {
   snail: "/images/Monsters/1층/달팽이.png",
   slime: "/images/Monsters/1층/슬라임.png",
@@ -3001,25 +2971,25 @@ function getMonsterImagePath(monster) {
 const FLOOR_ENEMY_TABLE = {
   1: {
     normal: [
-      { monsterId: "snail", enemy: "달팽이", maxHp: 40, attack: 6, speed: 7, image: "🐌", imagePath: MONSTER_IMAGE_PATHS.snail },
-      { monsterId: "slime", enemy: "슬라임", maxHp: 50, attack: 8, speed: 8, image: "🟢", imagePath: MONSTER_IMAGE_PATHS.slime },
-      { monsterId: "mushroom", enemy: "버섯", maxHp: 60, attack: 9, speed: 9, image: "🍄", imagePath: MONSTER_IMAGE_PATHS.mushroom },
-      { monsterId: "pig", enemy: "돼지", maxHp: 70, attack: 10, speed: 9, image: "🐖", imagePath: MONSTER_IMAGE_PATHS.pig },
-      { monsterId: "gatekeeper", enemy: "탑 수문병", maxHp: 74, attack: 11, speed: 10, image: "🛡️", imagePath: MONSTER_IMAGE_PATHS.gatekeeper },
+      { monsterId: "snail", enemy: "달팽이", maxHp: 40, attack: 6, speed: 7, image: "??", imagePath: MONSTER_IMAGE_PATHS.snail },
+      { monsterId: "slime", enemy: "슬라임", maxHp: 50, attack: 8, speed: 8, image: "??", imagePath: MONSTER_IMAGE_PATHS.slime },
+      { monsterId: "mushroom", enemy: "버섯", maxHp: 60, attack: 9, speed: 9, image: "??", imagePath: MONSTER_IMAGE_PATHS.mushroom },
+      { monsterId: "pig", enemy: "돼지", maxHp: 70, attack: 10, speed: 9, image: "??", imagePath: MONSTER_IMAGE_PATHS.pig },
+      { monsterId: "gatekeeper", enemy: "탑 수문병", maxHp: 74, attack: 11, speed: 10, image: "???", imagePath: MONSTER_IMAGE_PATHS.gatekeeper },
     ],
-    elite: [{ monsterId: "gatekeeper", enemy: "탑 수문병", maxHp: 96, attack: 13, speed: 10, image: "🛡️", imagePath: MONSTER_IMAGE_PATHS.gatekeeper }],
-    boss: [{ monsterId: "kobold_boss", enemy: "코볼트 보스", maxHp: 120, attack: 14, speed: 11, image: "👑", imagePath: MONSTER_IMAGE_PATHS.kobold_boss }],
+    elite: [{ monsterId: "gatekeeper", enemy: "탑 수문병", maxHp: 96, attack: 13, speed: 10, image: "???", imagePath: MONSTER_IMAGE_PATHS.gatekeeper }],
+    boss: [{ monsterId: "kobold_boss", enemy: "코볼트 보스", maxHp: 120, attack: 14, speed: 11, image: "??", imagePath: MONSTER_IMAGE_PATHS.kobold_boss }],
   },
   2: {
     normal: [
-      { monsterId: "goblin", enemy: "고블린", maxHp: 80, attack: 12, speed: 11, image: "🗡️", imagePath: MONSTER_IMAGE_PATHS.goblin },
-      { monsterId: "orc", enemy: "오크", maxHp: 90, attack: 13, speed: 10, image: "🪓", imagePath: MONSTER_IMAGE_PATHS.orc },
-      { monsterId: "wolf", enemy: "늑대", maxHp: 95, attack: 14, speed: 15, image: "🐺", imagePath: MONSTER_IMAGE_PATHS.wolf },
-      { monsterId: "dark_knight", enemy: "암흑기사", maxHp: 110, attack: 16, speed: 12, image: "♞", imagePath: MONSTER_IMAGE_PATHS.dark_knight },
-      { monsterId: "rift_mage", enemy: "균열 마도사", maxHp: 104, attack: 15, speed: 14, image: "🔮", imagePath: MONSTER_IMAGE_PATHS.rift_mage },
+      { monsterId: "goblin", enemy: "고블린", maxHp: 80, attack: 12, speed: 11, image: "???", imagePath: MONSTER_IMAGE_PATHS.goblin },
+      { monsterId: "orc", enemy: "오크", maxHp: 90, attack: 13, speed: 10, image: "??", imagePath: MONSTER_IMAGE_PATHS.orc },
+      { monsterId: "wolf", enemy: "늑대", maxHp: 95, attack: 14, speed: 15, image: "??", imagePath: MONSTER_IMAGE_PATHS.wolf },
+      { monsterId: "dark_knight", enemy: "암흑기사", maxHp: 110, attack: 16, speed: 12, image: "?", imagePath: MONSTER_IMAGE_PATHS.dark_knight },
+      { monsterId: "rift_mage", enemy: "균열 마도사", maxHp: 104, attack: 15, speed: 14, image: "??", imagePath: MONSTER_IMAGE_PATHS.rift_mage },
     ],
-    elite: [{ monsterId: "black_iron_watcher", enemy: "흑철감시자", maxHp: 135, attack: 18, speed: 12, image: "🛡️", imagePath: MONSTER_IMAGE_PATHS.black_iron_watcher }],
-    boss: [{ monsterId: "dragon_boss", enemy: "드래곤보스", maxHp: 180, attack: 22, speed: 13, image: "🐉", imagePath: MONSTER_IMAGE_PATHS.dragon_boss }],
+    elite: [{ monsterId: "black_iron_watcher", enemy: "흑철감시자", maxHp: 135, attack: 18, speed: 12, image: "???", imagePath: MONSTER_IMAGE_PATHS.black_iron_watcher }],
+    boss: [{ monsterId: "dragon_boss", enemy: "드래곤보스", maxHp: 180, attack: 22, speed: 13, image: "??", imagePath: MONSTER_IMAGE_PATHS.dragon_boss }],
   },
 };
 
@@ -3462,7 +3432,7 @@ function createStageEnemies(stage) {
             maxHp: Math.max(24, Math.round(stage.maxHp * (stage.type === "boss" ? 0.36 + index * 0.06 : 0.72))),
             attack: Math.max(4, Math.round(stage.attack * (stage.type === "boss" ? 0.55 + index * 0.06 : 0.82))),
             speed: Math.max(5, stage.speed + index - 1),
-            image: stage.type === "boss" ? (index === 1 ? "🛡️" : "🔥") : "🧬",
+            image: stage.type === "boss" ? (index === 1 ? "???" : "??") : "??",
             imagePath: getMonsterImagePath(stage),
             imageSrc: getMonsterImagePath(stage),
           };
@@ -3933,7 +3903,7 @@ function Card({ cardId, onClick, disabled, compact = false, onInspect, onInspect
         aria-disabled={disabled}
         className={`game-card image-card card-back ${cardHeight} ${cardWidth} ${disabled ? "card-disabled" : ""}`}
       >
-        {!backImageFailed ? (
+        {backImage && !backImageFailed ? (
           <img
             src={backImage}
             alt="직업별 카드 뒷면"
@@ -4243,7 +4213,7 @@ function DiscardPileWidget({ drawCount, discardCount, pileRef, active, classId =
     >
       <div className="flex items-center gap-3">
         <div className="relative h-12 w-12">
-          {!backFailed ? (
+          {backImage && !backFailed ? (
             <>
               <img src={backImage} alt="드로우 더미" className="pile-card-back left-1 top-1 rotate-[-10deg]" onError={() => setBackFailed(true)} />
               <img src={backImage} alt="버린 더미" className="pile-card-back left-3 top-0 rotate-[6deg]" onError={() => setBackFailed(true)} />
@@ -4473,14 +4443,14 @@ function RewardItem({ icon, title, detail, delay = 0, interactive = false, claim
 
 function GoldRewardItem({ gold }) {
   if (!gold || gold <= 0) return null;
-  return <RewardItem icon="🪙" title={`${gold} 골드`} detail="자동 획득" delay={0.1} />;
+  return <RewardItem icon="??" title={`${gold} 골드`} detail="자동 획득" delay={0.1} />;
 }
 
 function ResourceRewardItem({ resource, index }) {
   if (!resource) return null;
   const amount = Number(resource.amount || 0);
   const label = amount > 1 ? `${resource.name} x${amount}` : resource.name;
-  return <RewardItem icon={resource.icon || "💎"} title={label} detail="자동 획득" delay={0.2 + index * 0.05} />;
+  return <RewardItem icon={resource.icon || "??"} title={label} detail="자동 획득" delay={0.2 + index * 0.05} />;
 }
 
 function CardChoiceRewardItem({ choices, claimedCardId, onOpen }) {
@@ -4488,7 +4458,7 @@ function CardChoiceRewardItem({ choices, claimedCardId, onOpen }) {
   const claimedCard = claimedCardId ? CARD_POOL[claimedCardId] : null;
   return (
     <RewardItem
-      icon="🃏"
+      icon="??"
       title={claimedCard ? `선택 완료: ${claimedCard.name}` : "덱에 추가할 카드를 선택하세요"}
       detail={claimedCard ? "덱에 추가됨" : `${choices.length}장 중 1장 선택`}
       delay={0.3}
@@ -4740,7 +4710,7 @@ function RewardFlipCard({ cardId, flipped, onFlip, onClaim, classId = "warrior" 
           className="absolute inset-0 border-2 border-cyan-900/30 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 text-cyan-100 shadow-xl"
           style={{ backfaceVisibility: "hidden", borderRadius: isAttack ? 14 : 18 }}
         >
-          {!rewardBackFailed ? (
+          {rewardBackImage && !rewardBackFailed ? (
             <img
               src={rewardBackImage}
               alt="보상 카드 뒷면"
@@ -6622,15 +6592,6 @@ export default function DeckbuilderRoguelikePrototype() {
   }, [
     player,
     playerData,
-    deck,
-    drawPile,
-    hand,
-    discardPile,
-    exhaustPile,
-    enemyIndex,
-    enemies,
-    selectedEnemyIndex,
-    turn,
     phase,
     highestClearedFloor,
     highestUnlockedFloor,
@@ -6670,25 +6631,8 @@ export default function DeckbuilderRoguelikePrototype() {
     diceShards,
     diceShardUpgrades,
     potions,
-    currentDepth,
-    maxDepth,
-    currentRoomType,
-    isRoomCleared,
-    runCompleted,
-    hasRestedInThisRoom,
-    selectedShopCardId,
-    selectedUpgradeCardId,
     log,
-    rewards,
-    flippedRewards,
-    battleReward,
-    cardChoiceOpen,
-    claimedRewardCardId,
-    roomEncounter,
-    roomResult,
-    relics,
     selectedCharacterId,
-    selectedStage,
     selectedFloor,
     currentFloor,
     unlockedFloors,
@@ -8023,42 +7967,16 @@ export default function DeckbuilderRoguelikePrototype() {
       towerGameVersion: TOWER_DICE_GAME_VERSION,
       player,
       selectedCharacter: player.classId || selectedCharacterId,
-      currentRoomId: selectedStage?.id || null,
+      currentRoomId: null,
       currentHp: player.hp,
       currentGold: player.gold,
-      visitedRooms: Array.from(new Set([...(selectedStage?.id ? [selectedStage.id] : []), ...clearedRooms])),
+      visitedRooms: clearedRooms,
       clearedRooms,
-      deck,
-      drawPile,
-      hand,
-      discardPile,
-      exhaustPile,
-      enemyIndex,
-      enemies,
-      selectedEnemyIndex,
-      turn,
       phase,
       gameState: phase,
-      currentDepth,
-      maxDepth,
-      currentRoomType,
-      isRoomCleared,
-      runCompleted,
-      hasRestedInThisRoom,
-      selectedShopCardId,
-      selectedUpgradeCardId,
       upgradeMaterial: player.resources?.manaShard || 0,
       log,
-      rewards,
-      flippedRewards,
-      battleReward,
-      cardChoiceOpen,
-      claimedRewardCardId,
-      roomEncounter,
-      roomResult,
-      relics,
       selectedCharacterId,
-      selectedStage,
       selectedFloor,
       highestClearedFloor,
       highestUnlockedFloor,
@@ -8120,7 +8038,7 @@ export default function DeckbuilderRoguelikePrototype() {
     const restoredMaxDepth = Number(runData?.maxDepth || DEFAULT_MAX_DUNGEON_DEPTH);
     const restoredDepth = clampNumber(Number(runData?.currentDepth || 1), 1, restoredMaxDepth);
     const restoredRoomType = runData?.currentRoomType || getRoomTypeByDepth(restoredDepth, restoredMaxDepth);
-    const restoredPhase =
+    const restoredRawPhase =
       runData?.phase === "combat"
         ? "battle"
         : runData?.phase === "defeat"
@@ -8128,13 +8046,18 @@ export default function DeckbuilderRoguelikePrototype() {
           : runData?.phase === "victory"
             ? "runClear"
             : runData?.phase || "dungeon";
+    const restoredPhase = restoredRawPhase === "battle" && !runData?.currentEnemy
+      ? "tower"
+      : shouldPersistRunData({ ...runData, phase: restoredRawPhase })
+      ? restoredRawPhase
+      : "tower";
     setPlayer(applyTraitEffectsToPlayer({ ...INITIAL_PLAYER, ...(runData?.player || {}) }, normalizedPermanentData));
     setPlayerData(normalizedPermanentData);
-    setDeck(runData?.deck || []);
-    setDrawPile(runData?.drawPile || []);
-    setHand(runData?.hand || []);
-    setDiscardPile(runData?.discardPile || []);
-    setExhaustPile(runData?.exhaustPile || []);
+    setDeck([]);
+    setDrawPile([]);
+    setHand([]);
+    setDiscardPile([]);
+    setExhaustPile([]);
     setEnemyIndex(runData?.enemyIndex || 0);
     setEnemies(runData?.enemies || [createEnemy(0)]);
     setSelectedEnemyIndex(runData?.selectedEnemyIndex || 0);
@@ -8148,16 +8071,16 @@ export default function DeckbuilderRoguelikePrototype() {
     setHasRestedInThisRoom(Boolean(runData?.hasRestedInThisRoom));
     setSelectedShopCardId(runData?.selectedShopCardId || null);
     setSelectedUpgradeCardId(runData?.selectedUpgradeCardId || null);
-    setRewards(runData?.rewards || []);
-    setFlippedRewards(runData?.flippedRewards || []);
-    setBattleReward(runData?.battleReward || null);
-    setCardChoiceOpen(Boolean(runData?.cardChoiceOpen));
-    setClaimedRewardCardId(runData?.claimedRewardCardId || null);
-    setRoomEncounter(runData?.roomEncounter || null);
-    setRoomResult(runData?.roomResult || null);
-    setRelics(runData?.relics || []);
+    setRewards([]);
+    setFlippedRewards([]);
+    setBattleReward(null);
+    setCardChoiceOpen(false);
+    setClaimedRewardCardId(null);
+    setRoomEncounter(null);
+    setRoomResult(null);
+    setRelics([]);
     setSelectedCharacterId(runData?.selectedCharacterId || runData?.player?.classId || null);
-    setSelectedStage(runData?.selectedStage || null);
+    setSelectedStage(null);
     setSelectedFloor(runData?.selectedFloor || 1);
     setHighestClearedFloor(Math.max(0, Number(runData?.highestClearedFloor || 0)));
     setHighestUnlockedFloor(Math.max(1, Number(runData?.highestUnlockedFloor || 1)));
@@ -8258,10 +8181,10 @@ export default function DeckbuilderRoguelikePrototype() {
       restoreRunData(savedRunData, savedPermanentData, "이어하기로 저장된 진행상황을 불러왔습니다.");
       return;
     }
-    setPhase("character-select");
+    startGame();
   }
 
-  function resetRunState(nextPhase = "start", nextLog = ["게임 시작을 눌러 새 런을 시작하세요."]) {
+  function resetRunState(nextPhase = "title", nextLog = ["게임 시작을 눌러 새 등반을 시작하세요."]) {
     clearRunData();
     setHasSavedRun(false);
     setPlayer(INITIAL_PLAYER);
@@ -8353,12 +8276,12 @@ export default function DeckbuilderRoguelikePrototype() {
   }
 
   function handleClearRunProgress() {
-    const confirmed = window.confirm("현재 진행 중인 던전 진행상황만 초기화됩니다.\n특성 포인트와 특성은 유지됩니다.\n정말 초기화하시겠습니까?");
+    const confirmed = window.confirm("현재 진행 중인 탑 등반 진행상황만 초기화됩니다.\n정말 초기화하시겠습니까?");
     if (!confirmed) return;
-    resetRunState("character-select", ["진행 중인 던전만 초기화했습니다. 특성 데이터는 유지됩니다."]);
+    resetRunState("title", ["진행 중인 등반을 초기화했습니다."]);
   }
 
-  function handlePlayerDeath(message = "패배했습니다. 덱 구성을 다시 조정해 보세요.") {
+  function handlePlayerDeath(message = "패배했습니다. 다음 등반을 준비하세요.") {
     clearRunData();
     setHasSavedRun(false);
     savePermanentData(playerData);
@@ -8752,7 +8675,7 @@ export default function DeckbuilderRoguelikePrototype() {
 
   function enterSelectedFloor() {
     if (!player.classId) {
-      setPhase("character-select");
+      setPhase("difficultySelect");
       return;
     }
     if (!isFloorUnlocked(unlockedFloors, selectedFloor) || clearedFloors.includes(selectedFloor)) return;
@@ -8807,14 +8730,14 @@ export default function DeckbuilderRoguelikePrototype() {
     setLog([
       `상황: ${encounter.situation}`,
       encounter.type === "shop"
-        ? "선택지: 카드 클릭 구매 / 덱 열기 판매 / 체력 회복 / 상점 떠나기"
+        ? "선택지: 전투 준비 구매 / 체력 회복 / 상점 떠나기"
         : `선택지: ${encounter.choices.map((choice) => choice.label).join(" / ")}`,
     ]);
   }
 
   function selectStage(stage) {
     if (!player.classId) {
-      setPhase("character-select");
+      setPhase("difficultySelect");
       return;
     }
 
@@ -9632,7 +9555,7 @@ export default function DeckbuilderRoguelikePrototype() {
       setRageStacks(nextRage);
       setSpeedGauge(nextGauge);
       setIsCardAnimating(false);
-      handlePlayerDeath("패배했습니다. 덱 구성을 다시 조정해 보세요.");
+      handlePlayerDeath("패배했습니다. 다음 등반을 준비하세요.");
       return;
     }
 
@@ -9735,7 +9658,7 @@ export default function DeckbuilderRoguelikePrototype() {
   }
 
   function restart() {
-    resetRunState("start", ["게임 시작을 눌러 새 런을 시작하세요. 특성 데이터는 유지됩니다."]);
+    resetRunState("title", ["게임 시작을 눌러 새 등반을 시작하세요."]);
   }
 
   function restartRun() {
@@ -10280,8 +10203,8 @@ export default function DeckbuilderRoguelikePrototype() {
             ].map((item) => (
               <article key={item.id} className="upgrade-card dice-upgrade-card">
                 <div className="mb-4 flex gap-2">
-                  <DiceBox value="⚂" tone="player" className="h-12 w-12 text-2xl" />
-                  <DiceBox value="⚅" tone="defense" className="h-12 w-12 text-2xl" />
+                  <DiceBox value="?" tone="player" className="h-12 w-12 text-2xl" />
+                  <DiceBox value="?" tone="defense" className="h-12 w-12 text-2xl" />
                 </div>
                 <h2 className="text-2xl font-black">{item.title}</h2>
                 <div className="mt-3 text-3xl font-black">{item.value}</div>
@@ -10310,7 +10233,7 @@ export default function DeckbuilderRoguelikePrototype() {
         <GamePanel className="mx-auto max-w-5xl p-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <SectionTitle eyebrow="Tiny Market" title="상점">
-              다음 전투를 가볍게 유리하게 만드는 준비 카드입니다.
+              다음 전투를 유리하게 만드는 회복과 전투 준비를 구매합니다.
             </SectionTitle>
             <ResourceBadge>골드 {player.gold || 0}</ResourceBadge>
           </div>
@@ -10753,7 +10676,7 @@ export default function DeckbuilderRoguelikePrototype() {
             <span />
           </div>
           <div className="mx-auto mb-5 grid h-24 w-24 place-items-center rounded-[28px] border border-amber-200/50 bg-amber-200/10 text-5xl shadow-[0_0_70px_rgba(242,198,109,0.24)]">
-            ⚂
+            ?
           </div>
           <div className="title-eyebrow">Cute Dark Fantasy Boardgame</div>
           <h1 className="game-logo mt-3">Dice Tower</h1>
@@ -10779,7 +10702,7 @@ export default function DeckbuilderRoguelikePrototype() {
             )}
           </div>
           <div className="title-dice-row" aria-hidden="true">
-            <span>⚀</span><span>⚁</span><span>⚂</span><span>⚃</span><span>⚄</span><span>⚅</span>
+            <span>?</span><span>?</span><span>?</span><span>?</span><span>?</span><span>?</span>
           </div>
         </GamePanel>
       </div>
@@ -11435,7 +11358,7 @@ export default function DeckbuilderRoguelikePrototype() {
                 </div>
                 <div className="rounded-xl bg-slate-100 p-3">
                   <div className="text-slate-500">속도</div>
-                  <div className="text-lg font-black">{player.speed} ⚡</div>
+                  <div className="text-lg font-black">{player.speed} ?</div>
                 </div>
                 <div className="rounded-xl bg-slate-100 p-3">
                   <div className="text-slate-500">골드</div>
@@ -11614,7 +11537,7 @@ export default function DeckbuilderRoguelikePrototype() {
                             <div className="mt-4 grid grid-cols-3 gap-2 text-xs font-bold">
                               <div className="rounded-lg bg-white/75 px-2 py-1">HP {character.hp}</div>
                               <div className="rounded-lg bg-white/75 px-2 py-1">ATK {character.attack}</div>
-                              <div className="rounded-lg bg-white/75 px-2 py-1">SPD {character.speed}⚡</div>
+                              <div className="rounded-lg bg-white/75 px-2 py-1">SPD {character.speed}?</div>
                             </div>
                           </div>
                         </motion.button>
@@ -11633,7 +11556,7 @@ export default function DeckbuilderRoguelikePrototype() {
                         <span className="rounded-lg bg-white px-3 py-1">체력 {activeCharacter.hp}</span>
                         <span className="rounded-lg bg-white px-3 py-1">공격 {activeCharacter.attack}</span>
                         <span className="rounded-lg bg-white px-3 py-1">방어 {activeCharacter.defense}</span>
-                        <span className="rounded-lg bg-yellow-100 px-3 py-1">속도 {activeCharacter.speed} ⚡</span>
+                        <span className="rounded-lg bg-yellow-100 px-3 py-1">속도 {activeCharacter.speed} ?</span>
                       </div>
                       <div className="mt-3 text-xs text-slate-600">턴 예시: {speedPreview}</div>
                     </div>
